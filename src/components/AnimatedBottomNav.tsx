@@ -103,8 +103,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 50,
-    alignItems: "center",
-    paddingHorizontal: 12
+    alignItems: "center"
   },
   bottomNav: {
     width: "100%",

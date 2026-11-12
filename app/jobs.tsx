@@ -245,10 +245,10 @@ function JobCard({
 }) {
   return (
     <Pressable accessibilityRole="button" onPress={onOpen} style={({ pressed }) => [styles.jobCard, pressed && styles.pressed]}>
-      <View style={styles.priceRow}>
+      <View style={styles.jobHeader}>
+        <Text style={styles.jobTitle}>{task.title}</Text>
         <Text style={styles.price}>{formatTaskPrice(task)}</Text>
       </View>
-      <Text style={styles.jobTitle}>{task.title}</Text>
       <Text style={styles.employerName}>Posted by {employerName}</Text>
       <Text style={styles.jobMeta}>{formatRelativeTime(task.createdAt)}</Text>
       <Text style={styles.jobMeta}>{formatTaskSchedule(task)}</Text>
@@ -370,9 +370,9 @@ const styles = StyleSheet.create({
   jobCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 12, ...interactiveCardShadow },
   urgentBadge: { position: "absolute", left: 16, top: 16, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: palette.secondaryContainer },
   urgentText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "900" },
-  priceRow: { alignItems: "flex-end" },
+  jobHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   price: { color: palette.primary, fontSize: 20, lineHeight: 28, fontWeight: "900" },
-  jobTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "800" },
+  jobTitle: { flex: 1, flexShrink: 1, color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "800" },
   employerName: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "800" },
   jobMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   jobDescription: { color: palette.muted, fontSize: 14, lineHeight: 20 },
