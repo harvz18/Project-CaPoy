@@ -476,7 +476,12 @@ function Dashboard({ scope }: { scope: Scope }) {
   );
 }
 
-function usePaged<T>(name: string, field: string, filter?: { field: string; value: string | number }) {
+function usePaged<T>(
+  name: string,
+  field: string,
+  filter?: { field: string; value: string | number },
+  sortDirection: "asc" | "desc" = "asc",
+) {
   const [items, setItems] = useState<T[]>([]);
   const [cursor, setCursor] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -488,7 +493,14 @@ function usePaged<T>(name: string, field: string, filter?: { field: string; valu
       setLoading(true);
       setError("");
       try {
-        const page = await loadPage<T>(name, field, PAGE_SIZE, nextCursor, filter ? [where(filter.field, "==", filter.value)] : []);
+        const page = await loadPage<T>(
+          name,
+          field,
+          PAGE_SIZE,
+          nextCursor,
+          filter ? [where(filter.field, "==", filter.value)] : [],
+          sortDirection,
+        );
         setItems(page.items);
         setCursor(page.cursor);
         setHasMore(page.hasMore);
@@ -499,7 +511,7 @@ function usePaged<T>(name: string, field: string, filter?: { field: string; valu
         setLoading(false);
       }
     },
-    [field, filter?.field, filter?.value, name],
+    [field, filter?.field, filter?.value, name, sortDirection],
   );
   useEffect(() => {
     setHistory([]);
@@ -696,7 +708,8 @@ function UsersPage({
 }
 
 function TasksPage() {
-  const page = usePaged<Task>("tasks", "createdAt");
+  const [dateOrder, setDateOrder] = useState<"asc" | "desc">("desc");
+  const page = usePaged<Task>("tasks", "createdAt", undefined, dateOrder);
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState(() => searchParams.get("status") ?? "all");
@@ -723,6 +736,15 @@ function TasksPage() {
         </div>
         <div className="toolbar">
           <SearchBox value={search} onChange={setSearch} />
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")}
+            title="Change the created-date order"
+            aria-label={`Sort by created date: ${dateOrder === "desc" ? "newest first" : "oldest first"}. Activate to reverse.`}
+          >
+            {dateOrder === "desc" ? "Newest first" : "Oldest first"}
+          </button>
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value)}
