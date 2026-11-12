@@ -80,7 +80,7 @@ export async function getAdminModerationUsers() {
   return response.users;
 }
 export async function reviewVerification(userId: string, decision: "Verified" | "Rejected" | "Needs Resubmission", reason: string) {
-  await httpsCallable(requireServices().functions, "reviewWorkerVerification")({ userId, decision, reason });
+  await postAdminApi("/api/admin/verifications/review", { userId, decision, reason });
 }
 export async function reviewPayment(taskId: string, decision: "Verified" | "Rejected", reason: string) {
   await httpsCallable(requireServices().functions, "reviewPaymentEvidence")({ taskId, decision, reason });

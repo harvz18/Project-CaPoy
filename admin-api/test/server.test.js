@@ -14,6 +14,8 @@ test("health is public and protected API data requires a bearer token", async ()
     assert.equal(protectedRoute.status, 401);
     const protectedModeration = await fetch(`http://127.0.0.1:${port}/api/admin/moderation/account-status`, { method: "POST" });
     assert.equal(protectedModeration.status, 401);
+    const protectedVerificationReview = await fetch(`http://127.0.0.1:${port}/api/admin/verifications/review`, { method: "POST" });
+    assert.equal(protectedVerificationReview.status, 401);
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }

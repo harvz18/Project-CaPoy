@@ -3,6 +3,7 @@ const { cert, getApps, initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore } = require("firebase-admin/firestore");
 const { authorityFromClaims, buildAccountStatusChange, hasSuperadminAuthority, toModerationUser } = require("../functions/authority");
+const { buildIdentityReview } = require("../functions/identity");
 
 class ApiError extends Error {
   constructor(status, message) {
@@ -75,6 +76,133 @@ function requiredBodyString(request, fieldName) {
     throw new ApiError(400, `${fieldName} is required.`);
   }
   return value.trim();
+}
+
+function optionalBodyString(request, fieldName) {
+  const value = request.body?.[fieldName];
+  if (value === undefined || value === null) return "";
+  if (typeof value !== "string") throw new ApiError(400, `${fieldName} must be text.`);
+  return value.trim();
+}
+
+async function hasStoredVerificationDocument(transaction, db, userId, path, kind) {
+  if (typeof path !== "string") return false;
+  // Keep support for legacy Storage-backed documents while rigorously checking
+  // the Firestore-backed upload format used by the current free-plan flow.
+  if (path.startsWith(`verification/${userId}/`)) return true;
+  if (path !== `firestoreVerification/${userId}/${kind}`) return false;
+  const fileRef = db.collection("verificationFiles").doc(userId).collection("uploads").doc(kind);
+  const snapshot = await transaction.get(fileRef);
+  if (!snapshot.exists) return false;
+  const file = snapshot.data();
+  const validMetadata = file.userId === userId
+    && file.kind === kind
+    && file.uploaderId === userId
+    && file.status === "ready"
+    && typeof file.fileName === "string"
+    && typeof file.mimeType === "string"
+    && typeof file.version === "string"
+    && Number.isInteger(file.chunkCount)
+    && file.chunkCount > 0
+    && file.chunkCount <= 16
+    && Number.isInteger(file.encodedSize)
+    && file.encodedSize > 0;
+  if (!validMetadata) return false;
+  const chunkLengths = await Promise.all(Array.from({ length: file.chunkCount }, async (_, index) => {
+    const chunk = await transaction.get(fileRef.collection("chunks").doc(index.toString().padStart(3, "0")));
+    const data = chunk.data();
+    return chunk.exists
+      && data.userId === userId
+      && data.kind === kind
+      && data.uploaderId === userId
+      && data.version === file.version
+      && data.index === index
+      && typeof data.data === "string"
+      && data.data.length > 0
+      ? data.data.length
+      : -1;
+  }));
+  return chunkLengths.every((length) => length > 0)
+    && chunkLengths.reduce((total, length) => total + length, 0) === file.encodedSize;
+}
+
+async function reviewVerification({ request, db, claims }) {
+  const userId = requiredBodyString(request, "userId");
+  const decision = requiredBodyString(request, "decision");
+  const reason = optionalBodyString(request, "reason");
+  if (!new Set(["Verified", "Rejected", "Needs Resubmission"]).has(decision)) {
+    throw new ApiError(400, "Unsupported verification decision.");
+  }
+  if (decision !== "Verified" && !reason) {
+    throw new ApiError(400, "A reason is required when verification is not approved.");
+  }
+
+  const requestRef = db.collection("verificationRequests").doc(userId);
+  const userRef = db.collection("users").doc(userId);
+  const reviewedAt = new Date().toISOString();
+  await db.runTransaction(async (transaction) => {
+    const [verificationSnapshot, userSnapshot] = await Promise.all([
+      transaction.get(requestRef),
+      transaction.get(userRef)
+    ]);
+    if (!verificationSnapshot.exists || !userSnapshot.exists) {
+      throw new ApiError(404, "Verification request or user account was not found.");
+    }
+    if (verificationSnapshot.data().status !== "Pending Verification") {
+      throw new ApiError(409, "This verification request has already been reviewed.");
+    }
+    const user = userSnapshot.data();
+    if (!new Set(["worker", "client"]).has(user.role)) {
+      throw new ApiError(409, "Only employer and tasker accounts can be verified.");
+    }
+    const verification = verificationSnapshot.data();
+    const hasAllRequiredDocuments = (await Promise.all([
+      hasStoredVerificationDocument(transaction, db, userId, verification.validIdPath, "valid-id"),
+      hasStoredVerificationDocument(transaction, db, userId, verification.medicalCertificatePath, "medical-certificate"),
+      hasStoredVerificationDocument(transaction, db, userId, verification.policeClearancePath, "police-clearance")
+    ])).every(Boolean);
+    if (decision === "Verified" && !hasAllRequiredDocuments) {
+      throw new ApiError(409, "A valid ID, medical certificate, and police clearance are required before approval.");
+    }
+
+    const identityReview = buildIdentityReview(decision, reviewedAt, claims.uid);
+    const verificationReview = {
+      verificationStatus: decision,
+      verificationReviewReason: reason || null,
+      ...identityReview,
+      updatedAt: reviewedAt
+    };
+    transaction.update(requestRef, {
+      status: decision,
+      reviewedAt,
+      reviewedBy: claims.uid,
+      reviewReason: reason,
+      updatedAt: reviewedAt
+    });
+    transaction.update(userRef, verificationReview);
+    transaction.set(db.collection(user.role === "worker" ? "workerProfiles" : "clientProfiles").doc(userId), verificationReview, { merge: true });
+    transaction.set(db.collection("publicProfiles").doc(userId), { verificationStatus: decision, updatedAt: reviewedAt }, { merge: true });
+    transaction.set(db.collection("notifications").doc(), {
+      userId,
+      createdBy: claims.uid,
+      notificationType: "Verification review",
+      message: decision === "Verified"
+        ? "Your TaskLink verification was approved."
+        : `Your TaskLink verification needs attention: ${reason}`,
+      readStatus: false,
+      createdAt: reviewedAt
+    });
+    transaction.set(db.collection("auditLogs").doc(), {
+      actorId: claims.uid,
+      action: "review_worker_verification",
+      targetType: "verification",
+      targetId: userId,
+      reason,
+      metadata: { decision },
+      createdAt: reviewedAt
+    });
+  });
+  return { ok: true, status: decision };
 }
 
 async function changeAccountStatus({ request, db, claims }) {
@@ -164,6 +292,7 @@ function createServer() {
     const snapshot = await db.collection("verificationRequests").where("status", "==", "Pending Verification").limit(100).get();
     return { requests: withIds(snapshot) };
   }));
+  app.post("/api/admin/verifications/review", route("admin", reviewVerification));
   app.get("/api/admin/payments/submitted", route("admin", async ({ db }) => {
     const snapshot = await db.collection("payments").where("paymentStatus", "==", "Submitted").limit(100).get();
     return { payments: withIds(snapshot) };
