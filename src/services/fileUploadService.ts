@@ -1,4 +1,5 @@
 import * as DocumentPicker from "expo-document-picker";
+import { File } from "expo-file-system";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { Platform } from "react-native";
@@ -313,13 +314,33 @@ function base64ByteLength(base64: string) {
 async function readFileAsBase64(uri: string, label: string) {
   if (Platform.OS !== "web") {
     try {
+      const base64 = await new File(uri).base64();
+      if (base64) return base64;
+    } catch {
+      // Some Android providers expose gallery selections as content URIs. Fall
+      // back to the legacy API and, if necessary, an explicit cache copy.
+    }
+    try {
       const base64 = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64
       });
       if (base64) return base64;
     } catch {
-      // The web fallback below is intentionally limited to web. On Android,
-      // FileSystem handles the cached URI returned by Expo DocumentPicker.
+      // Continue with an explicit cache copy below for Android content URIs.
+    }
+    try {
+      const cacheDirectory = FileSystem.cacheDirectory;
+      if (cacheDirectory) {
+        const cachedUri = `${cacheDirectory}tasklink-upload-${Date.now()}-${Math.random().toString(36).slice(2)}.bin`;
+        await FileSystem.copyAsync({ from: uri, to: cachedUri });
+        const base64 = await FileSystem.readAsStringAsync(cachedUri, {
+          encoding: FileSystem.EncodingType.Base64
+        });
+        if (base64) return base64;
+      }
+    } catch {
+      // Report one clear, actionable error below if every supported native
+      // reader rejects the selected file.
     }
     throw new Error(`Unable to read the selected ${label}. Choose the file again and retry.`);
   }
