@@ -3,7 +3,7 @@ import { httpsCallable } from "firebase/functions";
 import { getDownloadURL, ref } from "firebase/storage";
 import { db, functions, storage } from "./firebase";
 import { getAdminApi, postAdminApi } from "./adminApi";
-import { Analytics, AuditLog, BasicDashboardCounts, Payment, Profile, Rating, SuperadminOverview, Task, TaskMatch, VerificationRequest } from "./types";
+import { Analytics, AuditLog, BasicDashboardCounts, ModerationUser, Payment, Profile, Rating, SuperadminOverview, Task, TaskMatch, VerificationRequest } from "./types";
 
 function requireServices() { if (!db || !functions) throw new Error("Firebase is not configured."); return { db, functions }; }
 function records<T>(snapshot: { docs: QueryDocumentSnapshot<DocumentData>[] }) { return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as T); }
@@ -74,6 +74,10 @@ export async function getAnalytics(preset: "today" | "7d" | "30d") {
 }
 export async function getSuperadminOverview() {
   return getAdminApi<SuperadminOverview>("/api/admin/superadmin/overview");
+}
+export async function getAdminModerationUsers() {
+  const response = await getAdminApi<{ users: ModerationUser[] }>("/api/admin/moderation/users");
+  return response.users;
 }
 export async function reviewVerification(userId: string, decision: "Verified" | "Rejected" | "Needs Resubmission", reason: string) {
   await httpsCallable(requireServices().functions, "reviewWorkerVerification")({ userId, decision, reason });

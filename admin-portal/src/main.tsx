@@ -37,7 +37,7 @@ import { AuthProvider, useAuth } from "./auth";
 import { firebaseConfigured } from "./firebase";
 import {
   changeAccountStatus,
-  correctName,
+  getAdminModerationUsers,
   getBasicDashboardCounts,
   getFeedbackCount,
   getSuperadminOverview,
@@ -522,27 +522,22 @@ function usePaged<T>(name: string, field: string, filter?: { field: string; valu
   };
 }
 
-function useModerationStatuses(enabled: boolean) {
+function useModerationStatuses() {
   const [statuses, setStatuses] = useState<Record<string, Profile>>({});
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(enabled);
+  const [loading, setLoading] = useState(true);
   const refresh = useCallback(async () => {
-    if (!enabled) {
-      setStatuses({});
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     try {
-      const overview = await getSuperadminOverview();
-      setStatuses(Object.fromEntries(overview.users.map((user) => [user.id, user])));
+      const users = await getAdminModerationUsers();
+      setStatuses(Object.fromEntries(users.map((user) => [user.id, user])));
       setError("");
     } catch (failure) {
       setError(errorText(failure));
     } finally {
       setLoading(false);
     }
-  }, [enabled]);
+  }, []);
   useEffect(() => { void refresh(); }, [refresh]);
   return { statuses, error, loading, refresh };
 }
@@ -583,17 +578,15 @@ function UsersPage({
   notify: (notice: Notice) => void;
 }) {
   const page = usePaged<Profile>("publicProfiles", "fullName");
-  const moderation = useModerationStatuses(scope === "superadmin");
+  const moderation = useModerationStatuses();
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [role, setRole] = useState(() => searchParams.get("role") === "client" || searchParams.get("role") === "worker" ? searchParams.get("role") as string : "all");
   const [modal, setModal] = useState<{
     user: Profile;
-    action: "suspend" | "active" | "name";
+    action: "suspend" | "active";
   } | null>(null);
-  const users = scope === "superadmin"
-    ? page.items.map((user) => ({ ...user, ...moderation.statuses[user.id] }))
-    : page.items;
+  const users = page.items.map((user) => ({ ...user, ...moderation.statuses[user.id] }));
   const filtered = users.filter(
     (user) =>
       (role === "all" || user.role === role) &&
@@ -629,7 +622,7 @@ function UsersPage({
       </div>
       <Panel
         title="Accounts"
-        description={scope === "superadmin" ? "Restriction status is loaded from the trusted moderation record." : "Search and filter the current result page"}
+        description="Restriction status is loaded from the trusted moderation record."
       >
         <Table
           headers={[
@@ -637,7 +630,7 @@ function UsersPage({
             "Role",
             "Identity",
             "Rating",
-            ...(scope === "superadmin" ? ["Actions"] : []),
+            "Actions",
           ]}
         >
           {filtered.map((user) => (
@@ -661,32 +654,24 @@ function UsersPage({
                 {user.rating ?? 0}
                 {user.ratingCount ? ` (${user.ratingCount})` : ""}
               </td>
-              {scope === "superadmin" ? (
-                <td>
-                  <div className="row-actions">
-                    <button
-                      className="text-button danger-text"
-                      disabled={moderation.loading || Boolean(moderation.error) || user.accountStatus === "suspended"}
-                      onClick={() => setModal({ user, action: "suspend" })}
-                    >
-                      Restrict
-                    </button>
-                    <button
-                      className="text-button"
-                      disabled={moderation.loading || Boolean(moderation.error) || user.accountStatus !== "suspended"}
-                      onClick={() => setModal({ user, action: "active" })}
-                    >
-                      Reactivate
-                    </button>
-                    <button
-                      className="text-button"
-                      onClick={() => setModal({ user, action: "name" })}
-                    >
-                      Correct name
-                    </button>
-                  </div>
-                </td>
-              ) : null}
+              <td>
+                <div className="row-actions">
+                  <button
+                    className="text-button danger-text"
+                    disabled={moderation.loading || Boolean(moderation.error) || user.accountStatus === "suspended"}
+                    onClick={() => setModal({ user, action: "suspend" })}
+                  >
+                    Restrict
+                  </button>
+                  <button
+                    className="text-button"
+                    disabled={moderation.loading || Boolean(moderation.error) || user.accountStatus !== "suspended"}
+                    onClick={() => setModal({ user, action: "active" })}
+                  >
+                    Reactivate
+                  </button>
+                </div>
+              </td>
             </tr>
           ))}
         </Table>
@@ -1394,46 +1379,29 @@ function UserActionModal({
   notify,
   refreshed,
 }: {
-  modal: { user: Profile; action: "suspend" | "active" | "name" };
+  modal: { user: Profile; action: "suspend" | "active" };
   close: () => void;
   notify: (notice: Notice) => void;
   refreshed: () => void;
 }) {
   const [reason, setReason] = useState("");
-  const [evidenceReference, setEvidenceReference] = useState("");
-  const [name, setName] = useState(modal.user.fullName || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const title =
     modal.action === "suspend"
       ? "Restrict account"
-      : modal.action === "active"
-        ? "Reactivate account"
-        : "Correct locked name";
+      : "Reactivate account";
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (modal.action === "name" && !name.trim()) {
-      setError("Enter the corrected full name.");
-      return;
-    }
-    if (modal.action === "suspend" && !evidenceReference.trim()) {
-      setError("Provide an evidence reference before restricting an account.");
-      return;
-    }
     setBusy(true);
     setError("");
     const auditNote = reason.trim() || "No additional note provided.";
     try {
-      if (modal.action === "name")
-        await correctName(modal.user.id, name, auditNote);
-      else
-        await changeAccountStatus(
-          modal.user.id,
-          modal.action === "active" ? "active" : "suspended",
-          auditNote,
-          "",
-          evidenceReference.trim(),
-        );
+      await changeAccountStatus(
+        modal.user.id,
+        modal.action === "active" ? "active" : "suspended",
+        auditNote,
+      );
       notify({ tone: "success", message: `${title} completed.` });
       refreshed();
       close();
@@ -1449,16 +1417,6 @@ function UserActionModal({
         <p>
           <strong>{modal.user.fullName || modal.user.id}</strong>
         </p>
-        {modal.action === "name" ? (
-          <label>
-            Correct full name
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              required
-            />
-          </label>
-        ) : null}
         <label>
           Optional audit note
           <textarea
@@ -1466,27 +1424,12 @@ function UserActionModal({
             onChange={(event) => setReason(event.target.value)}
           />
         </label>
-        {modal.action === "suspend" ? (
-          <label>
-            Evidence reference
-            <input
-              value={evidenceReference}
-              onChange={(event) => setEvidenceReference(event.target.value)}
-              placeholder="Report ID or authorized evidence reference"
-              required
-            />
-          </label>
-        ) : null}
         {error ? <p className="inline-error">{error}</p> : null}
         <ModalActions
           busy={busy}
           close={close}
           confirm={
-            modal.action === "suspend"
-              ? "Restrict account"
-              : modal.action === "active"
-                ? "Reactivate account"
-                : "Save correction"
+            modal.action === "suspend" ? "Restrict account" : "Reactivate account"
           }
           danger={modal.action === "suspend"}
         />

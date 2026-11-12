@@ -53,9 +53,6 @@ function buildAccountStatusChange({
   const normalizedReason = normalizeText(reason, "Reason", 10, 500);
   const normalizedEvidence = optionalReference(evidenceReference);
   const normalizedReportId = optionalReference(violationReportId, "Violation report ID");
-  if (accountStatus === "suspended" && !normalizedEvidence && !normalizedReportId) {
-    throw new Error("An evidence reference or violation report ID is required to restrict an account.");
-  }
   const previousAccountStatus = target.accountStatus ?? "active";
   if (previousAccountStatus === accountStatus) {
     throw new Error(`This account is already ${accountStatus}.`);

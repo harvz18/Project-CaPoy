@@ -27,7 +27,7 @@ test("custom claims resolve to the strongest trusted authority", () => {
   assert.equal(hasSuperadminAuthority({ superadmin: true }), true);
 });
 
-test("restriction requires a reason and an evidence reference and records both values", () => {
+test("restriction requires a reason while evidence remains optional and auditable", () => {
   const result = buildAccountStatusChange({
     actorId: "super-1",
     targetId: "worker-1",
@@ -41,10 +41,11 @@ test("restriction requires a reason and an evidence reference and records both v
   assert.equal(result.update.restrictedBy, "super-1");
   assert.equal(result.audit.metadata.previousAccountStatus, "active");
   assert.equal(result.audit.metadata.evidenceReference, "report-2026-001");
-  assert.throws(() => buildAccountStatusChange({
-    actorId: "super-1", targetId: "worker-1", target: activeWorker,
+  const withoutEvidence = buildAccountStatusChange({
+    actorId: "admin-1", targetId: "worker-1", target: activeWorker,
     accountStatus: "suspended", reason: "A valid reason is provided.", changedAt: "now"
-  }), /evidence reference/i);
+  });
+  assert.equal(withoutEvidence.audit.metadata.evidenceReference, null);
 });
 
 test("reactivation and self-moderation guards preserve authority boundaries", () => {

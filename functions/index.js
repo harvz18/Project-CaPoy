@@ -421,7 +421,7 @@ exports.reviewPaymentEvidence = onCall({ region: REGION }, async (request) => {
 });
 
 exports.setUserAccountStatus = onCall({ region: REGION }, async (request) => {
-  const superadminId = requireSuperadmin(request);
+  const adminId = requireAdmin(request);
   const userId = requiredString(request.data?.userId, "userId");
   const accountStatus = requiredString(request.data?.accountStatus, "accountStatus");
   const reason = requiredString(request.data?.reason, "reason");
@@ -446,7 +446,7 @@ exports.setUserAccountStatus = onCall({ region: REGION }, async (request) => {
     }
     const changedAt = nowIso();
     const change = buildModerationChange(() => buildAccountStatusChange({
-      actorId: superadminId,
+      actorId: adminId,
       targetId: userId,
       target: userSnapshot.data(),
       accountStatus,
@@ -460,7 +460,7 @@ exports.setUserAccountStatus = onCall({ region: REGION }, async (request) => {
       transaction.update(reportRef, {
         status: "Actioned",
         actionedAt: changedAt,
-        actionedBy: superadminId,
+        actionedBy: adminId,
         updatedAt: changedAt
       });
     }

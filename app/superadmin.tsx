@@ -5,12 +5,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Href, useRouter } from "expo-router";
 import { useApp } from "../src/context/AppContext";
 import {
-  correctLockedFullName,
   loadSuperadminOverview,
   moderateUserAccount,
   SuperadminOverview
 } from "../src/services/adminService";
-import { ModerationUser } from "../src/types";
 import { colors } from "../src/theme";
 
 const emptyOverview: SuperadminOverview = { users: [], reports: [], auditLogs: [] };
@@ -20,9 +18,6 @@ export default function SuperadminScreen() {
   const { currentUser, logout } = useApp();
   const [data, setData] = useState<SuperadminOverview>(emptyOverview);
   const [reason, setReason] = useState("");
-  const [evidenceReference, setEvidenceReference] = useState("");
-  const [correctionTarget, setCorrectionTarget] = useState<ModerationUser | null>(null);
-  const [correctedName, setCorrectedName] = useState("");
   const [busyKey, setBusyKey] = useState("");
   const [error, setError] = useState("");
 
@@ -52,7 +47,6 @@ export default function SuperadminScreen() {
       await action();
       await refresh();
       setReason("");
-      setEvidenceReference("");
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Unable to complete this action.");
     } finally {
@@ -63,11 +57,6 @@ export default function SuperadminScreen() {
   async function handleLogout() {
     await logout();
     router.replace("/login");
-  }
-
-  function selectCorrection(user: ModerationUser) {
-    setCorrectionTarget(user);
-    setCorrectedName(user.fullName);
   }
 
   return (
@@ -96,9 +85,9 @@ export default function SuperadminScreen() {
         </View>
 
         <View style={styles.notice}>
-          <Text style={styles.cardTitle}>Required moderation record</Text>
+          <Text style={styles.cardTitle}>Moderation record</Text>
           <Text style={styles.help}>
-            Give a clear reason. Restricting an account also requires an evidence reference or a linked violation report.
+            Give a clear reason before restricting or reactivating an account.
           </Text>
           <TextInput
             value={reason}
@@ -106,12 +95,6 @@ export default function SuperadminScreen() {
             placeholder="Decision reason (at least 10 characters)"
             multiline
             style={[styles.input, styles.multiline]}
-          />
-          <TextInput
-            value={evidenceReference}
-            onChangeText={setEvidenceReference}
-            placeholder="Evidence URL, file path, or external reference"
-            style={styles.input}
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
@@ -132,7 +115,7 @@ export default function SuperadminScreen() {
                     report.targetUserId,
                     "suspended",
                     reason,
-                    evidenceReference,
+                    "",
                     report.id
                   ))}
                 />
@@ -161,14 +144,8 @@ export default function SuperadminScreen() {
                       user.id,
                       suspended ? "active" : "suspended",
                       reason,
-                      evidenceReference
+                      ""
                     ))}
-                  />
-                  <Action
-                    label="Correct locked name"
-                    tone="neutral"
-                    disabled={Boolean(busyKey)}
-                    onPress={() => selectCorrection(user)}
                   />
                 </View>
               </View>
@@ -176,31 +153,6 @@ export default function SuperadminScreen() {
           })}
         </Section>
 
-        {correctionTarget ? (
-          <View style={styles.notice}>
-            <Text style={styles.sectionTitle}>Correct locked name</Text>
-            <Text style={styles.help}>Selected: {correctionTarget.fullName}. Only approved identities can use this action.</Text>
-            <TextInput value={correctedName} onChangeText={setCorrectedName} style={styles.input} />
-            <View style={styles.row}>
-              <Action
-                label="Save correction"
-                tone="warning"
-                disabled={Boolean(busyKey)}
-                onPress={() => run(`name:${correctionTarget.id}`, async () => {
-                  await correctLockedFullName(
-                    correctionTarget.id,
-                    correctedName,
-                    reason,
-                    evidenceReference
-                  );
-                  setCorrectionTarget(null);
-                  setCorrectedName("");
-                })}
-              />
-              <Action label="Cancel" tone="neutral" disabled={Boolean(busyKey)} onPress={() => setCorrectionTarget(null)} />
-            </View>
-          </View>
-        ) : null}
 
         <Section title="Recent immutable audit" empty="No moderation actions recorded.">
           {data.auditLogs.slice(0, 20).map((entry) => (

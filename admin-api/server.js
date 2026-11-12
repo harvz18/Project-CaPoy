@@ -111,6 +111,10 @@ function createServer() {
     const snapshot = await db.collection("payments").where("paymentStatus", "==", "Submitted").limit(100).get();
     return { payments: withIds(snapshot) };
   }));
+  app.get("/api/admin/moderation/users", route("admin", async ({ db }) => {
+    const users = await db.collection("users").where("role", "in", ["client", "worker"]).get();
+    return { users: users.docs.map((document) => toModerationUser(document.id, document.data())) };
+  }));
   app.get("/api/admin/superadmin/overview", route("superadmin", async ({ db }) => {
     const [users, reports, auditLogs] = await Promise.all([
       db.collection("users").where("role", "in", ["client", "worker"]).get(),
