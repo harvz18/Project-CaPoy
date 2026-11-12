@@ -1,4 +1,5 @@
 import { Href, useRouter } from "expo-router";
+import Feather from "@expo/vector-icons/Feather";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { AppText as Text } from "../src/components/AppText";
 import { interactiveCardShadow } from "../src/styles";
@@ -26,7 +27,8 @@ const palette = {
 
 export default function RoleSelectionScreen() {
   const router = useRouter();
-  const { actionLoading, error, setRole } = useApp();
+  const { actionLoading, currentUser, error, setRole } = useApp();
+  const canGoBack = Boolean(currentUser && router.canGoBack());
 
   async function chooseRole(role: PublicRole) {
     try {
@@ -39,7 +41,7 @@ export default function RoleSelectionScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <AppHeader />
+      <AppHeader onBack={canGoBack ? () => router.back() : undefined} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.intro}>
           <Text style={styles.title}>Welcome to TaskLink</Text>
@@ -79,10 +81,15 @@ export default function RoleSelectionScreen() {
   );
 }
 
-function AppHeader() {
+function AppHeader({ onBack }: { onBack?: () => void }) {
   return (
     <View style={styles.header}>
       <View style={styles.headerLeft}>
+        {onBack ? (
+          <Pressable accessibilityLabel="Back to profile" accessibilityRole="button" onPress={onBack} style={styles.iconButton}>
+            <Feather accessibilityElementsHidden color={palette.primary} name="arrow-left" size={22} />
+          </Pressable>
+        ) : null}
         <Text style={styles.brand}>TASKLINK</Text>
       </View>
       <View style={styles.avatar}>

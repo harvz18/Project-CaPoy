@@ -57,7 +57,8 @@ export default function ProfileScreen() {
   const [addressDetails, setAddressDetails] = useState<AddressDetails>(() => ({
     // Registration currently collects one Barangay value. Keep that value in the
     // single Barangay field instead of showing a duplicate generic address box.
-    barangay: currentUser?.address ?? ""
+    barangay: currentUser?.address ?? "",
+    city: "Bacolod City"
   }));
   const [addressMapOpen, setAddressMapOpen] = useState(false);
   const [addressMapCoordinate, setAddressMapCoordinate] = useState<MapCoordinate>();
@@ -92,12 +93,14 @@ export default function ProfileScreen() {
   const [preferredRadiusKm, setPreferredRadiusKm] = useState(String(currentUser?.preferredRadiusKm ?? 5));
   const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
   const [skillDraft, setSkillDraft] = useState<string[]>([]);
+  const [editProfileExpanded, setEditProfileExpanded] = useState(false);
   const fullNameLocked = isIdentityLocked(currentUser);
   const profileRatings = ratings
     .filter((rating) => rating.targetUserId === currentUser?.id)
     .map((rating) => ({
       ...rating,
-      reviewerName: users.find((user) => user.id === rating.reviewerId)?.fullName ?? "TaskLink User"
+      reviewerName: users.find((user) => user.id === rating.reviewerId)?.fullName ?? "TaskLink User",
+      reviewContext: tasks.find((task) => task.id === rating.taskId)?.title ?? "Task review"
     }));
   const averageRating = profileRatings.length
     ? (profileRatings.reduce((total, rating) => total + rating.score, 0) / profileRatings.length).toFixed(1)
@@ -261,6 +264,7 @@ export default function ProfileScreen() {
   function applyAddressDetails(details: AddressDetails, message: string) {
     setAddressDetails((current) => ({
       ...details,
+      city: "Bacolod City",
       // A building/house number is optional and commonly absent from map data;
       // never erase a value the user already entered manually.
       houseNumber: current.houseNumber?.trim() || details.houseNumber
@@ -342,7 +346,12 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <SettingsCard title="Edit Profile">
+        <CollapsibleSettingsCard
+          expanded={editProfileExpanded}
+          onToggle={() => setEditProfileExpanded((expanded) => !expanded)}
+          summary={formattedAddress || "Profile details and address"}
+          title="Edit Profile"
+        >
           <Field
             editable={!fullNameLocked}
             helper={fullNameLocked ? "Locked after identity approval. Contact support to request a correction." : "This name will lock after identity approval."}
@@ -365,7 +374,7 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.twoColumn}>
             <View style={styles.flex}><Field label="Barangay" value={addressDetails.barangay ?? ""} onChangeText={(value) => updateAddressDetail("barangay", value)} placeholder="Barangay" /></View>
-            <View style={styles.flex}><Field label="City / Municipality" value={addressDetails.city ?? ""} onChangeText={(value) => updateAddressDetail("city", value)} placeholder="City" /></View>
+            <View style={styles.flex}><Field editable={false} label="City / Municipality" value="Bacolod City" onChangeText={() => undefined} placeholder="Bacolod City" /></View>
           </View>
           <View style={styles.twoColumn}>
             <View style={styles.flex}><Field label="Province" value={addressDetails.province ?? ""} onChangeText={(value) => updateAddressDetail("province", value)} placeholder="Province" /></View>
@@ -378,7 +387,7 @@ export default function ProfileScreen() {
           <Text style={styles.helperText}>Choose a map pin or search an address to fill these fields. House/building and postal code are optional.</Text>
           {addressLookupMessage ? <Text style={styles.locationMessage}>{addressLookupMessage}</Text> : null}
           <Field label={currentUser?.role === "client" ? "Business Bio" : "Worker Bio"} value={bio} onChangeText={setBio} placeholder="Tell people about yourself" multiline />
-        </SettingsCard>
+        </CollapsibleSettingsCard>
 
         <SettingsCard title="Account security">
           <Text style={styles.helperText}>Email verification is available only for accounts that use a real email address. Mobile-password accounts remain unverified until real SMS verification is configured.</Text>
@@ -539,7 +548,7 @@ export default function ProfileScreen() {
                 key={rating.id}
                 initials={rating.reviewerName[0] ?? "U"}
                 name={rating.reviewerName}
-                date="Task review"
+                date={rating.reviewContext}
                 stars={rating.score}
                 text={rating.feedback}
               />
@@ -669,6 +678,33 @@ function SettingsCard({ title, children }: { title: string; children: React.Reac
   );
 }
 
+function CollapsibleSettingsCard({ expanded, onToggle, summary, title, children }: {
+  expanded: boolean;
+  onToggle: () => void;
+  summary: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.settingsCard}>
+      <Pressable
+        accessibilityLabel={`${expanded ? "Collapse" : "Expand"} ${title}`}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        onPress={onToggle}
+        style={styles.settingsToggle}
+      >
+        <View style={styles.flex}>
+          <Text style={styles.settingsTitle}>{title}</Text>
+          {!expanded ? <Text numberOfLines={1} style={styles.settingsSummary}>{summary}</Text> : null}
+        </View>
+        <Feather accessibilityElementsHidden color={palette.primary} name={expanded ? "chevron-up" : "chevron-down"} size={22} />
+      </Pressable>
+      {expanded ? children : null}
+    </View>
+  );
+}
+
 function Field({
   label,
   value,
@@ -762,7 +798,7 @@ function ReviewCard({ initials, name, date, stars, text }: { initials: string; n
         </View>
         <Text accessibilityLabel={`${score} out of 5 stars`} style={styles.reviewStars}>{"★".repeat(score)}{"☆".repeat(5 - score)} <Text style={styles.reviewScore}>{score}/5</Text></Text>
       </View>
-      <Text style={styles.reviewText}>{text}</Text>
+      {text.trim() ? <Text style={styles.reviewText}>{text}</Text> : null}
     </View>
   );
 }
@@ -796,13 +832,15 @@ const styles = StyleSheet.create({
   statValue: { color: palette.primary, fontSize: 20, lineHeight: 28, fontWeight: "900", textAlign: "center" },
   settingsCard: { padding: 16, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, gap: 12 },
   settingsTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 26, fontWeight: "900" },
+  settingsToggle: { minHeight: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  settingsSummary: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 1 },
   field: { gap: 6 },
   fieldLabel: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "800" },
   input: { minHeight: 48, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, color: palette.text, fontSize: 16, paddingHorizontal: 14 },
   inputDisabled: { color: palette.outline, backgroundColor: palette.surfaceContainer },
   textArea: { minHeight: 96, paddingTop: 12 },
   uploadInput: {
-    minHeight: 58,
+    minHeight: 50,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: palette.outlineVariant,
@@ -886,7 +924,7 @@ const styles = StyleSheet.create({
   radiusValueSelected: { color: palette.primary },
   radiusHelper: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
   radiusHelperSelected: { color: palette.text },
-  reviewCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surface, gap: 10 },
+  reviewCard: { padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surface, gap: 6 },
   reviewEmptyCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow },
   reviewEmptyText: { color: palette.muted, fontSize: 14, lineHeight: 20, fontWeight: "700" },
   reviewTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
@@ -896,7 +934,7 @@ const styles = StyleSheet.create({
   reviewName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   reviewDate: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   reviewStars: { color: palette.secondary, fontSize: 19, lineHeight: 24, fontWeight: "900" },
-  reviewText: { color: palette.muted, fontSize: 16, lineHeight: 24 },
+  reviewText: { color: palette.muted, fontSize: 14, lineHeight: 20 },
   coverageCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surfaceLow, gap: 12 },
   coverageHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   coverageIcon: { color: palette.primary, fontSize: 24, fontWeight: "900" },

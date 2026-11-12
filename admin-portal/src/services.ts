@@ -8,13 +8,20 @@ function requireServices() { if (!db || !functions) throw new Error("Firebase is
 function records<T>(snapshot: { docs: QueryDocumentSnapshot<DocumentData>[] }) { return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as T); }
 
 export type Page<T> = { items: T[]; cursor: QueryDocumentSnapshot<DocumentData> | null; hasMore: boolean };
-export async function loadPage<T>(name: string, orderField: string, size = 20, cursor: QueryDocumentSnapshot<DocumentData> | null = null): Promise<Page<T>> {
+export async function loadPage<T>(name: string, orderField: string, size = 20, cursor: QueryDocumentSnapshot<DocumentData> | null = null, filters: QueryConstraint[] = []): Promise<Page<T>> {
   const { db: store } = requireServices();
-  const clauses: QueryConstraint[] = [orderBy(orderField), limit(size + 1)];
-  if (cursor) clauses.splice(1, 0, startAfter(cursor));
+  const clauses: QueryConstraint[] = [...filters, orderBy(orderField), limit(size + 1)];
+  if (cursor) clauses.splice(filters.length + 1, 0, startAfter(cursor));
   const snapshot = await getDocs(query(collection(store, name), ...clauses));
   const docs = snapshot.docs.slice(0, size);
   return { items: records<T>({ docs }), cursor: docs.at(-1) ?? null, hasMore: snapshot.docs.length > size };
+}
+export async function getFeedbackCount(score?: number) {
+  const { db: store } = requireServices();
+  const source = score === undefined
+    ? collection(store, "ratings")
+    : query(collection(store, "ratings"), where("score", "==", score));
+  return (await getCountFromServer(source)).data().count;
 }
 
 async function loadRecordsById<T>(name: string, ids: string[]) {
@@ -74,8 +81,8 @@ export async function reviewVerification(userId: string, decision: "Verified" | 
 export async function reviewPayment(taskId: string, decision: "Verified" | "Rejected", reason: string) {
   await httpsCallable(requireServices().functions, "reviewPaymentEvidence")({ taskId, decision, reason });
 }
-export async function changeAccountStatus(userId: string, accountStatus: "active" | "suspended", reason: string, violationReportId = "") {
-  await httpsCallable(requireServices().functions, "setUserAccountStatus")({ userId, accountStatus, reason, violationReportId });
+export async function changeAccountStatus(userId: string, accountStatus: "active" | "suspended", reason: string, violationReportId = "", evidenceReference = "") {
+  await httpsCallable(requireServices().functions, "setUserAccountStatus")({ userId, accountStatus, reason, violationReportId, evidenceReference });
 }
 export async function correctName(userId: string, fullName: string, reason: string) {
   await httpsCallable(requireServices().functions, "correctLockedFullName")({ userId, fullName, reason });

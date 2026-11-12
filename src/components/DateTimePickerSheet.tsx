@@ -1,7 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { AppText as Text } from "./AppText";
+import { AppText as Text, AppTextInput as TextInput } from "./AppText";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type PickerMode = "date" | "datetime";
@@ -153,7 +153,7 @@ export function DateTimePickerSheet({
               <View style={styles.timeCard}>
                 <View>
                   <Text style={styles.sectionTitle}>Start time</Text>
-                  <Text style={styles.sectionHelper}>Use the controls to choose an exact time.</Text>
+                  <Text style={styles.sectionHelper}>Type an exact time or use the controls.</Text>
                 </View>
                 <View style={styles.timeControls}>
                   <TimeStepper
@@ -161,6 +161,11 @@ export function DateTimePickerSheet({
                     value={String(hour12).padStart(2, "0")}
                     onDecrease={() => updateTime((draft.getHours() + 23) % 24, draft.getMinutes())}
                     onIncrease={() => updateTime((draft.getHours() + 1) % 24, draft.getMinutes())}
+                    onValueChange={(nextHour) => {
+                      const nextHour24 = period === "PM" ? (nextHour % 12) + 12 : nextHour % 12;
+                      updateTime(nextHour24, draft.getMinutes());
+                    }}
+                    validValue={(nextHour) => nextHour >= 1 && nextHour <= 12}
                   />
                   <Text style={styles.timeColon}>:</Text>
                   <TimeStepper
@@ -168,6 +173,8 @@ export function DateTimePickerSheet({
                     value={String(draft.getMinutes()).padStart(2, "0")}
                     onDecrease={() => adjustMinutes(-MINUTE_STEP)}
                     onIncrease={() => adjustMinutes(MINUTE_STEP)}
+                    onValueChange={(nextMinute) => updateTime(draft.getHours(), nextMinute)}
+                    validValue={(nextMinute) => nextMinute >= 0 && nextMinute <= 59}
                   />
                   <View style={styles.periodGroup}>
                     <Text style={styles.timeLabel}>Period</Text>
@@ -209,12 +216,38 @@ export function DateTimePickerSheet({
   );
 }
 
-function TimeStepper({ label, onDecrease, onIncrease, value }: {
+function TimeStepper({ label, onDecrease, onIncrease, onValueChange, validValue, value }: {
   label: string;
   onDecrease: () => void;
   onIncrease: () => void;
+  onValueChange: (value: number) => void;
+  validValue: (value: number) => boolean;
   value: string;
 }) {
+  const [inputValue, setInputValue] = useState(value);
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setInputValue(value);
+  }, [editing, value]);
+
+  function changeInput(next: string) {
+    const digits = next.replace(/\D/g, "").slice(0, 2);
+    setInputValue(digits);
+    const numeric = Number(digits);
+    if (digits && validValue(numeric)) onValueChange(numeric);
+  }
+
+  function finishInput() {
+    setEditing(false);
+    const numeric = Number(inputValue);
+    if (!inputValue || !validValue(numeric)) {
+      setInputValue(value);
+      return;
+    }
+    setInputValue(String(numeric).padStart(2, "0"));
+  }
+
   return (
     <View style={styles.timeGroup}>
       <Text style={styles.timeLabel}>{label}</Text>
@@ -222,7 +255,20 @@ function TimeStepper({ label, onDecrease, onIncrease, value }: {
         <Pressable accessibilityLabel={`Decrease ${label.toLowerCase()}`} accessibilityRole="button" onPress={onDecrease} style={styles.stepButton}>
           <Feather accessibilityElementsHidden color="#005C55" name="minus" size={18} />
         </Pressable>
-        <Text accessibilityLabel={`${label} ${value}`} style={styles.timeValue}>{value}</Text>
+        <TextInput
+          accessibilityLabel={`${label} ${value}`}
+          keyboardType="number-pad"
+          maxLength={2}
+          onBlur={finishInput}
+          onChangeText={changeInput}
+          onFocus={() => {
+            setEditing(true);
+            setInputValue("");
+          }}
+          selectTextOnFocus
+          style={styles.timeValue}
+          value={inputValue}
+        />
         <Pressable accessibilityLabel={`Increase ${label.toLowerCase()}`} accessibilityRole="button" onPress={onIncrease} style={styles.stepButton}>
           <Feather accessibilityElementsHidden color="#005C55" name="plus" size={18} />
         </Pressable>
@@ -351,7 +397,7 @@ const styles = StyleSheet.create({
   stepper: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 10, borderWidth: 1, borderColor: "#BDC9C6", overflow: "hidden" },
   stepButton: { width: 34, alignSelf: "stretch", alignItems: "center", justifyContent: "center", backgroundColor: "#E5F1EE" },
   stepButtonText: { color: "#005C55", fontSize: 20, lineHeight: 24, fontWeight: "900" },
-  timeValue: { minWidth: 34, color: "#181C1C", fontSize: 17, fontWeight: "900", textAlign: "center" },
+  timeValue: { minWidth: 34, flex: 1, color: "#181C1C", fontSize: 17, fontWeight: "900", textAlign: "center", paddingHorizontal: 2, paddingVertical: 0 },
   timeColon: { color: "#181C1C", fontSize: 22, lineHeight: 44, fontWeight: "900" },
   periodGroup: { width: 70, gap: 5 },
   periodButton: { minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#005C55" },

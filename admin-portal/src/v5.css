@@ -1,0 +1,5 @@
+.metric-grid { gap: 12px; }
+.metric { min-height: 116px; padding: 15px; }
+.metric-icon { top: 14px; right: 14px; }
+.table-wrap td { padding-top: 10px; padding-bottom: 10px; }
+.profile-avatar { align-items: center; width: 34px; height: 34px; display: inline-flex; justify-content: center; flex: 0 0 34px; border-radius: 50%; object-fit: cover; color: #005d56; background: #e5f4f0; font-size: 12px; font-weight: 900; }

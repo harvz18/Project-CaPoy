@@ -71,7 +71,6 @@ export default function ClientDashboardScreen() {
                 <Text style={styles.heroButtonText}>Post New Task</Text>
               </Pressable>
             </View>
-            <Text style={styles.heroMark}>TL</Text>
           </View>
 
         </View>
@@ -346,7 +345,6 @@ const styles = StyleSheet.create({
     backgroundColor: palette.secondaryContainer
   },
   heroButtonText: { color: "#684000", fontWeight: "900", fontSize: 14 },
-  heroMark: { position: "absolute", right: 18, top: 24, color: "rgba(255,255,255,0.12)", fontSize: 80, fontWeight: "900" },
   healthCard: { padding: 20, borderRadius: 12, backgroundColor: palette.surface, elevation: 2, gap: 18 },
   healthTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   healthDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: palette.success },

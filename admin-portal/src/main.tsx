@@ -39,6 +39,7 @@ import {
   changeAccountStatus,
   correctName,
   getBasicDashboardCounts,
+  getFeedbackCount,
   getSuperadminOverview,
   getVerificationDocumentUrl,
   loadPage,
@@ -60,7 +61,9 @@ import {
   VerificationRequest,
   ViolationReport,
 } from "./types";
+import { where } from "firebase/firestore";
 import "./styles.css";
+import "./v5.css";
 
 const PAGE_SIZE = 20;
 const DATE_FORMATTER = new Intl.DateTimeFormat("en-PH", {
@@ -467,55 +470,13 @@ function Dashboard({ scope }: { scope: Scope }) {
               onClick={() => navigate(`/${scope}/verifications`)}
             />
           </section>
-          <section className="dashboard-grid">
-            <Panel title="Account totals">
-              <dl className="key-values">
-                <div>
-                  <dt>All users</dt>
-                  <dd>{counts.users}</dd>
-                </div>
-                <div>
-                  <dt>Employers</dt>
-                  <dd>{counts.employers}</dd>
-                </div>
-                <div>
-                  <dt>Taskers</dt>
-                  <dd>{counts.taskers}</dd>
-                </div>
-                <div>
-                  <dt>Pending verification</dt>
-                  <dd>{counts.pendingVerifications}</dd>
-                </div>
-              </dl>
-            </Panel>
-            <Panel title="Task and payment totals">
-              <dl className="key-values">
-                <div>
-                  <dt>All tasks</dt>
-                  <dd>{counts.tasks}</dd>
-                </div>
-                <div>
-                  <dt>Active tasks</dt>
-                  <dd>{counts.activeTasks}</dd>
-                </div>
-                <div>
-                  <dt>Completed tasks</dt>
-                  <dd>{counts.completedTasks}</dd>
-                </div>
-                <div>
-                  <dt>Payment records</dt>
-                  <dd>{counts.paymentRecords}</dd>
-                </div>
-              </dl>
-            </Panel>
-          </section>
         </>
       ) : null}
     </div>
   );
 }
 
-function usePaged<T>(name: string, field: string) {
+function usePaged<T>(name: string, field: string, filter?: { field: string; value: string | number }) {
   const [items, setItems] = useState<T[]>([]);
   const [cursor, setCursor] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -527,7 +488,7 @@ function usePaged<T>(name: string, field: string) {
       setLoading(true);
       setError("");
       try {
-        const page = await loadPage<T>(name, field, PAGE_SIZE, nextCursor);
+        const page = await loadPage<T>(name, field, PAGE_SIZE, nextCursor, filter ? [where(filter.field, "==", filter.value)] : []);
         setItems(page.items);
         setCursor(page.cursor);
         setHasMore(page.hasMore);
@@ -538,7 +499,7 @@ function usePaged<T>(name: string, field: string) {
         setLoading(false);
       }
     },
-    [field, name],
+    [field, filter?.field, filter?.value, name],
   );
   useEffect(() => {
     setHistory([]);
@@ -549,15 +510,41 @@ function usePaged<T>(name: string, field: string) {
     loading,
     error,
     hasMore,
-    next: () => void load(cursor, true),
+    next: () => load(cursor, true),
     previous: () => {
       const back = history.slice(0, -1);
       setHistory(back);
-      void load(back.at(-1) ?? null);
+      return load(back.at(-1) ?? null);
     },
     canGoBack: history.length > 0,
-    refresh: () => void load(history.at(-1) ?? null),
+    refresh: () => load(history.at(-1) ?? null),
+    pageNumber: history.length + 1,
   };
+}
+
+function useModerationStatuses(enabled: boolean) {
+  const [statuses, setStatuses] = useState<Record<string, Profile>>({});
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(enabled);
+  const refresh = useCallback(async () => {
+    if (!enabled) {
+      setStatuses({});
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const overview = await getSuperadminOverview();
+      setStatuses(Object.fromEntries(overview.users.map((user) => [user.id, user])));
+      setError("");
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setLoading(false);
+    }
+  }, [enabled]);
+  useEffect(() => { void refresh(); }, [refresh]);
+  return { statuses, error, loading, refresh };
 }
 
 function useRecordLookup<T>(
@@ -596,6 +583,7 @@ function UsersPage({
   notify: (notice: Notice) => void;
 }) {
   const page = usePaged<Profile>("publicProfiles", "fullName");
+  const moderation = useModerationStatuses(scope === "superadmin");
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [role, setRole] = useState(() => searchParams.get("role") === "client" || searchParams.get("role") === "worker" ? searchParams.get("role") as string : "all");
@@ -603,7 +591,10 @@ function UsersPage({
     user: Profile;
     action: "suspend" | "active" | "name";
   } | null>(null);
-  const filtered = page.items.filter(
+  const users = scope === "superadmin"
+    ? page.items.map((user) => ({ ...user, ...moderation.statuses[user.id] }))
+    : page.items;
+  const filtered = users.filter(
     (user) =>
       (role === "all" || user.role === role) &&
       `${user.fullName} ${user.businessName ?? ""}`
@@ -638,7 +629,7 @@ function UsersPage({
       </div>
       <Panel
         title="Accounts"
-        description="Search and filter the current result page"
+        description={scope === "superadmin" ? "Restriction status is loaded from the trusted moderation record." : "Search and filter the current result page"}
       >
         <Table
           headers={[
@@ -653,7 +644,7 @@ function UsersPage({
             <tr key={user.id}>
               <td>
                 <div className="profile-cell">
-                  {user.profilePhotoUrl ? <img alt="" src={user.profilePhotoUrl} style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <span aria-hidden="true" style={{ alignItems: "center", background: "#e5f4f0", borderRadius: "50%", color: "#005d56", display: "inline-flex", fontSize: 12, fontWeight: 900, height: 34, justifyContent: "center", width: 34 }}>{(user.fullName || "U").charAt(0).toUpperCase()}</span>}
+                  <ProfileAvatar profile={user} />
                   <strong>{user.fullName || "Unnamed account"}</strong>
                 </div>
                 {user.businessName ? <small>{user.businessName}</small> : null}
@@ -675,12 +666,14 @@ function UsersPage({
                   <div className="row-actions">
                     <button
                       className="text-button danger-text"
+                      disabled={moderation.loading || Boolean(moderation.error) || user.accountStatus === "suspended"}
                       onClick={() => setModal({ user, action: "suspend" })}
                     >
                       Restrict
                     </button>
                     <button
                       className="text-button"
+                      disabled={moderation.loading || Boolean(moderation.error) || user.accountStatus !== "suspended"}
                       onClick={() => setModal({ user, action: "active" })}
                     >
                       Reactivate
@@ -700,8 +693,8 @@ function UsersPage({
         {!page.loading && !filtered.length ? (
           <EmptyState title="No accounts in this result" />
         ) : null}
-        {page.error ? (
-          <ErrorState message={page.error} retry={page.refresh} />
+        {page.error || moderation.error ? (
+          <ErrorState message={page.error || moderation.error} retry={() => { void page.refresh(); void moderation.refresh(); }} />
         ) : null}
         <Pager {...page} />
       </Panel>
@@ -710,7 +703,7 @@ function UsersPage({
           modal={modal}
           close={() => setModal(null)}
           notify={notify}
-          refreshed={page.refresh}
+          refreshed={() => { void page.refresh(); void moderation.refresh(); }}
         />
       ) : null}
     </div>
@@ -834,8 +827,7 @@ function ApplicationsPage() {
         <div>
           <h2>Applications monitoring</h2>
           <p>
-            Application records are read-only here; employer selection remains
-            unchanged.
+            Applications are read-only in this portal. Only the employer who posted the task can accept or decline worker applications. Administrators may monitor application records but cannot make hiring decisions on behalf of employers.
           </p>
         </div>
         <SearchBox value={search} onChange={setSearch} />
@@ -1165,11 +1157,20 @@ function HelpPage() {
 }
 
 function FeedbackPage() {
-  const page = usePaged<Rating>("ratings", "createdAt");
   const [score, setScore] = useState("all");
-  const filtered = page.items.filter(
-    (rating) => score === "all" || String(rating.score) === score,
-  );
+  const selectedScore = score === "all" ? undefined : Number(score);
+  const page = usePaged<Rating>("ratings", "createdAt", selectedScore === undefined ? undefined : { field: "score", value: selectedScore });
+  const [total, setTotal] = useState<number>();
+  const [countError, setCountError] = useState("");
+  useEffect(() => {
+    let active = true;
+    setTotal(undefined);
+    void getFeedbackCount(selectedScore)
+      .then((count) => { if (active) { setTotal(count); setCountError(""); } })
+      .catch((failure) => { if (active) setCountError(errorText(failure)); });
+    return () => { active = false; };
+  }, [selectedScore]);
+  const filtered = page.items;
   const profiles = useRecordLookup<Profile>(
     filtered.map((rating) => rating.targetUserId || ""),
     loadProfilesById,
@@ -1197,7 +1198,10 @@ function FeedbackPage() {
           ))}
         </select>
       </div>
-      <Panel title="Feedback">
+      <Panel
+        title={total === undefined ? "Feedback" : `Feedback — ${total} total records`}
+        description={total === undefined ? "Counting live feedback records…" : `Showing ${filtered.length} of ${total} feedback records${score === "all" ? "" : ` rated ${score} stars`}.`}
+      >
         <Table headers={["Rating", "Feedback", "Target user", "Task title", "Date"]}>
           {filtered.map((rating) => (
             <tr key={rating.id}>
@@ -1217,8 +1221,8 @@ function FeedbackPage() {
         {!page.loading && !filtered.length ? (
           <EmptyState title="No feedback in this result" />
         ) : null}
-        {page.error ? (
-          <ErrorState message={page.error} retry={page.refresh} />
+        {page.error || countError ? (
+          <ErrorState message={page.error || countError} retry={() => { void page.refresh(); void getFeedbackCount(selectedScore).then(setTotal).catch((failure) => setCountError(errorText(failure))); }} />
         ) : null}
         <Pager {...page} />
       </Panel>
@@ -1369,6 +1373,7 @@ function UserActionModal({
   refreshed: () => void;
 }) {
   const [reason, setReason] = useState("");
+  const [evidenceReference, setEvidenceReference] = useState("");
   const [name, setName] = useState(modal.user.fullName || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -1384,6 +1389,10 @@ function UserActionModal({
       setError("Enter the corrected full name.");
       return;
     }
+    if (modal.action === "suspend" && !evidenceReference.trim()) {
+      setError("Provide an evidence reference before restricting an account.");
+      return;
+    }
     setBusy(true);
     setError("");
     const auditNote = reason.trim() || "No additional note provided.";
@@ -1395,6 +1404,8 @@ function UserActionModal({
           modal.user.id,
           modal.action === "active" ? "active" : "suspended",
           auditNote,
+          "",
+          evidenceReference.trim(),
         );
       notify({ tone: "success", message: `${title} completed.` });
       refreshed();
@@ -1428,6 +1439,17 @@ function UserActionModal({
             onChange={(event) => setReason(event.target.value)}
           />
         </label>
+        {modal.action === "suspend" ? (
+          <label>
+            Evidence reference
+            <input
+              value={evidenceReference}
+              onChange={(event) => setEvidenceReference(event.target.value)}
+              placeholder="Report ID or authorized evidence reference"
+              required
+            />
+          </label>
+        ) : null}
         {error ? <p className="inline-error">{error}</p> : null}
         <ModalActions
           busy={busy}
@@ -1761,16 +1783,18 @@ function Pager({
   next,
   previous,
   canGoBack,
+  pageNumber,
 }: {
   loading: boolean;
   hasMore: boolean;
   next: () => void;
   previous: () => void;
   canGoBack: boolean;
+  pageNumber: number;
 }) {
   return (
     <div className="pager">
-      <span>{loading ? "Loading…" : ""}</span>
+      <span>{loading ? "Loading…" : `Page ${pageNumber}`}</span>
       <div>
         <button
           className="icon-button"
@@ -1813,6 +1837,14 @@ function SearchBox({
 }
 function Badge({ value }: { value: string }) {
   return <span className="badge">{value}</span>;
+}
+function ProfileAvatar({ profile }: { profile: Profile }) {
+  const [failed, setFailed] = useState(false);
+  const initial = (profile.fullName || "U").charAt(0).toUpperCase();
+  if (!profile.profilePhotoUrl || failed) {
+    return <span aria-hidden="true" className="profile-avatar">{initial}</span>;
+  }
+  return <img alt="" className="profile-avatar" src={profile.profilePhotoUrl} onError={() => setFailed(true)} />;
 }
 function EmptyState({ title }: { title: string }) {
   return (
