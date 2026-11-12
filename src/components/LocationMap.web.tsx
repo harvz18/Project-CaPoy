@@ -1,6 +1,8 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useMemo, useRef } from "react";
+import Constants from "expo-constants";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getMapTilerSatelliteTileUrl, isSatelliteLayerAvailable, MAPTILER_SATELLITE_MAX_NATIVE_ZOOM, MapLayer } from "./mapLayers";
 import { LocationMapProps, MapCoordinate } from "./LocationMap.types";
 
 export type { LocationMapProps, LocationMarker, MapCoordinate } from "./LocationMap.types";
@@ -8,6 +10,7 @@ export type { LocationMapProps, LocationMarker, MapCoordinate } from "./Location
 const bacolodCenter: MapCoordinate = { latitude: 10.6765, longitude: 122.9509 };
 const tileUrl = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const mapTilerAttribution = '&copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 function markerIcon(color?: string) {
   const safeColor = color && /^#[0-9a-f]{3,8}$/i.test(color) ? color : "#005C55";
@@ -31,9 +34,13 @@ export default function LocationMap({
 }: LocationMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const baseLayerRef = useRef<L.TileLayer | null>(null);
   const markerLayerRef = useRef<L.LayerGroup | null>(null);
   const radiusLayerRef = useRef<L.Circle | null>(null);
   const onSelectRef = useRef(onSelectCoordinate);
+  const [mapLayer, setMapLayer] = useState<MapLayer>("street");
+  const [mapError, setMapError] = useState("");
+  const mapTilerApiKey = Constants.expoConfig?.extra?.mapTilerApiKey?.trim();
   const initialFocusRef = useRef(center ?? markers[0] ?? bacolodCenter);
   const firstMarker = markers[0];
   const focus = center ?? firstMarker;
@@ -58,13 +65,15 @@ export default function LocationMap({
       zoomControl: true
     }).setView([initialFocus.latitude, initialFocus.longitude], center || markers.length ? 15 : 13);
 
-    L.tileLayer(tileUrl, {
+    const baseLayer = L.tileLayer(tileUrl, {
       attribution,
       maxZoom: 19
-    }).addTo(map);
+    });
+    baseLayer.addTo(map);
 
     const markerLayer = L.layerGroup().addTo(map);
     mapRef.current = map;
+    baseLayerRef.current = baseLayer;
     markerLayerRef.current = markerLayer;
 
     const resizeObserver = typeof ResizeObserver !== "undefined"
@@ -78,10 +87,49 @@ export default function LocationMap({
       resizeObserver?.disconnect();
       markerLayer.clearLayers();
       map.remove();
+      baseLayerRef.current = null;
       markerLayerRef.current = null;
       mapRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const isSatellite = mapLayer === "satellite" && isSatelliteLayerAvailable(mapTilerApiKey);
+    const nextLayer = L.tileLayer(isSatellite ? getMapTilerSatelliteTileUrl(mapTilerApiKey as string) : tileUrl, {
+      attribution: isSatellite ? mapTilerAttribution : attribution,
+      maxNativeZoom: isSatellite ? MAPTILER_SATELLITE_MAX_NATIVE_ZOOM : 19,
+      maxZoom: isSatellite ? MAPTILER_SATELLITE_MAX_NATIVE_ZOOM : 19
+    });
+    const handleTileError = () => {
+      if (isSatellite) setMapError("Satellite imagery could not load. You can return to Street view.");
+    };
+
+    nextLayer.on("tileerror", handleTileError);
+    nextLayer.addTo(map);
+    baseLayerRef.current?.remove();
+    baseLayerRef.current = nextLayer;
+    if (!isSatellite) setMapError("");
+
+    return () => {
+      nextLayer.off("tileerror", handleTileError);
+      if (baseLayerRef.current === nextLayer) {
+        nextLayer.remove();
+        baseLayerRef.current = null;
+      }
+    };
+  }, [mapLayer, mapTilerApiKey]);
+
+  function selectMapLayer(nextLayer: MapLayer) {
+    if (nextLayer === "satellite" && !isSatelliteLayerAvailable(mapTilerApiKey)) {
+      setMapError("Satellite view needs the configured MapTiler key.");
+      return;
+    }
+    setMapError("");
+    setMapLayer(nextLayer);
+  }
 
   useEffect(() => {
     const map = mapRef.current;
@@ -190,6 +238,15 @@ export default function LocationMap({
       }}
     >
       <div ref={containerRef} style={{ height: "100%", width: "100%" }} />
+      {interactive ? (
+        <div aria-label="Map layer" role="group" style={{ background: "rgba(0,92,85,.94)", border: "1px solid rgba(255,255,255,.75)", borderRadius: 9, display: "flex", gap: 2, padding: 3, position: "absolute", right: 12, top: 52, zIndex: 700 }}>
+          {(["street", "satellite"] as const).map((layer) => {
+            const selected = mapLayer === layer;
+            return <button aria-pressed={selected} key={layer} onClick={(event) => { event.preventDefault(); event.stopPropagation(); selectMapLayer(layer); }} style={{ background: selected ? "#20D5C5" : "transparent", border: 0, borderRadius: 6, color: selected ? "#003C37" : "#FFFFFF", cursor: "pointer", fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 800, minHeight: 36, padding: "0 10px" }} type="button">{layer === "street" ? "Street" : "Satellite"}</button>;
+          })}
+        </div>
+      ) : null}
+      {mapError ? <div role="status" style={{ background: "rgba(255,255,255,.96)", border: "1px solid #B42318", borderRadius: 8, bottom: 26, color: "#8A1C16", fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 700, left: 12, padding: "7px 10px", position: "absolute", right: 12, zIndex: 700 }}>{mapError}</div> : null}
       {interactive && !center ? (
         <div
           style={{

@@ -1,4 +1,5 @@
 export type MapCoordinate = { latitude: number; longitude: number };
+export type { MapLayer } from "./mapLayers";
 export type LocationMarker = MapCoordinate & {
   id: string;
   title?: string;

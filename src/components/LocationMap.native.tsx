@@ -1,11 +1,12 @@
 import Constants from "expo-constants";
 import type { Feature, LineString, Polygon } from "geojson";
-import { useEffect, useMemo, useRef } from "react";
-import { NativeModules, StyleSheet, View } from "react-native";
+import { type ComponentRef, useEffect, useMemo, useRef, useState } from "react";
+import { NativeModules, Pressable, StyleSheet, View } from "react-native";
 import { AppText as Text } from "./AppText";
 import { WebView } from "react-native-webview";
-import type { CameraRef, StyleSpecification } from "@maplibre/maplibre-react-native";
+import type { CameraRef, MapRef, StyleSpecification } from "@maplibre/maplibre-react-native";
 import { LocationMapProps, LocationMarker, MapCoordinate } from "./LocationMap.types";
+import { getMapTilerSatelliteTileUrl, isSatelliteLayerAvailable, MAPTILER_SATELLITE_MAX_NATIVE_ZOOM, MapLayer } from "./mapLayers";
 
 const bacolodCenter: MapCoordinate = { latitude: 10.6765, longitude: 122.9509 };
 const osmAttribution = "© OpenStreetMap contributors";
@@ -96,14 +97,16 @@ function safeJson(value: unknown) {
   return JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
 }
 
-function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers, connectMarkers }: LocationMapProps) {
+function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers, connectMarkers, mapLayer, mapTilerApiKey }: LocationMapProps & { mapLayer: MapLayer; mapTilerApiKey?: string }) {
   const mapData = safeJson({
     center,
     connectMarkers,
     fitToMarkers,
     interactive,
     markers,
-    radiusMeters
+    radiusMeters,
+    mapLayer,
+    mapTilerApiKey
   });
 
   return `<!doctype html>
@@ -121,10 +124,23 @@ function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers,
       const fallback = { latitude: 10.6765, longitude: 122.9509 };
       const focus = data.center || data.markers[0] || fallback;
       const map = L.map('map', { zoomControl: true }).setView([focus.latitude, focus.longitude], data.center || data.markers.length ? 15 : 13);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(map);
+      let baseLayer;
+      function baseLayerOptions(layer) {
+        const satellite = layer === 'satellite' && data.mapTilerApiKey;
+        return satellite ? {
+          url: 'https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=' + encodeURIComponent(data.mapTilerApiKey),
+          maxNativeZoom: 22, maxZoom: 22, attribution: '&copy; MapTiler &copy; OpenStreetMap contributors'
+        } : { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', maxNativeZoom: 19, maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' };
+      }
+      function setBaseLayer(layer) {
+        const options = baseLayerOptions(layer);
+        const nextLayer = L.tileLayer(options.url, options);
+        nextLayer.on('tileerror', () => window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'tile-error', layer })));
+        nextLayer.addTo(map);
+        if (baseLayer) baseLayer.remove();
+        baseLayer = nextLayer;
+      }
+      setBaseLayer(data.mapLayer);
 
       const markerPoints = [];
       data.markers.forEach((marker) => {
@@ -147,6 +163,14 @@ function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers,
       if (data.connectMarkers && markerPoints.length > 1) L.polyline(markerPoints, { color: '#2563EB', dashArray: '6 6', weight: 3 }).addTo(map);
       if (data.fitToMarkers && markerPoints.length > 1) map.fitBounds(markerPoints, { padding: [32, 32] });
       if (data.interactive) map.on('click', event => sendCoordinate(event.latlng));
+      function receiveMessage(event) {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === 'set-map-layer') setBaseLayer(message.layer);
+        } catch (_) {}
+      }
+      document.addEventListener('message', receiveMessage);
+      window.addEventListener('message', receiveMessage);
       function sendCoordinate(point) {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'coordinate', latitude: point.lat, longitude: point.lng }));
       }
@@ -155,22 +179,32 @@ function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers,
 </html>`;
 }
 
-function LeafletMapFallback({ center, markers = [], height, interactive = false, onSelectCoordinate, ...mapProps }: LocationMapProps) {
+function LeafletMapFallback({ center, markers = [], height, interactive = false, onSelectCoordinate, mapLayer, mapTilerApiKey, mapError, onMapError, onSelectMapLayer, ...mapProps }: LocationMapProps & { mapLayer: MapLayer; mapTilerApiKey?: string; mapError: string; onMapError: (message: string) => void; onSelectMapLayer: (layer: MapLayer) => void }) {
+  const webViewRef = useRef<ComponentRef<typeof WebView>>(null);
   const html = useMemo(
-    () => leafletHtml({ center, interactive, markers, ...mapProps }),
-    [center?.latitude, center?.longitude, interactive, JSON.stringify(markers), mapProps.connectMarkers, mapProps.fitToMarkers, mapProps.radiusMeters]
+    () => leafletHtml({ center, interactive, markers, mapLayer: "street", mapTilerApiKey, ...mapProps }),
+    [center?.latitude, center?.longitude, interactive, JSON.stringify(markers), mapProps.connectMarkers, mapProps.fitToMarkers, mapProps.radiusMeters, mapTilerApiKey]
   );
+
+  useEffect(() => {
+    webViewRef.current?.postMessage(JSON.stringify({ type: "set-map-layer", layer: mapLayer }));
+  }, [mapLayer]);
 
   return (
     <View accessibilityLabel={interactive ? "Interactive task location map" : "Task location map"} style={[styles.container, { height }]}>
       <WebView
+        ref={webViewRef}
         domStorageEnabled
         javaScriptEnabled
+        onLoadEnd={() => webViewRef.current?.postMessage(JSON.stringify({ type: "set-map-layer", layer: mapLayer }))}
         onMessage={(event) => {
           try {
-            const message = JSON.parse(event.nativeEvent.data) as { type?: string; latitude?: unknown; longitude?: unknown };
+            const message = JSON.parse(event.nativeEvent.data) as { type?: string; layer?: string; latitude?: unknown; longitude?: unknown };
             if (message.type === "coordinate" && typeof message.latitude === "number" && typeof message.longitude === "number") {
               onSelectCoordinate?.({ latitude: message.latitude, longitude: message.longitude });
+            }
+            if (message.type === "tile-error" && message.layer === "satellite") {
+              onMapError("Satellite imagery could not load. You can return to Street view.");
             }
           } catch {
             // Ignore malformed messages from the embedded map.
@@ -180,7 +214,8 @@ function LeafletMapFallback({ center, markers = [], height, interactive = false,
         source={{ html }}
         style={styles.map}
       />
-      <Text accessibilityElementsHidden pointerEvents="none" style={styles.attribution}>© OpenStreetMap contributors</Text>
+      {interactive ? <MapLayerSwitcher mapLayer={mapLayer} error={mapError} onSelect={onSelectMapLayer} /> : null}
+      <Text accessibilityElementsHidden pointerEvents="none" style={styles.attribution}>{mapLayer === "satellite" && mapTilerApiKey ? mapTilerAttribution : osmAttribution}</Text>
     </View>
   );
 }
@@ -196,6 +231,17 @@ export default function LocationMap({
   showUserLocation = false,
   onSelectCoordinate
 }: LocationMapProps) {
+  const [mapLayer, setMapLayer] = useState<MapLayer>("street");
+  const [mapError, setMapError] = useState("");
+  const mapTilerApiKey = Constants.expoConfig?.extra?.mapTilerApiKey?.trim();
+  const selectMapLayer = (layer: MapLayer) => {
+    if (layer === "satellite" && !isSatelliteLayerAvailable(mapTilerApiKey)) {
+      setMapError("Satellite view needs the configured MapTiler key.");
+      return;
+    }
+    setMapError("");
+    setMapLayer(layer);
+  };
   const mapLibre = getMapLibre();
   if (!mapLibre) {
     return <LeafletMapFallback
@@ -205,6 +251,11 @@ export default function LocationMap({
       height={height}
       interactive={interactive}
       markers={markers}
+      mapLayer={mapLayer}
+      mapTilerApiKey={mapTilerApiKey}
+      mapError={mapError}
+      onMapError={setMapError}
+      onSelectMapLayer={selectMapLayer}
       onSelectCoordinate={onSelectCoordinate}
       radiusMeters={radiusMeters}
     />;
@@ -212,11 +263,13 @@ export default function LocationMap({
 
   const { Camera, GeoJSONSource, Layer, Map, UserLocation, ViewAnnotation } = mapLibre;
   const cameraRef = useRef<CameraRef | null>(null);
+  const mapRef = useRef<MapRef | null>(null);
   const focus = center ?? markers[0] ?? bacolodCenter;
-  const mapTilerApiKey = Constants.expoConfig?.extra?.mapTilerApiKey?.trim();
-  const mapStyle = mapTilerApiKey
-    ? `https://api.maptiler.com/maps/streets-v4/style.json?key=${encodeURIComponent(mapTilerApiKey)}`
-    : openStreetMapStyle;
+  const mapStyle = mapLayer === "satellite" && mapTilerApiKey
+    ? satelliteMapStyle(mapTilerApiKey)
+    : mapTilerApiKey
+      ? `https://api.maptiler.com/maps/streets-v4/style.json?key=${encodeURIComponent(mapTilerApiKey)}`
+      : openStreetMapStyle;
   const coordinateKey = useMemo(
     () => markers.map((marker) => `${marker.id}:${marker.latitude}:${marker.longitude}`).join("|"),
     [markers]
@@ -268,9 +321,17 @@ export default function LocationMap({
     cameraRef.current.easeTo({ center: coordinateToLngLat(focus), duration: 0, zoom: center || markers.length ? 15 : 13 });
   }, [focus.latitude, focus.longitude, fitToMarkers]);
 
+  async function adjustZoom(amount: number) {
+    const currentZoom = await mapRef.current?.getZoom();
+    if (!Number.isFinite(currentZoom)) return;
+    const maximum = mapLayer === "satellite" ? MAPTILER_SATELLITE_MAX_NATIVE_ZOOM : 19;
+    cameraRef.current?.zoomTo(Math.max(0, Math.min(maximum, (currentZoom as number) + amount)), { duration: 160 });
+  }
+
   return (
     <View style={[styles.container, { height }]}>
       <Map
+        ref={mapRef}
         accessibilityLabel={interactive ? "Interactive task location map" : "Task location map"}
         attribution
         attributionPosition={{ bottom: 8, right: 8 }}
@@ -278,6 +339,9 @@ export default function LocationMap({
         compassPosition={{ top: 8, right: 8 }}
         logo={false}
         mapStyle={mapStyle}
+        onDidFailLoadingMap={() => {
+          if (mapLayer === "satellite") setMapError("Satellite imagery could not load. You can return to Street view.");
+        }}
         onPress={interactive ? (event) => onSelectCoordinate?.({
           latitude: event.nativeEvent.lngLat[1],
           longitude: event.nativeEvent.lngLat[0]
@@ -310,7 +374,48 @@ export default function LocationMap({
       <Text accessibilityElementsHidden pointerEvents="none" style={styles.attribution}>
         {mapTilerApiKey ? mapTilerAttribution : osmAttribution}
       </Text>
+      {interactive ? <MapLayerSwitcher mapLayer={mapLayer} error={mapError} onSelect={selectMapLayer} /> : null}
+      {interactive ? <MapZoomControls onAdjust={adjustZoom} /> : null}
       {interactive && !center ? <View pointerEvents="none" style={styles.selectionHint}><Text style={styles.selectionHintText}>Tap the map to place the task pin</Text></View> : null}
+    </View>
+  );
+}
+
+function satelliteMapStyle(apiKey: string): StyleSpecification {
+  return {
+    version: 8,
+    sources: {
+      satellite: {
+        type: "raster",
+        tiles: [getMapTilerSatelliteTileUrl(apiKey)],
+        tileSize: 256,
+        maxzoom: MAPTILER_SATELLITE_MAX_NATIVE_ZOOM,
+        attribution: mapTilerAttribution
+      }
+    },
+    layers: [{ id: "satellite", type: "raster", source: "satellite" }]
+  };
+}
+
+function MapLayerSwitcher({ mapLayer, error, onSelect }: { mapLayer: MapLayer; error: string; onSelect: (layer: MapLayer) => void }) {
+  return (
+    <View accessibilityRole="radiogroup" style={styles.layerControl}>
+      <View style={styles.layerButtons}>
+        {(["street", "satellite"] as const).map((layer) => {
+          const selected = mapLayer === layer;
+          return <Pressable accessibilityLabel={`${layer === "street" ? "Street" : "Satellite"} map view`} accessibilityRole="radio" accessibilityState={{ selected }} key={layer} onPress={() => onSelect(layer)} style={[styles.layerButton, selected && styles.layerButtonSelected]}><Text style={[styles.layerButtonText, selected && styles.layerButtonTextSelected]}>{layer === "street" ? "Street" : "Satellite"}</Text></Pressable>;
+        })}
+      </View>
+      {error ? <Text accessibilityRole="alert" style={styles.layerError}>{error}</Text> : null}
+    </View>
+  );
+}
+
+function MapZoomControls({ onAdjust }: { onAdjust: (amount: number) => void }) {
+  return (
+    <View accessibilityLabel="Map zoom controls" style={styles.zoomControl}>
+      <Pressable accessibilityLabel="Zoom in" accessibilityRole="button" onPress={() => void onAdjust(1)} style={styles.zoomButton}><Text style={styles.zoomButtonText}>+</Text></Pressable>
+      <Pressable accessibilityLabel="Zoom out" accessibilityRole="button" onPress={() => void onAdjust(-1)} style={styles.zoomButton}><Text style={styles.zoomButtonText}>−</Text></Pressable>
     </View>
   );
 }
@@ -320,6 +425,16 @@ const styles = StyleSheet.create({
   map: { flex: 1 },
   pin: { borderColor: "#FFFFFF", borderRadius: 14, borderWidth: 3, elevation: 4, height: 28, shadowColor: "#000000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3, width: 28 },
   attribution: { backgroundColor: "rgba(255,255,255,0.84)", bottom: 0, color: "#33403D", fontSize: 9, lineHeight: 13, paddingHorizontal: 4, position: "absolute", right: 0 },
-  selectionHint: { backgroundColor: "rgba(255,255,255,0.94)", borderColor: "#BDC9C6", borderRadius: 999, borderWidth: 1, left: 16, paddingHorizontal: 12, paddingVertical: 8, position: "absolute", right: 16, top: 12 },
-  selectionHintText: { color: "#005C55", fontSize: 13, fontWeight: "700", textAlign: "center" }
+  selectionHint: { backgroundColor: "rgba(255,255,255,0.94)", borderColor: "#BDC9C6", borderRadius: 999, borderWidth: 1, left: 16, paddingHorizontal: 12, paddingVertical: 8, position: "absolute", right: 16, top: 106 },
+  selectionHintText: { color: "#005C55", fontSize: 13, fontWeight: "700", textAlign: "center" },
+  layerControl: { alignItems: "flex-end", gap: 6, position: "absolute", right: 8, top: 8 },
+  layerButtons: { backgroundColor: "rgba(0,92,85,0.94)", borderColor: "rgba(255,255,255,0.78)", borderRadius: 9, borderWidth: 1, flexDirection: "row", gap: 2, padding: 3 },
+  layerButton: { alignItems: "center", borderRadius: 6, justifyContent: "center", minHeight: 36, paddingHorizontal: 10 },
+  layerButtonSelected: { backgroundColor: "#20D5C5" },
+  layerButtonText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
+  layerButtonTextSelected: { color: "#003C37" },
+  layerError: { backgroundColor: "rgba(255,255,255,0.96)", borderColor: "#B42318", borderRadius: 8, borderWidth: 1, color: "#8A1C16", fontSize: 12, fontWeight: "700", maxWidth: 230, paddingHorizontal: 9, paddingVertical: 6, textAlign: "right" },
+  zoomControl: { backgroundColor: "rgba(255,255,255,0.96)", borderColor: "#BDC9C6", borderRadius: 8, borderWidth: 1, overflow: "hidden", position: "absolute", right: 8, top: 56 },
+  zoomButton: { alignItems: "center", borderBottomColor: "#BDC9C6", borderBottomWidth: 1, height: 34, justifyContent: "center", width: 34 },
+  zoomButtonText: { color: "#005C55", fontSize: 21, fontWeight: "800", lineHeight: 24 }
 });
