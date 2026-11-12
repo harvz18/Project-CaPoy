@@ -1,7 +1,8 @@
-import { collection, doc, documentId, DocumentData, getCountFromServer, getDoc, getDocs, limit, onSnapshot, orderBy, query, QueryConstraint, QueryDocumentSnapshot, startAfter, where } from "firebase/firestore";
+import { collection, doc, documentId, DocumentData, getCountFromServer, getDoc, getDocs, limit, orderBy, query, QueryConstraint, QueryDocumentSnapshot, startAfter, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { getDownloadURL, ref } from "firebase/storage";
 import { db, functions, storage } from "./firebase";
+import { getAdminApi, postAdminApi } from "./adminApi";
 import { Analytics, AuditLog, BasicDashboardCounts, Payment, Profile, Rating, SuperadminOverview, Task, TaskMatch, VerificationRequest } from "./types";
 
 function requireServices() { if (!db || !functions) throw new Error("Firebase is not configured."); return { db, functions }; }
@@ -33,8 +34,9 @@ async function loadRecordsById<T>(name: string, ids: string[]) {
 }
 
 export async function loadProfilesById(ids: string[]) {
-  const profiles = await loadRecordsById<Profile>("publicProfiles", ids);
-  return Object.fromEntries(profiles.map((profile) => [profile.id, profile]));
+  if (!ids.filter(Boolean).length) return {};
+  const response = await postAdminApi<{ profiles: Record<string, Profile> }>("/api/admin/profiles/lookup", { ids });
+  return response.profiles;
 }
 
 export async function loadTasksById(ids: string[]) {
@@ -43,9 +45,8 @@ export async function loadTasksById(ids: string[]) {
 }
 
 export async function loadSubmittedPayments() {
-  const { db: store } = requireServices();
-  const snapshot = await getDocs(query(collection(store, "payments"), where("paymentStatus", "==", "Submitted"), limit(100)));
-  return records<Payment>(snapshot);
+  const response = await getAdminApi<{ payments: Payment[] }>("/api/admin/payments/submitted");
+  return response.payments;
 }
 export async function getBasicDashboardCounts(): Promise<BasicDashboardCounts> {
   const { db: store } = requireServices();
@@ -63,17 +64,16 @@ export async function getBasicDashboardCounts(): Promise<BasicDashboardCounts> {
   ]);
   return { users: users.data().count, employers: employers.data().count, taskers: taskers.data().count, tasks: tasks.data().count, activeTasks: activeTasks.data().count, completedTasks: completedTasks.data().count, paymentRecords: paymentRecords.data().count, submittedPayments: submittedPayments.data().count, pendingVerifications: pendingVerifications.data().count };
 }
-export function subscribePendingVerifications(setData: (items: VerificationRequest[]) => void, setError: (error: Error) => void) {
-  const { db: store } = requireServices();
-  return onSnapshot(query(collection(store, "verificationRequests"), where("status", "==", "Pending Verification"), limit(100)), (snapshot) => setData(records<VerificationRequest>(snapshot)), setError);
+export async function loadPendingVerifications() {
+  const response = await getAdminApi<{ requests: VerificationRequest[] }>("/api/admin/verifications/pending");
+  return response.requests;
 }
 export async function getAnalytics(preset: "today" | "7d" | "30d") {
   const response = await httpsCallable<{ preset: string }, Analytics>(requireServices().functions, "getAdminAnalytics")({ preset });
   return response.data;
 }
 export async function getSuperadminOverview() {
-  const response = await httpsCallable<Record<string, never>, SuperadminOverview>(requireServices().functions, "getSuperadminOverview")({});
-  return response.data;
+  return getAdminApi<SuperadminOverview>("/api/admin/superadmin/overview");
 }
 export async function reviewVerification(userId: string, decision: "Verified" | "Rejected" | "Needs Resubmission", reason: string) {
   await httpsCallable(requireServices().functions, "reviewWorkerVerification")({ userId, decision, reason });

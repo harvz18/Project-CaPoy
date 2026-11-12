@@ -43,12 +43,12 @@ import {
   getSuperadminOverview,
   getVerificationDocumentUrl,
   loadPage,
+  loadPendingVerifications,
   loadProfilesById,
   loadSubmittedPayments,
   loadTasksById,
   reviewPayment,
   reviewVerification,
-  subscribePendingVerifications,
 } from "./services";
 import {
   AuditLog,
@@ -778,7 +778,6 @@ function TasksPage() {
                 <strong>{taskTitle(task)}</strong>
                 <small>
                   {employers[task.clientId || ""]?.fullName ||
-                    task.clientId ||
                     "Employer unavailable"}
                 </small>
               </td>
@@ -847,17 +846,14 @@ function ApplicationsPage() {
             <tr key={match.id}>
               <td>
                 <strong>{taskTitle(tasks[match.taskId || ""])}</strong>
-                <small>{match.taskId || "—"}</small>
               </td>
               <td>
                 {profiles[match.workerId || ""]?.fullName ||
-                  match.workerId ||
-                  "—"}
+                  "Tasker unavailable"}
               </td>
               <td>
                 {profiles[match.clientId || ""]?.fullName ||
-                  match.clientId ||
-                  "—"}
+                  "Employer unavailable"}
               </td>
               <td>{match.proposedAmount || "—"}</td>
               <td>
@@ -897,33 +893,35 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
     path: string;
     label: string;
   } | null>(null);
-  const refreshPayments = useCallback(async () => {
+  const profiles = useRecordLookup<Profile>(
+    requests.map((item) => item.userId),
+    loadProfilesById,
+  );
+  const paymentTasks = useRecordLookup<Task>(
+    payments.map((item) => item.taskId || item.id),
+    loadTasksById,
+  );
+  const refreshReviewData = useCallback(async () => {
+    setLoading(true);
     try {
-      setPayments(await loadSubmittedPayments());
+      const [nextRequests, nextPayments] = await Promise.all([
+        loadPendingVerifications(),
+        loadSubmittedPayments()
+      ]);
+      setRequests(nextRequests);
+      setPayments(nextPayments);
+      setError("");
     } catch (failure) {
       setError(errorText(failure));
+    } finally {
+      setLoading(false);
     }
   }, []);
   useEffect(() => {
-    let unsubscribe: () => void = () => {};
-    try {
-      unsubscribe = subscribePendingVerifications(
-        (items) => {
-          setRequests(items);
-          setLoading(false);
-        },
-        (failure) => {
-          setError(errorText(failure));
-          setLoading(false);
-        },
-      );
-      void refreshPayments().finally(() => setLoading(false));
-    } catch (failure) {
-      setError(errorText(failure));
-      setLoading(false);
-    }
-    return unsubscribe;
-  }, [refreshPayments]);
+    void refreshReviewData();
+    const interval = window.setInterval(() => void refreshReviewData(), 30_000);
+    return () => window.clearInterval(interval);
+  }, [refreshReviewData]);
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -937,13 +935,13 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
         </div>
         <button
           className="button secondary"
-          onClick={() => void refreshPayments()}
+          onClick={() => void refreshReviewData()}
         >
-          Refresh payments
+          Refresh reviews
         </button>
       </div>
       {error ? (
-        <ErrorState message={error} retry={() => void refreshPayments()} />
+        <ErrorState message={error} retry={() => void refreshReviewData()} />
       ) : null}
       <section className="dashboard-grid">
         <Panel
@@ -965,7 +963,7 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
                 item.policeClearancePath,
             );
             return <tr key={item.id}>
-                <td>{item.userId}</td>
+                <td>{profiles[item.userId]?.fullName || "Account unavailable"}</td>
                 <td>
                   <strong>{item.validIdType || "Identity document"}</strong>
                   <div className="row-actions document-actions">
@@ -1082,7 +1080,7 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
           <Table headers={["Task", "Amount", "Submitted", "Decision"]}>
             {payments.map((item) => (
               <tr key={item.id}>
-                <td>{item.taskId || item.id}</td>
+                <td>{taskTitle(paymentTasks[item.taskId || item.id])}</td>
                 <td>{item.agreedAmount || "—"}</td>
                 <td>{date(item.updatedAt || item.createdAt)}</td>
                 <td>
@@ -1126,7 +1124,7 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
         <ReviewModal
           modal={modal}
           close={() => setModal(null)}
-          refreshPayments={refreshPayments}
+          refreshPayments={refreshReviewData}
           notify={notify}
         />
       ) : null}
@@ -1254,12 +1252,16 @@ function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
   useEffect(() => {
     void load();
   }, [load]);
+  const profiles = useRecordLookup<Profile>(
+    data.map((report) => report.targetUserId || ""),
+    loadProfilesById,
+  );
   return (
     <div className="page-stack">
       <div className="page-heading">
         <div>
           <h2>Violation reports</h2>
-          <p>Superadmin-only report data from the trusted overview Function.</p>
+          <p>Superadmin-only report data from the trusted administrator API.</p>
         </div>
         <button
           className="button secondary"
@@ -1286,7 +1288,7 @@ function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
                 <Badge value={report.category || "Other"} />
               </td>
               <td>{report.reason || "—"}</td>
-              <td>{report.targetUserId || "—"}</td>
+              <td>{report.targetUserId ? profiles[report.targetUserId]?.fullName || "Account unavailable" : "Account unavailable"}</td>
               <td>{report.status || "—"}</td>
               <td>{date(report.createdAt)}</td>
               <td>
@@ -1324,38 +1326,63 @@ function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
   );
 }
 function AuditPage() {
-  const page = usePaged<AuditLog>("auditLogs", "createdAt");
+  const [items, setItems] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const overview = await getSuperadminOverview();
+      setItems(overview.auditLogs);
+      setError("");
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  const profiles = useRecordLookup<Profile>(
+    items.flatMap((item) => [
+      item.actorId || "",
+      item.targetType === "user" || item.targetType === "verification"
+        ? item.targetId || ""
+        : "",
+    ]),
+    loadProfilesById,
+  );
   return (
     <div className="page-stack">
       <div className="page-heading">
         <div>
           <h2>Audit log</h2>
-          <p>Immutable staff action records.</p>
+          <p>Immutable staff action records from the trusted administrator API.</p>
         </div>
+        <button className="button secondary" onClick={() => void load()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button>
       </div>
       <Panel title="Recent actions">
         <Table headers={["Action", "Target", "Reason", "Actor", "Date"]}>
-          {page.items.map((item) => (
+          {items.map((item) => (
             <tr key={item.id}>
               <td>{item.action || "—"}</td>
               <td>
                 {item.targetType
-                  ? `${item.targetType}: ${item.targetId || "—"}`
+                  ? `${item.targetType}: ${item.targetType === "user" || item.targetType === "verification" ? profiles[item.targetId || ""]?.fullName || "Account unavailable" : item.targetId || "—"}`
                   : "—"}
               </td>
               <td>{item.reason || "—"}</td>
-              <td>{item.actorId || "—"}</td>
+              <td>{item.actorId ? profiles[item.actorId]?.fullName || "Administrator unavailable" : "—"}</td>
               <td>{date(item.createdAt)}</td>
             </tr>
           ))}
         </Table>
-        {!page.loading && !page.items.length ? (
+        {loading ? <TableLoading /> : null}
+        {!loading && !items.length ? (
           <EmptyState title="No audit records in this result" />
         ) : null}
-        {page.error ? (
-          <ErrorState message={page.error} retry={page.refresh} />
+        {error ? (
+          <ErrorState message={error} retry={() => void load()} />
         ) : null}
-        <Pager {...page} />
       </Panel>
     </div>
   );
