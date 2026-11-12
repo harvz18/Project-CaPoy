@@ -85,8 +85,8 @@ export async function reviewVerification(userId: string, decision: "Verified" | 
 export async function reviewPayment(taskId: string, decision: "Verified" | "Rejected", reason: string) {
   await httpsCallable(requireServices().functions, "reviewPaymentEvidence")({ taskId, decision, reason });
 }
-export async function changeAccountStatus(userId: string, accountStatus: "active" | "suspended", reason: string, violationReportId = "", evidenceReference = "") {
-  await httpsCallable(requireServices().functions, "setUserAccountStatus")({ userId, accountStatus, reason, violationReportId, evidenceReference });
+export async function changeAccountStatus(userId: string, accountStatus: "active" | "suspended", reason: string, violationReportId = "") {
+  await postAdminApi("/api/admin/moderation/account-status", { userId, accountStatus, reason, violationReportId });
 }
 export async function correctName(userId: string, fullName: string, reason: string) {
   await httpsCallable(requireServices().functions, "correctLockedFullName")({ userId, fullName, reason });

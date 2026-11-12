@@ -2,7 +2,7 @@ const express = require("express");
 const { cert, getApps, initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore } = require("firebase-admin/firestore");
-const { authorityFromClaims, hasSuperadminAuthority, toModerationUser } = require("../functions/authority");
+const { authorityFromClaims, buildAccountStatusChange, hasSuperadminAuthority, toModerationUser } = require("../functions/authority");
 
 class ApiError extends Error {
   constructor(status, message) {
@@ -54,8 +54,8 @@ async function authenticate(request, requiredAuthority = "admin") {
 function route(requiredAuthority, action) {
   return async (request, response, next) => {
     try {
-      await authenticate(request, requiredAuthority);
-      response.json(await action({ request, db: services().db }));
+      const claims = await authenticate(request, requiredAuthority);
+      response.json(await action({ request, db: services().db, claims }));
     } catch (error) {
       next(error);
     }
@@ -67,6 +67,63 @@ function requestedIds(request) {
   const ids = [...new Set(request.body.ids.filter((id) => typeof id === "string").map((id) => id.trim()).filter(Boolean))];
   if (ids.length > 100) throw new ApiError(400, "At most 100 profiles can be requested at once.");
   return ids;
+}
+
+function requiredBodyString(request, fieldName) {
+  const value = request.body?.[fieldName];
+  if (typeof value !== "string" || !value.trim()) {
+    throw new ApiError(400, `${fieldName} is required.`);
+  }
+  return value.trim();
+}
+
+async function changeAccountStatus({ request, db, claims }) {
+  const userId = requiredBodyString(request, "userId");
+  const accountStatus = requiredBodyString(request, "accountStatus");
+  const reason = requiredBodyString(request, "reason");
+  const violationReportId = typeof request.body?.violationReportId === "string"
+    ? request.body.violationReportId.trim()
+    : "";
+  const userRef = db.collection("users").doc(userId);
+
+  await db.runTransaction(async (transaction) => {
+    const reportRef = violationReportId ? db.collection("violationReports").doc(violationReportId) : null;
+    const [userSnapshot, reportSnapshot] = await Promise.all([
+      transaction.get(userRef),
+      reportRef ? transaction.get(reportRef) : Promise.resolve(null)
+    ]);
+    if (!userSnapshot.exists) throw new ApiError(404, "User account was not found.");
+    if (reportRef && (!reportSnapshot?.exists || reportSnapshot.data().targetUserId !== userId)) {
+      throw new ApiError(409, "The violation report does not belong to this account.");
+    }
+    const changedAt = new Date().toISOString();
+    let change;
+    try {
+      change = buildAccountStatusChange({
+        actorId: claims.uid,
+        targetId: userId,
+        target: userSnapshot.data(),
+        accountStatus,
+        reason,
+        evidenceReference: "",
+        violationReportId,
+        changedAt
+      });
+    } catch (error) {
+      throw new ApiError(400, error instanceof Error ? error.message : "Invalid moderation request.");
+    }
+    transaction.update(userRef, change.update);
+    if (reportRef && accountStatus === "suspended") {
+      transaction.update(reportRef, {
+        status: "Actioned",
+        actionedAt: changedAt,
+        actionedBy: claims.uid,
+        updatedAt: changedAt
+      });
+    }
+    transaction.set(db.collection("auditLogs").doc(), { ...change.audit, createdAt: changedAt });
+  });
+  return { ok: true, accountStatus };
 }
 
 async function profileLookup({ request, db }) {
@@ -115,6 +172,7 @@ function createServer() {
     const users = await db.collection("users").where("role", "in", ["client", "worker"]).get();
     return { users: users.docs.map((document) => toModerationUser(document.id, document.data())) };
   }));
+  app.post("/api/admin/moderation/account-status", route("admin", changeAccountStatus));
   app.get("/api/admin/superadmin/overview", route("superadmin", async ({ db }) => {
     const [users, reports, auditLogs] = await Promise.all([
       db.collection("users").where("role", "in", ["client", "worker"]).get(),
