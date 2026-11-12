@@ -11,7 +11,7 @@ import { useApp } from "../src/context/AppContext";
 import { getScheduleBasedAvailability, getUserTaskHistory } from "../src/domain/taskMarketplace";
 import { isIdentityLocked } from "../src/domain/profileIdentity";
 import { captureForegroundLocation } from "../src/services/locationService";
-import { pickAndUploadPrivateDocument, pickAndUploadProfilePhoto } from "../src/services/fileUploadService";
+import { pickAndUploadPrivateDocument, pickAndUploadProfilePhoto, UploadSource } from "../src/services/fileUploadService";
 import { AddressSearchResult, reverseGeocodeSelectedPin, searchAddressOnMap } from "../src/services/reverseGeocoding";
 import { submitVerificationRequest } from "../src/services/verificationService";
 import { parseCoordinate } from "../src/utils/location";
@@ -107,6 +107,7 @@ export default function ProfileScreen() {
   const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
   const [skillDraft, setSkillDraft] = useState<string[]>([]);
   const [validIdTypePickerOpen, setValidIdTypePickerOpen] = useState(false);
+  const [uploadSourceTarget, setUploadSourceTarget] = useState<"profile-photo" | "valid-id" | "medical-certificate" | "police-clearance">();
   const [editProfileExpanded, setEditProfileExpanded] = useState(false);
   const hasVerificationDocuments = Boolean(validIdUrl && medicalCertificateUrl && policeClearanceUrl);
   const displayedVerificationStatus = currentUser?.verificationStatus === "Pending Verification" && !hasVerificationDocuments
@@ -189,12 +190,12 @@ export default function ProfileScreen() {
     }
   }
 
-  async function uploadProfilePhoto() {
+  async function uploadProfilePhoto(source: UploadSource = "library") {
     if (!currentUser) return;
     setUploadingField("profile-photo");
     setUploadMessage("");
     try {
-      const uploaded = await pickAndUploadProfilePhoto(currentUser.id);
+      const uploaded = await pickAndUploadProfilePhoto(currentUser.id, source);
       if (uploaded) {
         setProfilePhotoUrl(uploaded.url);
         await updateProfile({ profilePhotoUrl: uploaded.url });
@@ -207,12 +208,12 @@ export default function ProfileScreen() {
     }
   }
 
-  async function uploadVerificationDocument(kind: "valid-id" | "medical-certificate" | "police-clearance") {
+  async function uploadVerificationDocument(kind: "valid-id" | "medical-certificate" | "police-clearance", source: UploadSource = "library") {
     if (!currentUser) return;
     setUploadingField(kind);
     setUploadMessage("");
     try {
-      const uploaded = await pickAndUploadPrivateDocument(currentUser.id, kind);
+      const uploaded = await pickAndUploadPrivateDocument(currentUser.id, kind, source);
       if (uploaded) {
         if (kind === "valid-id") setValidIdUrl(uploaded.path);
         else if (kind === "medical-certificate") setMedicalCertificateUrl(uploaded.path);
@@ -225,6 +226,13 @@ export default function ProfileScreen() {
     } finally {
       setUploadingField(undefined);
     }
+  }
+
+  async function selectUploadSource(source: UploadSource) {
+    const target = uploadSourceTarget;
+    setUploadSourceTarget(undefined);
+    if (target === "profile-photo") await uploadProfilePhoto(source);
+    else if (target) await uploadVerificationDocument(target, source);
   }
 
   function openSkillSelector() {
@@ -398,7 +406,7 @@ export default function ProfileScreen() {
             uploading={uploadingField === "profile-photo"}
             value={profilePhotoUrl}
             placeholder="Tap to upload profile photo"
-            onSelect={uploadProfilePhoto}
+            onSelect={() => setUploadSourceTarget("profile-photo")}
           />
           <View style={styles.twoColumn}>
             <View style={styles.flex}><Field label="House / Building" value={addressDetails.houseNumber ?? ""} onChangeText={(value) => updateAddressDetail("houseNumber", value)} placeholder="Optional" /></View>
@@ -502,7 +510,7 @@ export default function ProfileScreen() {
                 uploading={uploadingField === "valid-id"}
                 value={validIdUrl}
                 placeholder="Tap to upload valid ID"
-                onSelect={() => uploadVerificationDocument("valid-id")}
+                onSelect={() => setUploadSourceTarget("valid-id")}
               />
               <UploadField
                 disabled={fullNameLocked || uploadingField === "medical-certificate"}
@@ -510,7 +518,7 @@ export default function ProfileScreen() {
                 uploading={uploadingField === "medical-certificate"}
                 value={medicalCertificateUrl}
                 placeholder="Tap to upload medical certificate"
-                onSelect={() => uploadVerificationDocument("medical-certificate")}
+                onSelect={() => setUploadSourceTarget("medical-certificate")}
               />
               <UploadField
                 disabled={fullNameLocked || uploadingField === "police-clearance"}
@@ -518,7 +526,7 @@ export default function ProfileScreen() {
                 uploading={uploadingField === "police-clearance"}
                 value={policeClearanceUrl}
                 placeholder="Tap to upload police clearance"
-                onSelect={() => uploadVerificationDocument("police-clearance")}
+                onSelect={() => setUploadSourceTarget("police-clearance")}
               />
               <Text style={styles.helperText}>{fullNameLocked
                 ? "Your approved identity details are locked. Contact support if a correction is needed."
@@ -668,6 +676,23 @@ export default function ProfileScreen() {
                 );
               })}
             </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+
+      <Modal animationType="fade" transparent visible={Boolean(uploadSourceTarget)} onRequestClose={() => setUploadSourceTarget(undefined)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setUploadSourceTarget(undefined)}>
+          <View style={styles.dropdownMenu}>
+            <Text style={styles.dropdownTitle}>{uploadSourceTarget === "profile-photo" ? "Profile Photo" : "Upload document"}</Text>
+            <Text style={styles.helperText}>Use your camera or choose an existing file.</Text>
+            <Pressable accessibilityRole="button" onPress={() => void selectUploadSource("camera")} style={styles.dropdownOption}>
+              <Feather accessibilityElementsHidden color={palette.primary} name="camera" size={20} />
+              <Text style={styles.dropdownOptionText}>Take a photo</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => void selectUploadSource("library")} style={styles.dropdownOption}>
+              <Feather accessibilityElementsHidden color={palette.primary} name="image" size={20} />
+              <Text style={styles.dropdownOptionText}>{uploadSourceTarget === "profile-photo" ? "Choose from gallery" : "Choose image or PDF"}</Text>
+            </Pressable>
           </View>
         </Pressable>
       </Modal>

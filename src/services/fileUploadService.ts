@@ -33,6 +33,8 @@ export type SelectedFile = {
   base64?: string;
 };
 
+export type UploadSource = "camera" | "library";
+
 function requireStorage() {
   if (!storage) throw new Error("Firebase Storage is not configured.");
   return storage;
@@ -63,7 +65,7 @@ function safeFileName(name: string) {
   return cleaned.slice(-100) || "upload";
 }
 
-export async function pickProfilePhoto(source: "camera" | "library" = "library") {
+async function pickImage(source: UploadSource, fallbackName: string, options: ImagePicker.ImagePickerOptions) {
   if (Platform.OS !== "web") {
     const permission = source === "camera"
       ? await ImagePicker.requestCameraPermissionsAsync()
@@ -72,13 +74,6 @@ export async function pickProfilePhoto(source: "camera" | "library" = "library")
       throw new Error(source === "camera" ? "Camera access is needed to take a profile photo." : "Photo-library access is needed to choose a profile photo.");
     }
   }
-  const options: ImagePicker.ImagePickerOptions = {
-    mediaTypes: ["images"],
-    allowsEditing: true,
-    aspect: [1, 1],
-    base64: true,
-    quality: 0.3
-  };
   const result = source === "camera"
     ? await ImagePicker.launchCameraAsync(options)
     : await ImagePicker.launchImageLibraryAsync(options);
@@ -86,11 +81,23 @@ export async function pickProfilePhoto(source: "camera" | "library" = "library")
   const asset = result.assets[0];
   const file: SelectedFile = {
     uri: asset.uri,
-    name: asset.fileName ?? "profile-photo.jpg",
+    name: asset.fileName ?? fallbackName,
     mimeType: asset.mimeType ?? "image/jpeg",
     size: asset.fileSize,
     base64: asset.base64 ?? undefined
   };
+  return file;
+}
+
+export async function pickProfilePhoto(source: UploadSource = "library") {
+  const file = await pickImage(source, "profile-photo.jpg", {
+    mediaTypes: ["images"],
+    allowsEditing: true,
+    aspect: [1, 1],
+    base64: true,
+    quality: 0.3
+  });
+  if (!file) return null;
   validateFile(file, false);
   return file;
 }
@@ -104,17 +111,23 @@ export async function uploadProfilePhoto(userId: string, file: SelectedFile) {
   return { name: file.name, url: `data:${file.mimeType};base64,${base64}` };
 }
 
-export async function pickAndUploadProfilePhoto(userId: string) {
-  const file = await pickProfilePhoto("library");
+export async function pickAndUploadProfilePhoto(userId: string, source: UploadSource = "library") {
+  const file = await pickProfilePhoto(source);
   return file ? uploadProfilePhoto(userId, file) : null;
 }
 
-export async function pickAndUploadPrivateDocument(
-  ownerId: string,
-  kind: VerificationDocumentKind
-) {
+async function pickPrivateFile(source: UploadSource, allowPdf: boolean, fallbackName: string) {
+  if (source === "camera") {
+    const file = await pickImage("camera", fallbackName, {
+      mediaTypes: ["images"],
+      quality: 0.7
+    });
+    if (!file) return null;
+    validateFile(file, false);
+    return file;
+  }
   const result = await DocumentPicker.getDocumentAsync({
-    type: ["image/*", "application/pdf"],
+    type: allowPdf ? ["image/*", "application/pdf"] : ["image/*"],
     copyToCacheDirectory: true,
     multiple: false
   });
@@ -126,7 +139,17 @@ export async function pickAndUploadPrivateDocument(
     mimeType: asset.mimeType ?? "application/octet-stream",
     size: asset.size
   };
-  validateFile(file, true);
+  validateFile(file, allowPdf);
+  return file;
+}
+
+export async function pickAndUploadPrivateDocument(
+  ownerId: string,
+  kind: VerificationDocumentKind,
+  source: UploadSource = "library"
+) {
+  const file = await pickPrivateFile(source, true, `${kind}.jpg`);
+  if (!file) return null;
   const { firestore, user } = requireFirestoreVerificationServices(ownerId);
   const response = await fetch(file.uri);
   if (!response.ok) throw new Error("Unable to read the selected verification document.");
@@ -175,22 +198,11 @@ async function pickAndUploadPrivatePaymentFile(
   taskId: string,
   party: PaymentProofParty,
   allowPdf: boolean,
-  label: string
+  label: string,
+  source: UploadSource
 ) {
-  const result = await DocumentPicker.getDocumentAsync({
-    type: allowPdf ? ["image/*", "application/pdf"] : ["image/*"],
-    copyToCacheDirectory: true,
-    multiple: false
-  });
-  if (result.canceled) return null;
-  const asset = result.assets[0];
-  const file: SelectedFile = {
-    uri: asset.uri,
-    name: asset.name,
-    mimeType: asset.mimeType ?? "application/octet-stream",
-    size: asset.size
-  };
-  validateFile(file, allowPdf);
+  const file = await pickPrivateFile(source, allowPdf, `${party}-${label.replace(/\s+/g, "-")}.jpg`);
+  if (!file) return null;
   const { firestore, user } = requireFirestoreReceiptServices();
   const response = await fetch(file.uri);
   if (!response.ok) throw new Error(`Unable to read the selected ${label}.`);
@@ -234,12 +246,12 @@ async function pickAndUploadPrivatePaymentFile(
   return { name: file.name, path };
 }
 
-export function pickAndUploadPaymentProof(taskId: string, party: Exclude<PaymentProofParty, "worker-gcash-qr">) {
-  return pickAndUploadPrivatePaymentFile(taskId, party, true, "payment receipt");
+export function pickAndUploadPaymentProof(taskId: string, party: Exclude<PaymentProofParty, "worker-gcash-qr">, source: UploadSource = "library") {
+  return pickAndUploadPrivatePaymentFile(taskId, party, true, "payment receipt", source);
 }
 
-export function pickAndUploadGcashQr(taskId: string) {
-  return pickAndUploadPrivatePaymentFile(taskId, "worker-gcash-qr", false, "GCash QR image");
+export function pickAndUploadGcashQr(taskId: string, source: UploadSource = "library") {
+  return pickAndUploadPrivatePaymentFile(taskId, "worker-gcash-qr", false, "GCash QR image", source);
 }
 
 export async function getPaymentProofDownloadUrl(taskId: string, path: string) {

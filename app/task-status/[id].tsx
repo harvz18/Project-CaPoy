@@ -2,7 +2,7 @@ import Feather from "@expo/vector-icons/Feather";
 import * as Clipboard from "expo-clipboard";
 import { Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import LocationMap from "../../src/components/LocationMap";
@@ -20,7 +20,7 @@ import {
   getTaskCheckDistanceKm,
   shouldTrackTaskLocation
 } from "../../src/utils/location";
-import { getPaymentProofDownloadUrl, pickAndUploadGcashQr, pickAndUploadPaymentProof } from "../../src/services/fileUploadService";
+import { getPaymentProofDownloadUrl, pickAndUploadGcashQr, pickAndUploadPaymentProof, UploadSource } from "../../src/services/fileUploadService";
 import { formatPhilippineMobileNumber, normalizePhilippineMobileNumber } from "../../src/domain/gcashPayment";
 import { subscribeToPayment } from "../../src/services/taskRepository";
 import { hasPendingTaskChange, summarizeTaskTermChanges } from "../../src/domain/taskTerms";
@@ -295,12 +295,24 @@ export default function TaskStatusScreen() {
     }
   }
 
-  async function handleUploadPaymentProof() {
+  function choosePhotoSource(title: string, allowPdf: boolean, onChoose: (source: UploadSource) => void) {
+    if (Platform.OS === "web") {
+      onChoose("library");
+      return;
+    }
+    Alert.alert(title, "Use your camera or choose an existing file.", [
+      { text: "Take photo", onPress: () => onChoose("camera") },
+      { text: allowPdf ? "Choose image or PDF" : "Choose image", onPress: () => onChoose("library") },
+      { text: "Cancel", style: "cancel" }
+    ]);
+  }
+
+  async function handleUploadPaymentProof(source: UploadSource = "library") {
     if (!task) return;
     setUploadingProof(true);
     setActionWarning("");
     try {
-      const uploaded = await pickAndUploadPaymentProof(task.id, "client");
+      const uploaded = await pickAndUploadPaymentProof(task.id, "client", source);
       if (uploaded) {
         setProofOfPaymentUrl(uploaded.path);
         setProofFileName(uploaded.name);
@@ -322,12 +334,12 @@ export default function TaskStatusScreen() {
     }
   }
 
-  async function handleUploadWorkerPaymentProof() {
+  async function handleUploadWorkerPaymentProof(source: UploadSource = "library") {
     if (!task) return;
     setUploadingWorkerProof(true);
     setActionWarning("");
     try {
-      const uploaded = await pickAndUploadPaymentProof(task.id, "worker");
+      const uploaded = await pickAndUploadPaymentProof(task.id, "worker", source);
       if (!uploaded) return;
       await submitWorkerPaymentProof(task.id, workerProofOfPaymentText, uploaded.path);
       setWorkerProofOfPaymentUrl(uploaded.path);
@@ -349,12 +361,12 @@ export default function TaskStatusScreen() {
     }
   }
 
-  async function handleUploadGcashQr() {
+  async function handleUploadGcashQr(source: UploadSource = "library") {
     if (!task) return;
     setUploadingGcashQr(true);
     setActionWarning("");
     try {
-      const uploaded = await pickAndUploadGcashQr(task.id);
+      const uploaded = await pickAndUploadGcashQr(task.id, source);
       if (uploaded) {
         setGcashQrPath(uploaded.path);
         setGcashQrRemoved(false);
@@ -385,12 +397,12 @@ export default function TaskStatusScreen() {
     setActionWarning("GCash number copied.");
   }
 
-  async function handleUploadGcashProof() {
+  async function handleUploadGcashProof(source: UploadSource = "library") {
     if (!task) return;
     setUploadingGcashProof(true);
     setActionWarning("");
     try {
-      const uploaded = await pickAndUploadPaymentProof(task.id, "client");
+      const uploaded = await pickAndUploadPaymentProof(task.id, "client", source);
       if (uploaded) {
         setGcashProofPath(uploaded.path);
         setGcashProofFileName(uploaded.name);
@@ -698,7 +710,7 @@ export default function TaskStatusScreen() {
                   <Pressable
                     accessibilityRole="button"
                     disabled={uploadingProof || actionLoading || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified"}
-                    onPress={handleUploadPaymentProof}
+                    onPress={() => choosePhotoSource("Upload receipt", true, (source) => void handleUploadPaymentProof(source))}
                     style={styles.paymentOutlineButton}
                   >
                     <Text style={styles.paymentOutlineButtonText}>
@@ -756,7 +768,7 @@ export default function TaskStatusScreen() {
                       <Pressable
                         accessibilityRole="button"
                         disabled={uploadingWorkerProof || actionLoading}
-                        onPress={handleUploadWorkerPaymentProof}
+                        onPress={() => choosePhotoSource("Upload tasker receipt", true, (source) => void handleUploadWorkerPaymentProof(source))}
                         style={styles.paymentOutlineButton}
                       >
                         <Text style={styles.paymentOutlineButtonText}>
@@ -944,7 +956,7 @@ export default function TaskStatusScreen() {
               <Text style={styles.dialogMessage}>Enter the GCash number where you want to receive payment. These details are visible only to you, the assigned employer, and authorized administrators.</Text>
               <Text style={styles.modalFieldLabel}>GCash mobile number</Text>
               <TextInput accessibilityLabel="GCash mobile number" autoComplete="tel" keyboardType="phone-pad" onChangeText={(value) => setGcashMobileNumber(value || "0")} placeholder="09XXXXXXXXX" placeholderTextColor={palette.outline} style={styles.modalInput} value={gcashMobileNumber} />
-              <Pressable accessibilityRole="button" disabled={uploadingGcashQr || actionLoading} onPress={handleUploadGcashQr} style={styles.paymentOutlineButton}>
+              <Pressable accessibilityRole="button" disabled={uploadingGcashQr || actionLoading} onPress={() => choosePhotoSource("Upload GCash QR image", false, (source) => void handleUploadGcashQr(source))} style={styles.paymentOutlineButton}>
                 <Text style={styles.paymentOutlineButtonText}>{uploadingGcashQr ? "Uploading QR..." : gcashQrFileName || "Upload GCash QR Image (optional)"}</Text>
               </Pressable>
               {gcashQrPath && !gcashQrRemoved ? <Pressable accessibilityRole="button" disabled={actionLoading} onPress={() => { setGcashQrPath(""); setGcashQrFileName(""); setGcashQrRemoved(true); }} style={styles.paymentOutlineButton}><Text style={styles.paymentOutlineButtonText}>Remove QR Image</Text></Pressable> : null}
@@ -975,7 +987,7 @@ export default function TaskStatusScreen() {
               {gcashQrPreviewUri ? <Image accessibilityLabel="Worker GCash QR code" resizeMode="contain" source={{ uri: gcashQrPreviewUri }} style={styles.gcashQrPreview} /> : null}
               {payment?.gcashQrPath ? <Pressable accessibilityRole="button" onPress={() => handleOpenPaymentProof(payment.gcashQrPath)} style={styles.paymentOutlineButton}><Text style={styles.paymentOutlineButtonText}>Open QR Image</Text></Pressable> : null}
               <TextInput accessibilityLabel="Optional GCash reference" maxLength={500} onChangeText={setGcashReference} placeholder="Optional transaction reference or note" placeholderTextColor={palette.outline} style={styles.modalInput} value={gcashReference} />
-              <Pressable accessibilityRole="button" disabled={uploadingGcashProof || actionLoading} onPress={handleUploadGcashProof} style={styles.paymentOutlineButton}><Text style={styles.paymentOutlineButtonText}>{uploadingGcashProof ? "Uploading..." : gcashProofFileName || "Upload Payment Evidence (optional)"}</Text></Pressable>
+              <Pressable accessibilityRole="button" disabled={uploadingGcashProof || actionLoading} onPress={() => choosePhotoSource("Upload payment evidence", true, (source) => void handleUploadGcashProof(source))} style={styles.paymentOutlineButton}><Text style={styles.paymentOutlineButtonText}>{uploadingGcashProof ? "Uploading..." : gcashProofFileName || "Upload Payment Evidence (optional)"}</Text></Pressable>
               <Text style={styles.geoHint}>After you confirm, the worker will be asked to confirm whether the payment was received. Optional evidence remains private to participants and authorized administrators.</Text>
               <View style={styles.dialogActions}>
                 <Pressable accessibilityRole="button" disabled={actionLoading} onPress={() => setGcashPayOpen(false)} style={styles.dialogCancel}><Text style={styles.dialogCancelText}>Cancel</Text></Pressable>
