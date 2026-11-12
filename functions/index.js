@@ -74,6 +74,48 @@ function writeAudit(transaction, db, entry) {
   });
 }
 
+async function hasStoredVerificationDocument(transaction, db, userId, path, kind) {
+  if (typeof path !== "string") return false;
+  if (path.startsWith(`verification/${userId}/`)) return true;
+  if (path !== `firestoreVerification/${userId}/${kind}`) return false;
+  const snapshot = await transaction.get(
+    db.collection("verificationFiles").doc(userId).collection("uploads").doc(kind)
+  );
+  if (!snapshot.exists) return false;
+  const file = snapshot.data();
+  const validMetadata = file.userId === userId
+    && file.kind === kind
+    && file.uploaderId === userId
+    && file.status === "ready"
+    && typeof file.fileName === "string"
+    && typeof file.mimeType === "string"
+    && typeof file.version === "string"
+    && Number.isInteger(file.chunkCount)
+    && file.chunkCount > 0
+    && file.chunkCount <= 16
+    && Number.isInteger(file.encodedSize)
+    && file.encodedSize > 0;
+  if (!validMetadata) return false;
+  const chunkLengths = await Promise.all(Array.from({ length: file.chunkCount }, async (_, index) => {
+      const chunk = await transaction.get(
+        db.collection("verificationFiles").doc(userId).collection("uploads").doc(kind)
+          .collection("chunks").doc(index.toString().padStart(3, "0"))
+      );
+      const data = chunk.data();
+      const validChunk = chunk.exists
+        && data.userId === userId
+        && data.kind === kind
+        && data.uploaderId === userId
+        && data.version === file.version
+        && data.index === index
+        && typeof data.data === "string"
+        && data.data.length > 0;
+      return validChunk ? data.data.length : -1;
+    }));
+  return chunkLengths.every((length) => length > 0)
+    && chunkLengths.reduce((total, length) => total + length, 0) === file.encodedSize;
+}
+
 exports.acceptTaskApplication = onCall({ region: REGION }, async (request) => {
   const clientId = requireSignedIn(request);
   const taskId = requiredString(request.data?.taskId, "taskId");
@@ -252,11 +294,11 @@ exports.reviewWorkerVerification = onCall({ region: REGION }, async (request) =>
       throw new HttpsError("failed-precondition", "Only employer and tasker accounts can be verified.");
     }
     const verification = verificationSnapshot.data();
-    const hasAllRequiredDocuments = [
-      verification.validIdPath,
-      verification.medicalCertificatePath,
-      verification.policeClearancePath
-    ].every((path) => typeof path === "string" && path.startsWith(`verification/${userId}/`));
+    const hasAllRequiredDocuments = (await Promise.all([
+      hasStoredVerificationDocument(transaction, db, userId, verification.validIdPath, "valid-id"),
+      hasStoredVerificationDocument(transaction, db, userId, verification.medicalCertificatePath, "medical-certificate"),
+      hasStoredVerificationDocument(transaction, db, userId, verification.policeClearancePath, "police-clearance")
+    ])).every(Boolean);
     if (decision === "Verified" && !hasAllRequiredDocuments) {
       throw new HttpsError("failed-precondition", "A valid ID, medical certificate, and police clearance are required before approval.");
     }
@@ -272,7 +314,12 @@ exports.reviewWorkerVerification = onCall({ region: REGION }, async (request) =>
     transaction.update(requestRef, review);
     const role = userSnapshot.data().role;
     const roleProfileRef = role === "worker" ? workerRef : db.collection("clientProfiles").doc(userId);
-    const verificationReview = { verificationStatus: decision, ...identityReview, updatedAt: reviewedAt };
+    const verificationReview = {
+      verificationStatus: decision,
+      verificationReviewReason: reason || null,
+      ...identityReview,
+      updatedAt: reviewedAt
+    };
     transaction.update(userRef, verificationReview);
     transaction.set(roleProfileRef, verificationReview, { merge: true });
     transaction.set(publicRef, { verificationStatus: decision, updatedAt: reviewedAt }, { merge: true });

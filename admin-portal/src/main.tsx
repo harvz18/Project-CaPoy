@@ -1550,36 +1550,42 @@ function VerificationDocumentModal({
   document: { path: string; label: string };
   close: () => void;
 }) {
-  const [url, setUrl] = useState("");
+  const [preview, setPreview] = useState<{ url: string; mimeType: string; fileName: string }>();
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
+    let previewUrl = "";
+    setPreview(undefined);
+    setError("");
     void getVerificationDocumentUrl(document.path)
       .then((next) => {
-        if (active) setUrl(next);
+        previewUrl = next.url;
+        if (active) setPreview(next);
+        else if (next.url.startsWith("blob:")) URL.revokeObjectURL(next.url);
       })
       .catch((failure) => {
         if (active) setError(errorText(failure));
       });
     return () => {
       active = false;
+      if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
     };
   }, [document.path]);
-  const isPdf = document.path.toLowerCase().endsWith(".pdf");
+  const isPdf = preview?.mimeType === "application/pdf";
   return (
     <Modal title={document.label} close={close}>
       {error ? <ErrorState message={error} /> : null}
-      {!url && !error ? <TableLoading /> : null}
-      {url ? (
+      {!preview && !error ? <TableLoading /> : null}
+      {preview ? (
         <div className="document-preview">
           {isPdf ? (
-            <iframe src={url} title={document.label} />
+            <iframe src={preview.url} title={document.label} />
           ) : (
-            <img src={url} alt={document.label} />
+            <img src={preview.url} alt={document.label} />
           )}
           <a
             className="button secondary"
-            href={url}
+            href={preview.url}
             target="_blank"
             rel="noreferrer"
           >

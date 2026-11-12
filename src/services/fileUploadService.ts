@@ -3,7 +3,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { Platform } from "react-native";
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { getDownloadURL, ref } from "firebase/storage";
 import {
   createFirestorePaymentProofPath,
   maxFirestorePaymentProofBytes,
@@ -11,6 +11,12 @@ import {
   PaymentProofParty,
   splitPaymentProofBase64
 } from "../utils/paymentProof";
+import {
+  createFirestoreVerificationDocumentPath,
+  maxFirestoreVerificationDocumentBytes,
+  splitVerificationDocumentBase64,
+  VerificationDocumentKind
+} from "../utils/verificationDocument";
 import { auth, db, storage } from "./firebase";
 
 const maxUploadBytes = 10 * 1024 * 1024;
@@ -38,25 +44,23 @@ function requireFirestoreReceiptServices() {
   return { firestore: db, user };
 }
 
+function requireFirestoreVerificationServices(ownerId: string) {
+  const user = auth?.currentUser;
+  if (!db || !user) throw new Error("Sign in again before uploading a verification document.");
+  if (user.uid !== ownerId) throw new Error("You can upload verification documents only for your own account.");
+  return { firestore: db, user };
+}
+
 function validateFile(file: SelectedFile, allowPdf: boolean) {
   const allowed = file.mimeType.startsWith("image/") || (allowPdf && file.mimeType === "application/pdf");
   if (!allowed) throw new Error(allowPdf ? "Choose an image or PDF file." : "Choose an image file.");
-  if (file.size !== undefined && file.size > maxUploadBytes) throw new Error("Files must be smaller than 10 MB.");
+  const maximumBytes = allowPdf ? maxFirestoreVerificationDocumentBytes : maxUploadBytes;
+  if (file.size !== undefined && file.size > maximumBytes) throw new Error(`Files must be smaller than ${allowPdf ? "5" : "10"} MB.`);
 }
 
 function safeFileName(name: string) {
   const cleaned = name.replace(/[^a-zA-Z0-9._-]/g, "-").replace(/-+/g, "-");
   return cleaned.slice(-100) || "upload";
-}
-
-async function uploadSelectedFile(file: SelectedFile, path: string) {
-  const response = await fetch(file.uri);
-  if (!response.ok) throw new Error("Unable to read the selected file.");
-  const blob = await response.blob();
-  if (blob.size > maxUploadBytes) throw new Error("Files must be smaller than 10 MB.");
-  const uploadRef = ref(requireStorage(), path);
-  await uploadBytes(uploadRef, blob, { contentType: file.mimeType });
-  return uploadRef;
 }
 
 export async function pickProfilePhoto(source: "camera" | "library" = "library") {
@@ -107,7 +111,7 @@ export async function pickAndUploadProfilePhoto(userId: string) {
 
 export async function pickAndUploadPrivateDocument(
   ownerId: string,
-  kind: "valid-id" | "medical-certificate" | "police-clearance"
+  kind: VerificationDocumentKind
 ) {
   const result = await DocumentPicker.getDocumentAsync({
     type: ["image/*", "application/pdf"],
@@ -123,9 +127,48 @@ export async function pickAndUploadPrivateDocument(
     size: asset.size
   };
   validateFile(file, true);
-  const path = `verification/${ownerId}/${kind}_${Date.now()}_${safeFileName(file.name)}`;
-  await uploadSelectedFile(file, path);
-  return { name: file.name, path };
+  const { firestore, user } = requireFirestoreVerificationServices(ownerId);
+  const response = await fetch(file.uri);
+  if (!response.ok) throw new Error("Unable to read the selected verification document.");
+  const blob = await response.blob();
+  if (blob.size === 0) throw new Error("The selected verification document is empty.");
+  if (blob.size > maxFirestoreVerificationDocumentBytes) {
+    throw new Error("Verification files must be smaller than 5 MB.");
+  }
+  const base64 = await blobToBase64(blob);
+  const chunks = splitVerificationDocumentBase64(base64);
+  const version = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  const createdAt = new Date().toISOString();
+  const fileRef = doc(firestore, "verificationFiles", ownerId, "uploads", kind);
+  const metadata = {
+    userId: ownerId,
+    kind,
+    uploaderId: user.uid,
+    fileName: safeFileName(file.name),
+    mimeType: file.mimeType,
+    byteSize: blob.size,
+    encodedSize: base64.length,
+    chunkCount: chunks.length,
+    version,
+    status: "uploading",
+    createdAt
+  };
+  await setDoc(fileRef, metadata);
+  for (const [index, data] of chunks.entries()) {
+    const chunkId = index.toString().padStart(3, "0");
+    await setDoc(doc(fileRef, "chunks", chunkId), {
+      id: chunkId,
+      userId: ownerId,
+      kind,
+      uploaderId: user.uid,
+      index,
+      version,
+      data,
+      createdAt
+    });
+  }
+  await setDoc(fileRef, { ...metadata, status: "ready" });
+  return { name: file.name, path: createFirestoreVerificationDocumentPath(ownerId, kind) };
 }
 
 async function pickAndUploadPrivatePaymentFile(

@@ -475,6 +475,78 @@ test("workers can submit private verification metadata atomically but cannot app
   }));
 });
 
+test("verification files stay private and can back a pending review without Firebase Storage", async () => {
+  const workerDb = dbFor(WORKER_ID);
+  const outsiderDb = dbFor(OUTSIDER_ID);
+  const adminDb = dbFor(ADMIN_ID, { admin: true });
+  const now = "2026-01-01T00:11:00.000Z";
+  const kind = "valid-id";
+  const fileRef = doc(workerDb, "verificationFiles", WORKER_ID, "uploads", kind);
+  const file = {
+    userId: WORKER_ID,
+    kind,
+    uploaderId: WORKER_ID,
+    fileName: "valid-id.pdf",
+    mimeType: "application/pdf",
+    byteSize: 12,
+    encodedSize: 16,
+    chunkCount: 1,
+    version: "verification-v1",
+    status: "uploading",
+    createdAt: now
+  };
+  await assertSucceeds(setDoc(fileRef, file));
+  await assertSucceeds(setDoc(doc(fileRef, "chunks", "000"), {
+    id: "000",
+    userId: WORKER_ID,
+    kind,
+    uploaderId: WORKER_ID,
+    index: 0,
+    version: file.version,
+    data: "cHJpdmF0ZS1maWxl",
+    createdAt: now
+  }));
+  await assertSucceeds(setDoc(fileRef, { ...file, status: "ready" }));
+  await assertSucceeds(getDoc(fileRef));
+  await assertFails(getDoc(doc(outsiderDb, "verificationFiles", WORKER_ID, "uploads", kind)));
+  await assertSucceeds(getDoc(doc(adminDb, "verificationFiles", WORKER_ID, "uploads", kind)));
+
+  const verification = {
+    userId: WORKER_ID,
+    validIdType: "PhilSys ID",
+    validIdPath: `firestoreVerification/${WORKER_ID}/valid-id`,
+    medicalCertificatePath: `verification/${WORKER_ID}/medical.pdf`,
+    policeClearancePath: `verification/${WORKER_ID}/police.pdf`,
+    status: "Pending Verification",
+    submittedAt: now,
+    updatedAt: now
+  };
+  const batch = writeBatch(workerDb);
+  batch.set(doc(workerDb, "verificationRequests", WORKER_ID), verification);
+  batch.update(doc(workerDb, "users", WORKER_ID), {
+    validIdType: verification.validIdType,
+    validIdUrl: verification.validIdPath,
+    medicalCertificateUrl: verification.medicalCertificatePath,
+    policeClearanceUrl: verification.policeClearancePath,
+    verificationStatus: verification.status,
+    identityStatus: "Pending Approval",
+    updatedAt: now
+  });
+  batch.update(doc(workerDb, "workerProfiles", WORKER_ID), {
+    validIdType: verification.validIdType,
+    validIdUrl: verification.validIdPath,
+    medicalCertificateUrl: verification.medicalCertificatePath,
+    policeClearanceUrl: verification.policeClearancePath,
+    verificationStatus: verification.status,
+    updatedAt: now
+  });
+  batch.update(doc(workerDb, "publicProfiles", WORKER_ID), {
+    verificationStatus: verification.status,
+    updatedAt: now
+  });
+  await assertSucceeds(batch.commit());
+});
+
 test("employers can submit all private verification documents atomically", async () => {
   const clientDb = dbFor(CLIENT_ID);
   const now = "2026-01-01T00:12:00.000Z";

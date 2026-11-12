@@ -1,4 +1,4 @@
-import { collection, documentId, DocumentData, getCountFromServer, getDocs, limit, onSnapshot, orderBy, query, QueryConstraint, QueryDocumentSnapshot, startAfter, where } from "firebase/firestore";
+import { collection, doc, documentId, DocumentData, getCountFromServer, getDoc, getDocs, limit, onSnapshot, orderBy, query, QueryConstraint, QueryDocumentSnapshot, startAfter, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { getDownloadURL, ref } from "firebase/storage";
 import { db, functions, storage } from "./firebase";
@@ -87,9 +87,48 @@ export async function changeAccountStatus(userId: string, accountStatus: "active
 export async function correctName(userId: string, fullName: string, reason: string) {
   await httpsCallable(requireServices().functions, "correctLockedFullName")({ userId, fullName, reason });
 }
-export async function getVerificationDocumentUrl(path: string) {
+export type VerificationDocumentPreview = { url: string; mimeType: string; fileName: string };
+export async function getVerificationDocumentUrl(path: string): Promise<VerificationDocumentPreview> {
+  const firestoreDocument = parseFirestoreVerificationDocumentPath(path);
+  if (firestoreDocument) {
+    const { db: store } = requireServices();
+    const fileRef = doc(store, "verificationFiles", firestoreDocument.userId, "uploads", firestoreDocument.kind);
+    const snapshot = await getDoc(fileRef);
+    const file = snapshot.data();
+    if (!file || file.userId !== firestoreDocument.userId || file.kind !== firestoreDocument.kind || file.status !== "ready" || typeof file.mimeType !== "string" || typeof file.fileName !== "string" || typeof file.version !== "string" || !Number.isInteger(file.chunkCount) || !Number.isInteger(file.encodedSize)) {
+      throw new Error("The verification document is unavailable or incomplete.");
+    }
+    const chunkSnapshot = await getDocs(collection(fileRef, "chunks"));
+    const chunks = chunkSnapshot.docs
+      .map((item) => item.data())
+      .filter((item) => item.version === file.version && Number.isInteger(item.index) && typeof item.data === "string")
+      .sort((left, right) => left.index - right.index);
+    if (chunks.length !== file.chunkCount || chunks.some((item, index) => item.index !== index)) {
+      throw new Error("The verification document is incomplete. Ask the user to upload it again.");
+    }
+    const base64 = chunks.map((item) => item.data).join("");
+    if (base64.length !== file.encodedSize) throw new Error("The verification document is incomplete. Ask the user to upload it again.");
+    return { url: materializeDocument(base64, file.mimeType), mimeType: file.mimeType, fileName: file.fileName };
+  }
   if (!storage) throw new Error("Firebase Storage is not configured.");
-  return getDownloadURL(ref(storage, path));
+  return {
+    url: await getDownloadURL(ref(storage, path)),
+    mimeType: path.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/*",
+    fileName: path.split("/").at(-1) || "verification document"
+  };
+}
+
+function parseFirestoreVerificationDocumentPath(path: string) {
+  const [prefix, userId, kind, ...extra] = path.split("/");
+  if (prefix !== "firestoreVerification" || !userId || !["valid-id", "medical-certificate", "police-clearance"].includes(kind) || extra.length) return undefined;
+  return { userId, kind } as const;
+}
+
+function materializeDocument(base64: string, mimeType: string) {
+  const binary = globalThis.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
 }
 
 export type PortalData = { profiles: Profile[]; tasks: Task[]; matches: TaskMatch[]; ratings: Rating[]; audit: AuditLog[] };

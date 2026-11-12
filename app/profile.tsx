@@ -7,7 +7,6 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { workerCapabilities } from "../src/constants/capabilities";
-import { FREE_WEB_DEMO } from "../src/config/release";
 import { useApp } from "../src/context/AppContext";
 import { getScheduleBasedAvailability, getUserTaskHistory } from "../src/domain/taskMarketplace";
 import { isIdentityLocked } from "../src/domain/profileIdentity";
@@ -94,6 +93,10 @@ export default function ProfileScreen() {
   const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
   const [skillDraft, setSkillDraft] = useState<string[]>([]);
   const [editProfileExpanded, setEditProfileExpanded] = useState(false);
+  const hasVerificationDocuments = Boolean(validIdUrl && medicalCertificateUrl && policeClearanceUrl);
+  const displayedVerificationStatus = currentUser?.verificationStatus === "Pending Verification" && !hasVerificationDocuments
+    ? "Not Submitted"
+    : currentUser?.verificationStatus ?? "Not Submitted";
   const fullNameLocked = isIdentityLocked(currentUser);
   const profileRatings = ratings
     .filter((rating) => rating.targetUserId === currentUser?.id)
@@ -433,9 +436,12 @@ export default function ProfileScreen() {
               <View style={styles.verificationStatusRow}>
                 <Text style={styles.settingTitle}>Status</Text>
                 <View style={styles.verificationBadge}>
-                  <Text style={styles.verificationBadgeText}>{currentUser?.verificationStatus ?? "Not Submitted"}</Text>
+                  <Text style={styles.verificationBadgeText}>{displayedVerificationStatus}</Text>
                 </View>
               </View>
+              <Text style={styles.helperText}>{displayedVerificationStatus === "Pending Verification"
+                ? "Your verification is pending administrator review after all required documents are submitted."
+                : currentUser.verificationReviewReason || "Upload the three required documents, then save changes to submit them for review."}</Text>
               {currentUser.role === "worker" ? <>
                 <Field label="Years of Experience" value={yearsOfExperience} onChangeText={setYearsOfExperience} placeholder="e.g. 2 years" />
                 <Field
@@ -449,42 +455,42 @@ export default function ProfileScreen() {
               <UploadField
                 disabled={uploadingField === "profile-photo"}
                 label="Profile Photo"
+                uploading={uploadingField === "profile-photo"}
                 value={profilePhotoUrl}
                 placeholder="Tap to upload profile photo"
                 onSelect={uploadProfilePhoto}
               />
-              {FREE_WEB_DEMO ? (
-                <Text style={styles.helperText}>Profile photos work in this web deployment. Verification-document uploads require Firebase Storage and are unavailable here.</Text>
-              ) : <>
-                  <Field editable={!fullNameLocked} label="Valid ID Type" value={validIdType} onChangeText={(value) => {
-                    setValidIdType(value);
-                    setDocumentsChanged(true);
-                  }} placeholder="e.g. National ID, Driver's License" />
-                  <UploadField
-                    disabled={fullNameLocked || uploadingField === "valid-id"}
-                    label="Valid ID"
-                    value={validIdUrl}
-                    placeholder="Tap to upload valid ID"
-                    onSelect={() => uploadVerificationDocument("valid-id")}
-                  />
-                  <UploadField
-                    disabled={fullNameLocked || uploadingField === "medical-certificate"}
-                    label="Medical Certificate"
-                    value={medicalCertificateUrl}
-                    placeholder="Tap to upload medical certificate"
-                    onSelect={() => uploadVerificationDocument("medical-certificate")}
-                  />
-                  <UploadField
-                    disabled={fullNameLocked || uploadingField === "police-clearance"}
-                    label="Police Clearance"
-                    value={policeClearanceUrl}
-                    placeholder="Tap to upload police clearance"
-                    onSelect={() => uploadVerificationDocument("police-clearance")}
-                  />
-                  <Text style={styles.helperText}>{fullNameLocked
-                    ? "Your approved identity details are locked. Contact support if a correction is needed."
-                    : "Submit a valid ID, medical certificate, and police clearance. Documents are private and available only to you and authorized administrators."}</Text>
-              </>}
+              <Field editable={!fullNameLocked} label="Valid ID Type" value={validIdType} onChangeText={(value) => {
+                setValidIdType(value);
+                setDocumentsChanged(true);
+              }} placeholder="e.g. National ID, Driver's License" />
+              <UploadField
+                disabled={fullNameLocked || uploadingField === "valid-id"}
+                label="Valid ID"
+                uploading={uploadingField === "valid-id"}
+                value={validIdUrl}
+                placeholder="Tap to upload valid ID"
+                onSelect={() => uploadVerificationDocument("valid-id")}
+              />
+              <UploadField
+                disabled={fullNameLocked || uploadingField === "medical-certificate"}
+                label="Medical Certificate"
+                uploading={uploadingField === "medical-certificate"}
+                value={medicalCertificateUrl}
+                placeholder="Tap to upload medical certificate"
+                onSelect={() => uploadVerificationDocument("medical-certificate")}
+              />
+              <UploadField
+                disabled={fullNameLocked || uploadingField === "police-clearance"}
+                label="Police Clearance"
+                uploading={uploadingField === "police-clearance"}
+                value={policeClearanceUrl}
+                placeholder="Tap to upload police clearance"
+                onSelect={() => uploadVerificationDocument("police-clearance")}
+              />
+              <Text style={styles.helperText}>{fullNameLocked
+                ? "Your approved identity details are locked. Contact support if a correction is needed."
+                : "Upload a valid ID, medical certificate, and police clearance (images or PDFs up to 5 MB). Files are private; save changes after all three are ready to submit them for review."}</Text>
               {uploadMessage ? <Text style={styles.locationMessage}>{uploadMessage}</Text> : null}
             </SettingsCard>
 
@@ -746,12 +752,14 @@ function Field({
 function UploadField({
   disabled,
   label,
+  uploading = false,
   value,
   placeholder,
   onSelect
 }: {
   disabled?: boolean;
   label: string;
+  uploading?: boolean;
   value: string;
   placeholder: string;
   onSelect: () => void | Promise<void>;
@@ -766,10 +774,10 @@ function UploadField({
           <Text style={[styles.uploadText, !selectedFile && styles.uploadPlaceholder]}>
             {selectedFile || placeholder}
           </Text>
-          {selectedFile ? <Text style={styles.uploadMeta}>Ready for review</Text> : null}
+          {selectedFile ? <Text style={styles.uploadMeta}>Uploaded — save changes to submit</Text> : null}
         </View>
         <View style={styles.uploadButton}>
-          <Text style={styles.uploadButtonText}>{disabled ? "Uploading..." : selectedFile ? "Change" : "Upload"}</Text>
+          <Text style={styles.uploadButtonText}>{uploading ? "Uploading..." : disabled ? "Locked" : selectedFile ? "Change" : "Upload"}</Text>
         </View>
       </Pressable>
     </View>

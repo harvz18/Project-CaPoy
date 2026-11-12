@@ -105,6 +105,7 @@ export type UserProfile = {
   medicalCertificateUrl?: string;
   policeClearanceUrl?: string;
   verificationStatus?: VerificationStatus;
+  verificationReviewReason?: string | null;
   identityStatus?: IdentityStatus;
   identityApprovedAt?: string;
   identityApprovedBy?: string;

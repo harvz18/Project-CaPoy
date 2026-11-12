@@ -113,6 +113,22 @@ service cloud.firestore {
       return getAfter(/databases/$(database)/documents/paymentProofFiles/$(taskId)/uploads/$(party)).data;
     }
 
+    function verificationFile(userId, kind) {
+      return get(/databases/$(database)/documents/verificationFiles/$(userId)/uploads/$(kind)).data;
+    }
+
+    function verificationFileAfter(userId, kind) {
+      return getAfter(/databases/$(database)/documents/verificationFiles/$(userId)/uploads/$(kind)).data;
+    }
+
+    function validVerificationDocumentPath(userId, path, kind) {
+      return path is string
+        && (path.matches('verification/' + userId + '/.*')
+          || (path == 'firestoreVerification/' + userId + '/' + kind
+            && verificationFile(userId, kind).status == 'ready'
+            && verificationFile(userId, kind).uploaderId == request.auth.uid));
+    }
+
     function validClientPaymentProofPath(taskId, proofPath) {
       return proofPath is string
         && (proofPath.matches('paymentProofs/' + taskId + '/.+')
@@ -276,10 +292,10 @@ service cloud.firestore {
             !identityLocked(resource.data)
             && request.resource.data.role in ['worker', 'client']
             && request.resource.data.verificationStatus == 'Pending Verification'
-            && request.resource.data.validIdUrl.matches('verification/' + request.auth.uid + '/.*')
-            && request.resource.data.medicalCertificateUrl.matches('verification/' + request.auth.uid + '/.*')
+            && validVerificationDocumentPath(request.auth.uid, request.resource.data.validIdUrl, 'valid-id')
+            && validVerificationDocumentPath(request.auth.uid, request.resource.data.medicalCertificateUrl, 'medical-certificate')
             && (!('policeClearanceUrl' in request.resource.data)
-              || request.resource.data.policeClearanceUrl.matches('verification/' + request.auth.uid + '/.*'))
+              || validVerificationDocumentPath(request.auth.uid, request.resource.data.policeClearanceUrl, 'police-clearance'))
             && verificationAfter(request.auth.uid).status == 'Pending Verification'
             && verificationAfter(request.auth.uid).validIdType == request.resource.data.validIdType
             && verificationAfter(request.auth.uid).validIdPath == request.resource.data.validIdUrl
@@ -525,10 +541,10 @@ service cloud.firestore {
           || (
             !identityLocked(get(/databases/$(database)/documents/users/$(userId)).data)
             && request.resource.data.verificationStatus == 'Pending Verification'
-            && request.resource.data.validIdUrl.matches('verification/' + userId + '/.*')
-            && request.resource.data.medicalCertificateUrl.matches('verification/' + userId + '/.*')
+            && validVerificationDocumentPath(userId, request.resource.data.validIdUrl, 'valid-id')
+            && validVerificationDocumentPath(userId, request.resource.data.medicalCertificateUrl, 'medical-certificate')
             && (!('policeClearanceUrl' in request.resource.data)
-              || request.resource.data.policeClearanceUrl.matches('verification/' + userId + '/.*'))
+              || validVerificationDocumentPath(userId, request.resource.data.policeClearanceUrl, 'police-clearance'))
             && verificationAfter(userId).status == 'Pending Verification'
             && verificationAfter(userId).validIdType == request.resource.data.validIdType
             && verificationAfter(userId).validIdPath == request.resource.data.validIdUrl
@@ -1574,6 +1590,67 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /verificationFiles/{userId}/uploads/{kind} {
+      allow read: if isAdmin() || (hasEnabledAccount() && request.auth.uid == userId);
+      allow create, update: if hasEnabledAccount()
+        && request.auth.uid == userId
+        && kind in ['valid-id', 'medical-certificate', 'police-clearance']
+        && request.resource.data.keys().hasOnly([
+          'userId', 'kind', 'uploaderId', 'fileName', 'mimeType', 'byteSize',
+          'encodedSize', 'chunkCount', 'version', 'status', 'createdAt'
+        ])
+        && request.resource.data.userId == userId
+        && request.resource.data.kind == kind
+        && request.resource.data.uploaderId == request.auth.uid
+        && request.resource.data.fileName is string
+        && request.resource.data.fileName.size() > 0
+        && request.resource.data.fileName.size() <= 100
+        && request.resource.data.mimeType is string
+        && (request.resource.data.mimeType.matches('image/.+')
+          || request.resource.data.mimeType == 'application/pdf')
+        && request.resource.data.byteSize is int
+        && request.resource.data.byteSize > 0
+        && request.resource.data.byteSize <= 5242880
+        && request.resource.data.encodedSize is int
+        && request.resource.data.encodedSize > 0
+        && request.resource.data.encodedSize <= 6991000
+        && request.resource.data.chunkCount is int
+        && request.resource.data.chunkCount > 0
+        && request.resource.data.chunkCount <= 16
+        && request.resource.data.version is string
+        && request.resource.data.version.size() > 0
+        && request.resource.data.status in ['uploading', 'ready']
+        && request.resource.data.createdAt is string;
+      allow delete: if false;
+
+      match /chunks/{chunkId} {
+        allow read: if isAdmin() || (hasEnabledAccount() && request.auth.uid == userId);
+        allow create, update: if hasEnabledAccount()
+          && request.auth.uid == userId
+          && kind in ['valid-id', 'medical-certificate', 'police-clearance']
+          && request.resource.data.keys().hasOnly([
+            'id', 'userId', 'kind', 'uploaderId', 'index', 'version', 'data', 'createdAt'
+          ])
+          && request.resource.data.id == chunkId
+          && request.resource.data.userId == userId
+          && request.resource.data.kind == kind
+          && request.resource.data.uploaderId == request.auth.uid
+          && verificationFileAfter(userId, kind).userId == userId
+          && verificationFileAfter(userId, kind).kind == kind
+          && verificationFileAfter(userId, kind).uploaderId == request.auth.uid
+          && verificationFileAfter(userId, kind).status in ['uploading', 'ready']
+          && request.resource.data.version == verificationFileAfter(userId, kind).version
+          && request.resource.data.createdAt == verificationFileAfter(userId, kind).createdAt
+          && request.resource.data.index is int
+          && request.resource.data.index >= 0
+          && request.resource.data.index < verificationFileAfter(userId, kind).chunkCount
+          && request.resource.data.data is string
+          && request.resource.data.data.size() > 0
+          && request.resource.data.data.size() <= 450000;
+        allow delete: if false;
+      }
+    }
+
     match /verificationRequests/{userId} {
       allow read: if isAdmin() || (hasEnabledAccount() && request.auth.uid == userId);
       allow create, update: if (hasRole('worker') || hasRole('client'))
@@ -1585,10 +1662,10 @@ service cloud.firestore {
         && request.resource.data.userId == userId
         && request.resource.data.validIdType is string
         && request.resource.data.validIdType.size() > 0
-        && request.resource.data.validIdPath.matches('verification/' + userId + '/.*')
-        && request.resource.data.medicalCertificatePath.matches('verification/' + userId + '/.*')
+        && validVerificationDocumentPath(userId, request.resource.data.validIdPath, 'valid-id')
+        && validVerificationDocumentPath(userId, request.resource.data.medicalCertificatePath, 'medical-certificate')
         && (!('policeClearancePath' in request.resource.data)
-          || request.resource.data.policeClearancePath.matches('verification/' + userId + '/.*'))
+          || validVerificationDocumentPath(userId, request.resource.data.policeClearancePath, 'police-clearance'))
         && request.resource.data.status == 'Pending Verification';
       allow delete: if false;
     }
