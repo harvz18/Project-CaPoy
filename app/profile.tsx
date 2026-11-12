@@ -46,6 +46,20 @@ const workerRadiusOptions = [
   { label: "Barangay", value: "5", helper: "Covers nearby barangays" },
   { label: "Wide area", value: "10", helper: "Shows tasks within a broader radius" }
 ];
+const validIdTypes = [
+  "Philippine Identification (PhilSys) ID / ePhilID",
+  "Driver's License (LTO)",
+  "Passport (DFA)",
+  "UMID / SSS ID",
+  "PhilHealth ID",
+  "TIN ID",
+  "Postal ID",
+  "Voter's ID / COMELEC Certificate",
+  "PRC ID",
+  "GSIS eCard",
+  "Senior Citizen ID",
+  "PWD ID"
+];
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -92,6 +106,7 @@ export default function ProfileScreen() {
   const [preferredRadiusKm, setPreferredRadiusKm] = useState(String(currentUser?.preferredRadiusKm ?? 5));
   const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
   const [skillDraft, setSkillDraft] = useState<string[]>([]);
+  const [validIdTypePickerOpen, setValidIdTypePickerOpen] = useState(false);
   const [editProfileExpanded, setEditProfileExpanded] = useState(false);
   const hasVerificationDocuments = Boolean(validIdUrl && medicalCertificateUrl && policeClearanceUrl);
   const displayedVerificationStatus = currentUser?.verificationStatus === "Pending Verification" && !hasVerificationDocuments
@@ -219,6 +234,12 @@ export default function ProfileScreen() {
 
   function toggleSkill(skill: string) {
     setSkillDraft((items) => (items.includes(skill) ? items.filter((item) => item !== skill) : [...items, skill]));
+  }
+
+  function selectValidIdType(value: string) {
+    setValidIdType(value);
+    setDocumentsChanged(true);
+    setValidIdTypePickerOpen(false);
   }
 
   async function saveSkills() {
@@ -460,10 +481,21 @@ export default function ProfileScreen() {
                   multiline
                 />
               </> : null}
-              <Field editable={!fullNameLocked} label="Valid ID Type" value={validIdType} onChangeText={(value) => {
-                setValidIdType(value);
-                setDocumentsChanged(true);
-              }} placeholder="e.g. National ID, Driver's License" />
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>Valid ID Type</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: fullNameLocked }}
+                  disabled={fullNameLocked}
+                  onPress={() => setValidIdTypePickerOpen(true)}
+                  style={[styles.idTypePicker, fullNameLocked && styles.uploadDisabled]}
+                >
+                  <Text style={[styles.idTypePickerText, !validIdType && styles.uploadPlaceholder]} numberOfLines={2}>
+                    {validIdType || "Choose a Philippine government-issued ID"}
+                  </Text>
+                  <Feather accessibilityElementsHidden color={palette.primary} name="chevron-down" size={20} />
+                </Pressable>
+              </View>
               <UploadField
                 disabled={fullNameLocked || uploadingField === "valid-id"}
                 label="Valid ID"
@@ -609,6 +641,33 @@ export default function ProfileScreen() {
                 <Text style={styles.capabilitySaveText}>Save capabilities</Text>
               </Pressable>
             </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      <Modal animationType="fade" transparent visible={validIdTypePickerOpen} onRequestClose={() => setValidIdTypePickerOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setValidIdTypePickerOpen(false)}>
+          <View style={styles.idTypeMenu}>
+            <View style={styles.idTypeMenuHeader}>
+              <View style={styles.flex}>
+                <Text style={styles.dropdownTitle}>Valid ID Type</Text>
+                <Text style={styles.helperText}>Choose the government-issued ID you are uploading.</Text>
+              </View>
+              <Pressable accessibilityLabel="Close valid ID type picker" accessibilityRole="button" onPress={() => setValidIdTypePickerOpen(false)} style={styles.addressMapClose}>
+                <Feather color={palette.primary} name="x" size={22} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={styles.idTypeOptions} showsVerticalScrollIndicator={false}>
+              {validIdTypes.map((type) => {
+                const selected = validIdType === type;
+                return (
+                  <Pressable accessibilityRole="button" accessibilityState={{ selected }} key={type} onPress={() => selectValidIdType(type)} style={[styles.dropdownOption, selected && styles.dropdownOptionActive]}>
+                    <Text style={[styles.dropdownOptionText, selected && styles.dropdownOptionSelected]}>{type}</Text>
+                    {selected ? <Feather accessibilityElementsHidden color={palette.primary} name="check" size={20} /> : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
         </Pressable>
       </Modal>
@@ -874,6 +933,8 @@ const styles = StyleSheet.create({
     backgroundColor: palette.primary
   },
   uploadButtonText: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  idTypePicker: { minHeight: 48, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, color: palette.text, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 14 },
+  idTypePickerText: { flex: 1, color: palette.text, fontSize: 16, lineHeight: 21 },
   flex: { flex: 1 },
   twoColumn: { flexDirection: "row", gap: 10 },
   helperText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
@@ -962,6 +1023,9 @@ const styles = StyleSheet.create({
   fieldHelper: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   modalBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(24,28,28,0.32)", alignItems: "center", justifyContent: "center" },
   dropdownMenu: { width: "100%", maxWidth: 420, borderRadius: 12, padding: 12, backgroundColor: palette.surface },
+  idTypeMenu: { width: "100%", maxWidth: 420, maxHeight: "78%", borderRadius: 12, padding: 12, backgroundColor: palette.surface },
+  idTypeMenuHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingHorizontal: 8, paddingBottom: 8 },
+  idTypeOptions: { paddingBottom: 4 },
   dropdownTitle: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: "900", paddingHorizontal: 8, paddingVertical: 8 },
   dropdownOption: { minHeight: 48, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12 },
   dropdownOptionText: { color: palette.muted, fontSize: 16, lineHeight: 24, fontWeight: "700" },
