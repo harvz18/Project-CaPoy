@@ -9,7 +9,7 @@ function requireServices() { if (!db || !functions) throw new Error("Firebase is
 function records<T>(snapshot: { docs: QueryDocumentSnapshot<DocumentData>[] }) { return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as T); }
 
 export type Page<T> = { items: T[]; cursor: QueryDocumentSnapshot<DocumentData> | null; hasMore: boolean };
-export async function loadPage<T>(name: string, orderField: string, size = 20, cursor: QueryDocumentSnapshot<DocumentData> | null = null, filters: QueryConstraint[] = [], sortDirection: "asc" | "desc" = "asc"): Promise<Page<T>> {
+export async function loadPage<T>(name: string, orderField: string, size = 10, cursor: QueryDocumentSnapshot<DocumentData> | null = null, filters: QueryConstraint[] = [], sortDirection: "asc" | "desc" = "asc"): Promise<Page<T>> {
   const { db: store } = requireServices();
   const clauses: QueryConstraint[] = [...filters, orderBy(orderField, sortDirection), limit(size + 1)];
   if (cursor) clauses.splice(filters.length + 1, 0, startAfter(cursor));

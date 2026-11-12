@@ -65,7 +65,7 @@ import { where } from "firebase/firestore";
 import "./styles.css";
 import "./v5.css";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const DATE_FORMATTER = new Intl.DateTimeFormat("en-PH", {
   dateStyle: "medium",
   timeStyle: "short",
