@@ -371,6 +371,14 @@ export default function ProfileScreen() {
             keyboardType="phone-pad"
             placeholder="Mobile number"
           />
+          <UploadField
+            disabled={uploadingField === "profile-photo"}
+            label="Profile Photo"
+            uploading={uploadingField === "profile-photo"}
+            value={profilePhotoUrl}
+            placeholder="Tap to upload profile photo"
+            onSelect={uploadProfilePhoto}
+          />
           <View style={styles.twoColumn}>
             <View style={styles.flex}><Field label="House / Building" value={addressDetails.houseNumber ?? ""} onChangeText={(value) => updateAddressDetail("houseNumber", value)} placeholder="Optional" /></View>
             <View style={styles.flex}><Field label="Street" value={addressDetails.street ?? ""} onChangeText={(value) => updateAddressDetail("street", value)} placeholder="Optional" /></View>
@@ -452,14 +460,6 @@ export default function ProfileScreen() {
                   multiline
                 />
               </> : null}
-              <UploadField
-                disabled={uploadingField === "profile-photo"}
-                label="Profile Photo"
-                uploading={uploadingField === "profile-photo"}
-                value={profilePhotoUrl}
-                placeholder="Tap to upload profile photo"
-                onSelect={uploadProfilePhoto}
-              />
               <Field editable={!fullNameLocked} label="Valid ID Type" value={validIdType} onChangeText={(value) => {
                 setValidIdType(value);
                 setDocumentsChanged(true);
