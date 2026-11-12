@@ -1,7 +1,6 @@
-import { View } from "react-native";
+import { Text, View } from "react-native";
 import { styles } from "../styles";
 import { TaskStatus } from "../types";
-import { AppText as Text } from "./AppText";
 
 type StatusBadgeProps = {
   status: TaskStatus | "Available" | "Busy" | "Unread" | "Read";
@@ -22,7 +21,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
               : styles.badgePrimary;
 
   return (
-    <View accessible accessibilityLabel={`Status: ${status}`} style={[styles.badge, tone]}>
+    <View style={[styles.badge, tone]}>
       <Text style={styles.badgeText}>{status}</Text>
     </View>
   );

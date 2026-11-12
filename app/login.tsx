@@ -1,19 +1,44 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Href, useRouter } from "expo-router";
 import { useState } from "react";
-import { Platform, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
-import { MotionPressable as Pressable } from "../src/components/MotionPressable";
+import {
+  LayoutAnimation,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  UIManager,
+  View
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
-import { screenPalette } from "../src/theme";
 import { PublicRole, Role } from "../src/types";
-import { typography } from "../src/typography";
-import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
-import { MotionModal as Modal } from "../src/components/MotionModal";
-import { useMotionLayout } from "../src/hooks/useMotionLayout";
 
-const palette = screenPalette;
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const palette = {
+  background: "#F7FAF8",
+  surface: "#FFFFFF",
+  surfaceLow: "#F1F4F3",
+  surfaceContainer: "#EBEFED",
+  surfaceHigh: "#E0E3E1",
+  primary: "#005C55",
+  secondary: "#855300",
+  secondaryContainer: "#FEA619",
+  text: "#181C1C",
+  textStrong: "#111827",
+  muted: "#3E4947",
+  outline: "#6E7977",
+  outlineVariant: "#BDC9C6",
+  success: "#10B981",
+  white: "#FFFFFF"
+};
 
 const barangays = ["Barangay Alijis", "Barangay Taculing", "Barangay Mandalagan", "Barangay 10"];
 
@@ -34,10 +59,6 @@ function getRoleRoute(role?: Role): Href {
 
 export default function LoginScreen() {
   const router = useRouter();
-  const prepareLayout = useMotionLayout();
-  const { width: viewportWidth } = useWindowDimensions();
-  const formWidth = Math.max(0, Math.min(viewportWidth - 32, 448));
-  const formWidthStyle = { width: formWidth };
   const { actionLoading, error, login, register, usingFirebase } = useApp();
   const [mobileNumber, setMobileNumber] = useState("");
   const [password, setPassword] = useState("");
@@ -49,21 +70,12 @@ export default function LoginScreen() {
   const [registerCapabilities, setRegisterCapabilities] = useState(["Cleaning"]);
   const [selectedBarangay, setSelectedBarangay] = useState(barangays[0]);
   const [barangayOpen, setBarangayOpen] = useState(false);
-  const [loginAttempted, setLoginAttempted] = useState(false);
-  const [registrationAttempted, setRegistrationAttempted] = useState(false);
-  const loginMobileError = loginAttempted && !/^\d{10}$/.test(mobileNumber) ? "Enter a 10-digit Philippine mobile number." : "";
-  const loginPasswordError = loginAttempted && !password ? "Enter your password." : "";
-  const registerNameError = registrationAttempted && fullName.trim().length < 2 ? "Enter your full name." : "";
-  const registerMobileError = registrationAttempted && !/^\d{10}$/.test(registerMobileNumber) ? "Enter a 10-digit Philippine mobile number." : "";
-  const registerPasswordError = registrationAttempted && registerPassword.length < 6 ? "Password must contain at least 6 characters." : "";
 
   function animateNext() {
-    prepareLayout();
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
   }
 
   async function handleLogin() {
-    setLoginAttempted(true);
-    if (!/^\d{10}$/.test(mobileNumber) || !password) return;
     try {
       const user = await login({
         mobileNumber: mobileNumber.trim(),
@@ -76,8 +88,6 @@ export default function LoginScreen() {
   }
 
   async function handleRegister() {
-    setRegistrationAttempted(true);
-    if (fullName.trim().length < 2 || !/^\d{10}$/.test(registerMobileNumber) || registerPassword.length < 6) return;
     try {
       await register({
         role: registerRole,
@@ -125,19 +135,16 @@ export default function LoginScreen() {
       </View>
 
       <ScrollView
-        automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
         contentContainerStyle={screenStyles.content}
-        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        style={screenStyles.scroll}
       >
-        <View style={[screenStyles.intro, formWidthStyle]}>
+        <View style={screenStyles.intro}>
           <Text style={screenStyles.welcome}>Welcome Neighbor</Text>
           <Text style={screenStyles.subtitle}>Quickly connect with local help in your community.</Text>
         </View>
 
-        <View style={[screenStyles.card, formWidthStyle]}>
+        <View style={screenStyles.card}>
           <Text style={screenStyles.authTitle}>Password Login</Text>
           <Text style={screenStyles.authNotice}>
             SMS OTP is not enabled yet. Use the password created with your account.
@@ -146,7 +153,7 @@ export default function LoginScreen() {
 
           <View style={screenStyles.section}>
             <Text style={screenStyles.label}>Mobile Number</Text>
-            <PhoneInput error={loginMobileError} mobileNumber={mobileNumber} onChange={setMobileNumber} />
+            <PhoneInput mobileNumber={mobileNumber} onChange={setMobileNumber} />
           </View>
 
           {error ? <Text style={screenStyles.errorText}>{error}</Text> : null}
@@ -154,9 +161,6 @@ export default function LoginScreen() {
           <View style={screenStyles.section}>
             <Text style={screenStyles.label}>Password</Text>
             <TextInput
-              accessibilityLabel="Password"
-              accessibilityHint={loginPasswordError || undefined}
-              autoComplete="current-password"
               onChangeText={setPassword}
               placeholder="Enter your password"
               placeholderTextColor={palette.outline}
@@ -164,11 +168,8 @@ export default function LoginScreen() {
               style={screenStyles.textInput}
               value={password}
             />
-            {loginPasswordError ? <Text accessibilityLiveRegion="polite" style={screenStyles.errorText}>{loginPasswordError}</Text> : null}
             <Pressable
-              accessibilityLabel="Login"
               accessibilityRole="button"
-              accessibilityState={{ busy: actionLoading, disabled: actionLoading }}
               disabled={actionLoading}
               onPress={handleLogin}
               style={({ pressed }) => [screenStyles.secondaryButton, pressed && screenStyles.pressed]}
@@ -200,16 +201,12 @@ export default function LoginScreen() {
                 <View style={screenStyles.nameField}>
                   <Text style={screenStyles.label}>Full Name</Text>
                   <TextInput
-                    accessibilityLabel="Full name"
-                    accessibilityHint={registerNameError || undefined}
-                    autoComplete="name"
                     onChangeText={setFullName}
                     placeholder="Juana Dela Cruz"
                     placeholderTextColor={palette.outline}
                     style={screenStyles.textInput}
                     value={fullName}
                   />
-                  {registerNameError ? <Text accessibilityLiveRegion="polite" style={screenStyles.errorText}>{registerNameError}</Text> : null}
                 </View>
               </View>
 
@@ -222,7 +219,7 @@ export default function LoginScreen() {
                   const selected = registerRole === option.role;
                   return (
                     <Pressable
-                      accessibilityRole="radio"
+                      accessibilityRole="button"
                       accessibilityState={{ selected }}
                       key={option.role}
                       onPress={() => setRegisterRole(option.role)}
@@ -235,7 +232,7 @@ export default function LoginScreen() {
               </View>
 
               <Text style={screenStyles.label}>Mobile Number</Text>
-              <PhoneInput error={registerMobileError} mobileNumber={registerMobileNumber} onChange={setRegisterMobileNumber} />
+              <PhoneInput mobileNumber={registerMobileNumber} onChange={setRegisterMobileNumber} />
 
               <Text style={screenStyles.label}>Select Barangay</Text>
               <Pressable
@@ -249,9 +246,6 @@ export default function LoginScreen() {
 
               <Text style={screenStyles.label}>Password</Text>
               <TextInput
-                accessibilityLabel="Create password"
-                accessibilityHint={registerPasswordError || "Use at least 6 characters."}
-                autoComplete="new-password"
                 onChangeText={setRegisterPassword}
                 placeholder="Create password"
                 placeholderTextColor={palette.outline}
@@ -259,7 +253,6 @@ export default function LoginScreen() {
                 style={screenStyles.textInput}
                 value={registerPassword}
               />
-              {registerPasswordError ? <Text accessibilityLiveRegion="polite" style={screenStyles.errorText}>{registerPasswordError}</Text> : null}
 
               {registerRole === "worker" ? (
                 <>
@@ -269,8 +262,8 @@ export default function LoginScreen() {
                       const selected = registerCapabilities.includes(capability);
                       return (
                         <Pressable
-                          accessibilityRole="checkbox"
-                          accessibilityState={{ checked: selected }}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected }}
                           key={capability}
                           onPress={() => toggleCapability(capability)}
                           style={[screenStyles.capabilityChip, selected && screenStyles.capabilityChipSelected]}
@@ -286,9 +279,7 @@ export default function LoginScreen() {
               ) : null}
 
               <Pressable
-                accessibilityLabel={`Create ${registerRole === "client" ? "employer" : "tasker"} account`}
                 accessibilityRole="button"
-                accessibilityState={{ busy: actionLoading, disabled: actionLoading }}
                 disabled={actionLoading}
                 onPress={handleRegister}
                 style={({ pressed }) => [screenStyles.primaryButton, pressed && screenStyles.pressed]}
@@ -301,14 +292,14 @@ export default function LoginScreen() {
           ) : null}
         </View>
 
-        <View style={[screenStyles.termsBlock, formWidthStyle]}>
+        <View style={screenStyles.termsBlock}>
           <Text style={screenStyles.terms}>By signing in, you agree to the beta terms and privacy notice.</Text>
           <Pressable accessibilityRole="link" onPress={() => router.push("/help" as Href)}>
             <Text style={screenStyles.link}>Read terms, privacy, limitations, and support</Text>
           </Pressable>
         </View>
 
-        <View style={[screenStyles.footer, formWidthStyle]}>
+        <View style={screenStyles.footer}>
           <Text style={screenStyles.modeText}>TaskLink records payment evidence but does not process or escrow funds.</Text>
           <Text style={screenStyles.modeText}>
             Data mode: {usingFirebase ? "Firebase backend" : "Firebase not configured"}
@@ -318,13 +309,12 @@ export default function LoginScreen() {
       </ScrollView>
 
       <Modal animationType="fade" transparent visible={barangayOpen} onRequestClose={() => setBarangayOpen(false)}>
-        <Pressable accessibilityLabel="Close barangay picker" accessibilityRole="button" motionDisabled style={screenStyles.modalBackdrop} onPress={() => setBarangayOpen(false)}>
-          <View accessibilityViewIsModal style={screenStyles.dropdownMenu}>
+        <Pressable style={screenStyles.modalBackdrop} onPress={() => setBarangayOpen(false)}>
+          <View style={screenStyles.dropdownMenu}>
             <Text style={screenStyles.dropdownTitle}>Select Barangay</Text>
             {barangays.map((barangay) => (
               <Pressable
                 accessibilityRole="button"
-                accessibilityState={{ selected: selectedBarangay === barangay }}
                 key={barangay}
                 onPress={() => {
                   setSelectedBarangay(barangay);
@@ -350,35 +340,27 @@ export default function LoginScreen() {
 }
 
 type PhoneInputProps = {
-  error?: string;
   mobileNumber: string;
   onChange: (value: string) => void;
 };
 
-function PhoneInput({ error, mobileNumber, onChange }: PhoneInputProps) {
+function PhoneInput({ mobileNumber, onChange }: PhoneInputProps) {
   return (
-    <View>
-      <View style={screenStyles.phoneInputWrap}>
-        <View style={screenStyles.prefixWrap}>
-          <Text allowFontScaling={false} style={screenStyles.prefix}>
-            +63
-          </Text>
-        </View>
-        <TextInput
-          accessibilityLabel="Philippine mobile number"
-          accessibilityHint={error || "Enter the 10 digits after country code plus 63."}
-          autoComplete="tel"
-          inputMode="tel"
-          keyboardType="phone-pad"
-          maxLength={10}
-          onChangeText={(value) => onChange(value.replace(/\D/g, ""))}
-          placeholder="917 000 0001"
-          placeholderTextColor={palette.outline}
-          style={screenStyles.phoneInput}
-          value={mobileNumber}
-        />
+    <View style={screenStyles.phoneInputWrap}>
+      <View style={screenStyles.prefixWrap}>
+        <Text allowFontScaling={false} style={screenStyles.prefix}>
+          +63
+        </Text>
       </View>
-      {error ? <Text accessibilityLiveRegion="polite" style={screenStyles.phoneError}>{error}</Text> : null}
+      <TextInput
+        keyboardType="phone-pad"
+        maxLength={10}
+        onChangeText={(value) => onChange(value.replace(/\D/g, ""))}
+        placeholder="917 000 0001"
+        placeholderTextColor={palette.outline}
+        style={screenStyles.phoneInput}
+        value={mobileNumber}
+      />
     </View>
   );
 }
@@ -396,7 +378,7 @@ const screenStyles = StyleSheet.create({
   backgroundLink: { position: "absolute", right: -22, top: "39%", flexDirection: "row", alignItems: "center", transform: [{ rotate: "-16deg" }] },
   backgroundLinkCircle: { width: 120, height: 120, borderRadius: 60, backgroundColor: palette.primary },
   backgroundLinkCircleGold: { backgroundColor: palette.secondaryContainer },
-  backgroundLinkBar: { width: 80, height: 28, marginHorizontal: -10, borderRadius: 14, backgroundColor: "#5DF7F2" },
+  backgroundLinkBar: { width: 80, height: 28, marginHorizontal: -10, borderRadius: 14, backgroundColor: "#9CF2E8" },
   header: {
     minHeight: 56,
     paddingHorizontal: 16,
@@ -404,12 +386,14 @@ const screenStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: palette.surface,
-    borderBottomColor: "rgba(207, 249, 255, 0.20)",
+    borderBottomColor: "#EDF1EF",
     borderBottomWidth: 1
   },
   brand: {
-    ...typography.screenTitle,
-    color: palette.primary
+    color: palette.primary,
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: "800"
   },
   helpButton: {
     width: 40,
@@ -420,21 +404,17 @@ const screenStyles = StyleSheet.create({
     backgroundColor: palette.surfaceContainer
   },
   helpText: {
-    ...typography.sectionTitle,
-    color: palette.muted
+    color: palette.muted,
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: "700"
   },
   content: {
     flexGrow: 1,
-    width: "100%",
-    maxWidth: "100%",
     paddingHorizontal: 16,
     paddingTop: 48,
     paddingBottom: 28,
     alignItems: "center"
-  },
-  scroll: {
-    flex: 1,
-    width: "100%"
   },
   intro: {
     width: "100%",
@@ -443,13 +423,16 @@ const screenStyles = StyleSheet.create({
     marginBottom: 28
   },
   welcome: {
-    ...typography.sectionTitle,
     color: palette.textStrong,
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: "700",
     textAlign: "center"
   },
   subtitle: {
-    ...typography.cardTitle,
     color: palette.muted,
+    fontSize: 16,
+    lineHeight: 24,
     marginTop: 8,
     textAlign: "center"
   },
@@ -457,19 +440,17 @@ const screenStyles = StyleSheet.create({
     width: "100%",
     maxWidth: 448,
     padding: 24,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(55, 126, 151, 0.34)",
+    borderRadius: 12,
     backgroundColor: palette.surface,
-    shadowColor: "#001722",
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.11,
-    shadowRadius: 20,
-    elevation: 5,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
     gap: 20
   },
-  authTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
-  authNotice: { ...typography.body, color: palette.muted },
+  authTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  authNotice: { color: palette.muted, fontSize: 13, lineHeight: 18 },
   section: {
     gap: 14
   },
@@ -496,16 +477,20 @@ const screenStyles = StyleSheet.create({
     backgroundColor: palette.primary
   },
   tabText: {
-    ...typography.bodyMedium,
     color: palette.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "800",
     textAlign: "center"
   },
   tabTextActive: {
     color: palette.white
   },
   label: {
-    ...typography.fieldLabel,
-    color: palette.text
+    color: palette.text,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700"
   },
   phoneInputWrap: {
     minHeight: 52,
@@ -516,11 +501,6 @@ const screenStyles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "transparent"
   },
-  phoneError: {
-    ...typography.metadata,
-    marginTop: 6,
-    color: "#FF7D8C"
-  },
   prefixWrap: {
     width: 56,
     minHeight: 52,
@@ -529,15 +509,16 @@ const screenStyles = StyleSheet.create({
     flexShrink: 0
   },
   prefix: {
-    ...typography.bodyMedium,
     color: palette.muted,
+    fontSize: 15,
+    fontWeight: "700",
     includeFontPadding: false,
     textAlign: "center"
   },
   phoneInput: {
-    ...typography.inputText,
     flex: 1,
     color: palette.text,
+    fontSize: 16,
     minHeight: 52,
     paddingRight: 16
   },
@@ -551,8 +532,10 @@ const screenStyles = StyleSheet.create({
     gap: 8
   },
   primaryButtonText: {
-    ...typography.button,
-    color: palette.white
+    color: palette.white,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "800"
   },
   dividerRow: {
     flexDirection: "row",
@@ -565,8 +548,10 @@ const screenStyles = StyleSheet.create({
     backgroundColor: palette.outlineVariant
   },
   dividerText: {
-    ...typography.badge,
-    color: palette.outline
+    color: palette.outline,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700"
   },
   codeHeader: {
     flexDirection: "row",
@@ -580,12 +565,15 @@ const screenStyles = StyleSheet.create({
     gap: 4
   },
   sentIcon: {
-    ...typography.badge,
-    color: palette.success
+    color: palette.success,
+    fontSize: 12,
+    fontWeight: "900"
   },
   sentText: {
-    ...typography.badge,
-    color: palette.success
+    color: palette.success,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700"
   },
   otpRow: {
     flexDirection: "row",
@@ -593,7 +581,6 @@ const screenStyles = StyleSheet.create({
     gap: 6
   },
   otpInput: {
-    ...typography.inputText,
     flex: 1,
     minWidth: 40,
     maxWidth: 52,
@@ -602,15 +589,19 @@ const screenStyles = StyleSheet.create({
     borderWidth: 2,
     borderColor: palette.outlineVariant,
     backgroundColor: palette.surfaceContainer,
-    color: palette.text
+    color: palette.text,
+    fontSize: 20,
+    fontWeight: "700"
   },
   resendButton: {
     alignSelf: "center",
     paddingVertical: 4
   },
   resendText: {
-    ...typography.bodyMedium,
-    color: palette.primary
+    color: palette.primary,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "800"
   },
   profileRow: {
     flexDirection: "row",
@@ -629,20 +620,22 @@ const screenStyles = StyleSheet.create({
     backgroundColor: palette.surfaceHigh
   },
   avatarIcon: {
-    ...typography.heroNumber,
-    color: palette.outline
+    color: palette.outline,
+    fontSize: 28,
+    lineHeight: 32,
+    fontWeight: "500"
   },
   nameField: {
     flex: 1,
     gap: 6
   },
   textInput: {
-    ...typography.inputText,
     minHeight: 48,
     paddingHorizontal: 16,
     borderRadius: 8,
     backgroundColor: palette.surfaceLow,
-    color: palette.text
+    color: palette.text,
+    fontSize: 16
   },
   dropdownButton: {
     minHeight: 52,
@@ -654,25 +647,29 @@ const screenStyles = StyleSheet.create({
     justifyContent: "space-between"
   },
   dropdownText: {
-    ...typography.cardTitle,
     color: palette.text,
+    fontSize: 16,
+    lineHeight: 24,
     flex: 1
   },
   dropdownIcon: {
-    ...typography.cardTitleStrong,
     color: palette.muted,
+    fontSize: 16,
+    fontWeight: "800",
     paddingLeft: 12
   },
   secondaryButton: {
     minHeight: 48,
     borderRadius: 8,
-    backgroundColor: palette.primary,
+    backgroundColor: palette.secondary,
     alignItems: "center",
     justifyContent: "center"
   },
   secondaryButtonText: {
-    ...typography.button,
-    color: palette.white
+    color: palette.white,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "800"
   },
   createAccountButton: {
     minHeight: 48,
@@ -684,8 +681,10 @@ const screenStyles = StyleSheet.create({
     justifyContent: "center"
   },
   createAccountText: {
-    ...typography.heroNumber,
-    color: palette.primary
+    color: palette.primary,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "800"
   },
   googleButton: {
     minHeight: 48,
@@ -697,8 +696,10 @@ const screenStyles = StyleSheet.create({
     justifyContent: "center"
   },
   googleButtonText: {
-    ...typography.button,
     color: palette.text,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "800",
     textAlign: "center"
   },
   capabilityGrid: {
@@ -721,32 +722,38 @@ const screenStyles = StyleSheet.create({
     borderColor: palette.primary
   },
   capabilityText: {
-    ...typography.badge,
-    color: palette.muted
+    color: palette.muted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "800"
   },
   capabilityTextSelected: {
     color: palette.white
   },
   pressed: {
-    opacity: 0.78
+    opacity: 0.78,
+    transform: [{ scale: 0.99 }]
   },
   termsBlock: { alignItems: "center", gap: 6 },
   terms: {
-    ...typography.metadata,
     width: "100%",
     maxWidth: 448,
     color: palette.muted,
+    fontSize: 12,
+    lineHeight: 18,
     textAlign: "center",
     paddingHorizontal: 24,
     marginTop: 20
   },
   link: {
-    ...typography.button,
-    color: palette.primary
+    color: palette.primary,
+    fontWeight: "800"
   },
   errorText: {
-    ...typography.metadata,
-    color: "#FF7D8C"
+    color: "#BA1A1A",
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700"
   },
   footer: {
     alignItems: "center",
@@ -767,22 +774,25 @@ const screenStyles = StyleSheet.create({
     backgroundColor: palette.surfaceContainer
   },
   trustText: {
-    ...typography.badge,
-    color: palette.outline
+    color: palette.outline,
+    fontSize: 12,
+    fontWeight: "800"
   },
   modeText: {
-    ...typography.metadata,
     color: palette.outline,
+    fontSize: 12,
+    lineHeight: 16,
     textAlign: "center"
   },
   copyright: {
-    ...typography.metadata,
-    color: palette.outlineVariant
+    color: palette.outlineVariant,
+    fontSize: 12,
+    lineHeight: 16
   },
   modalBackdrop: {
     flex: 1,
     padding: 24,
-    backgroundColor: "rgba(1, 15, 25, 0.56)",
+    backgroundColor: "rgba(24, 28, 28, 0.32)",
     alignItems: "center",
     justifyContent: "center"
   },
@@ -792,15 +802,17 @@ const screenStyles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     backgroundColor: palette.surface,
-    shadowColor: "#001722",
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.16,
     shadowRadius: 20,
     elevation: 8
   },
   dropdownTitle: {
-    ...typography.cardTitleStrong,
     color: palette.text,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "800",
     paddingHorizontal: 8,
     paddingVertical: 8
   },
@@ -811,11 +823,13 @@ const screenStyles = StyleSheet.create({
     paddingHorizontal: 12
   },
   dropdownOptionText: {
-    ...typography.bodyMedium,
-    color: palette.muted
+    color: palette.muted,
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: "600"
   },
   dropdownOptionSelected: {
-    ...typography.bodyMedium,
-    color: palette.primary
+    color: palette.primary,
+    fontWeight: "900"
   }
 });

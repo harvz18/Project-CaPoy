@@ -1,7 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
-import { StyleSheet } from "react-native";
-import { MotionPressable as Pressable } from "./MotionPressable";
-import { colors, glass, shadows } from "../theme";
+import { Pressable, StyleSheet } from "react-native";
 
 export function HelpShortcut({ onPress }: { onPress: () => void }) {
   return (
@@ -11,7 +9,7 @@ export function HelpShortcut({ onPress }: { onPress: () => void }) {
       onPress={onPress}
       style={({ pressed }) => [styles.button, pressed && styles.pressed]}
     >
-      <Feather accessibilityElementsHidden color={colors.primary} name="help-circle" size={22} />
+      <Feather accessibilityElementsHidden color="#005C55" name="help-circle" size={22} />
     </Pressable>
   );
 }
@@ -23,10 +21,9 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: glass.standard,
+    backgroundColor: "#E7F3F0",
     borderWidth: 1,
-    borderColor: colors.borderHighlight,
-    ...shadows.resting
+    borderColor: "#BDC9C6"
   },
-  pressed: { opacity: 0.82 }
+  pressed: { opacity: 0.72 }
 });

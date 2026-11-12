@@ -39,13 +39,10 @@ import {
   changeAccountStatus,
   correctName,
   getBasicDashboardCounts,
-  getRatingCount,
   getSuperadminOverview,
   getVerificationDocumentUrl,
   loadPage,
-  loadModerationProfilesById,
   loadProfilesById,
-  loadRatingsPage,
   loadSubmittedPayments,
   loadTasksById,
   reviewPayment,
@@ -95,26 +92,6 @@ function roleLabel(role?: string) {
 }
 function taskTitle(task?: Task) {
   return task?.title || "Untitled task";
-}
-function profileName(profile?: Profile) {
-  return profile?.fullName || "Name unavailable";
-}
-function isProfilePhotoUrl(value?: string) {
-  try {
-    const url = new URL(value ?? "");
-    return url.protocol === "https:" || url.protocol === "http:";
-  } catch {
-    return false;
-  }
-}
-function ProfileAvatar({ fullName, url }: { fullName?: string; url?: string }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [url]);
-  const initial = (fullName || "U").trim().charAt(0).toUpperCase() || "U";
-  if (url && isProfilePhotoUrl(url) && !failed) {
-    return <img alt={`${fullName || "User"} profile photo`} className="profile-avatar-image" onError={() => setFailed(true)} src={url} />;
-  }
-  return <span aria-hidden="true" className="user-avatar-initial">{initial}</span>;
 }
 type Notice = { tone: "success" | "error"; message: string } | null;
 
@@ -236,8 +213,8 @@ function Login() {
               required
             />
           </label>
-          {error ? <p aria-live="assertive" className="inline-error" role="alert">{error}</p> : null}
-          <button aria-busy={busy} className="button primary full" disabled={busy}>
+          {error ? <p className="inline-error">{error}</p> : null}
+          <button className="button primary full" disabled={busy}>
             {busy ? (
               <>
                 <LoaderCircle className="spin" size={17} /> Signing in
@@ -253,7 +230,7 @@ function Login() {
 }
 function LoadingScreen() {
   return (
-    <main aria-busy="true" aria-live="polite" className="auth-page">
+    <main className="auth-page">
       <LoaderCircle className="spin brand-icon" size={32} />
       <p>Restoring secure session…</p>
     </main>
@@ -490,6 +467,48 @@ function Dashboard({ scope }: { scope: Scope }) {
               onClick={() => navigate(`/${scope}/verifications`)}
             />
           </section>
+          <section className="dashboard-grid">
+            <Panel title="Account totals">
+              <dl className="key-values">
+                <div>
+                  <dt>All users</dt>
+                  <dd>{counts.users}</dd>
+                </div>
+                <div>
+                  <dt>Employers</dt>
+                  <dd>{counts.employers}</dd>
+                </div>
+                <div>
+                  <dt>Taskers</dt>
+                  <dd>{counts.taskers}</dd>
+                </div>
+                <div>
+                  <dt>Pending verification</dt>
+                  <dd>{counts.pendingVerifications}</dd>
+                </div>
+              </dl>
+            </Panel>
+            <Panel title="Task and payment totals">
+              <dl className="key-values">
+                <div>
+                  <dt>All tasks</dt>
+                  <dd>{counts.tasks}</dd>
+                </div>
+                <div>
+                  <dt>Active tasks</dt>
+                  <dd>{counts.activeTasks}</dd>
+                </div>
+                <div>
+                  <dt>Completed tasks</dt>
+                  <dd>{counts.completedTasks}</dd>
+                </div>
+                <div>
+                  <dt>Payment records</dt>
+                  <dd>{counts.paymentRecords}</dd>
+                </div>
+              </dl>
+            </Panel>
+          </section>
         </>
       ) : null}
     </div>
@@ -537,53 +556,6 @@ function usePaged<T>(name: string, field: string) {
       void load(back.at(-1) ?? null);
     },
     canGoBack: history.length > 0,
-    pageNumber: history.length + 1,
-    refresh: () => void load(history.at(-1) ?? null),
-  };
-}
-
-function useRatingsPaged(score: string) {
-  const [items, setItems] = useState<Rating[]>([]);
-  const [cursor, setCursor] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const load = useCallback(async (nextCursor: any = null, addHistory = false) => {
-    setLoading(true);
-    setError("");
-    try {
-      const page = await loadRatingsPage(score, PAGE_SIZE, nextCursor);
-      setItems(page.items);
-      setCursor(page.cursor);
-      setHasMore(page.hasMore);
-      if (addHistory) setHistory((current) => [...current, nextCursor]);
-    } catch (failure) {
-      setError(errorText(failure));
-    } finally {
-      setLoading(false);
-    }
-  }, [score]);
-  useEffect(() => {
-    setItems([]);
-    setCursor(null);
-    setHasMore(false);
-    setHistory([]);
-    void load();
-  }, [load]);
-  return {
-    items,
-    loading,
-    error,
-    hasMore,
-    next: () => void load(cursor, true),
-    previous: () => {
-      const back = history.slice(0, -1);
-      setHistory(back);
-      void load(back.at(-1) ?? null);
-    },
-    canGoBack: history.length > 0,
-    pageNumber: history.length + 1,
     refresh: () => void load(history.at(-1) ?? null),
   };
 }
@@ -591,7 +563,6 @@ function useRatingsPaged(score: string) {
 function useRecordLookup<T>(
   ids: string[],
   loader: (ids: string[]) => Promise<Record<string, T>>,
-  refreshKey = 0,
 ) {
   const key = [...new Set(ids.filter(Boolean))].sort().join("|");
   const [data, setData] = useState<Record<string, T>>({});
@@ -613,7 +584,7 @@ function useRecordLookup<T>(
     return () => {
       active = false;
     };
-  }, [key, loader, refreshKey]);
+  }, [key, loader]);
   return data;
 }
 
@@ -628,7 +599,6 @@ function UsersPage({
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [role, setRole] = useState(() => searchParams.get("role") === "client" || searchParams.get("role") === "worker" ? searchParams.get("role") as string : "all");
-  const [moderationVersion, setModerationVersion] = useState(0);
   const [modal, setModal] = useState<{
     user: Profile;
     action: "suspend" | "active" | "name";
@@ -644,11 +614,6 @@ function UsersPage({
     const requestedRole = searchParams.get("role");
     setRole(requestedRole === "client" || requestedRole === "worker" ? requestedRole : "all");
   }, [searchParams]);
-  const moderationProfiles = useRecordLookup<Profile>(
-    scope === "superadmin" ? page.items.map((user) => user.id) : [],
-    loadModerationProfilesById,
-    moderationVersion,
-  );
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -684,46 +649,53 @@ function UsersPage({
             ...(scope === "superadmin" ? ["Actions"] : []),
           ]}
         >
-          {filtered.map((user) => {
-            const moderationProfile = scope === "superadmin" ? moderationProfiles[user.id] : undefined;
-            const displayUser = { ...user, ...moderationProfile };
-            const restricted = displayUser.accountStatus === "suspended";
-            return <tr key={user.id}>
+          {filtered.map((user) => (
+            <tr key={user.id}>
               <td>
                 <div className="profile-cell">
-                  <ProfileAvatar fullName={displayUser.fullName} url={displayUser.profilePhotoUrl} />
-                  <strong>{displayUser.fullName || "Unnamed account"}</strong>
+                  {user.profilePhotoUrl ? <img alt="" src={user.profilePhotoUrl} style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <span aria-hidden="true" style={{ alignItems: "center", background: "#e5f4f0", borderRadius: "50%", color: "#005d56", display: "inline-flex", fontSize: 12, fontWeight: 900, height: 34, justifyContent: "center", width: 34 }}>{(user.fullName || "U").charAt(0).toUpperCase()}</span>}
+                  <strong>{user.fullName || "Unnamed account"}</strong>
                 </div>
-                {displayUser.businessName ? <small>{displayUser.businessName}</small> : null}
+                {user.businessName ? <small>{user.businessName}</small> : null}
               </td>
               <td>
-                <Badge value={roleLabel(displayUser.role)} />
+                <Badge value={roleLabel(user.role)} />
               </td>
               <td>
-                {displayUser.verificationStatus ||
-                  displayUser.identityStatus ||
+                {user.verificationStatus ||
+                  user.identityStatus ||
                   "Not submitted"}
               </td>
               <td>
-                {displayUser.rating ?? 0}
-                {displayUser.ratingCount ? ` (${displayUser.ratingCount})` : ""}
+                {user.rating ?? 0}
+                {user.ratingCount ? ` (${user.ratingCount})` : ""}
               </td>
               {scope === "superadmin" ? (
                 <td>
                   <div className="row-actions">
-                    {!restricted ? <button className="text-button danger-text" onClick={() => setModal({ user: displayUser, action: "suspend" })}>Restrict</button> : null}
-                    {restricted ? <button className="text-button success-text" onClick={() => setModal({ user: displayUser, action: "active" })}>Reactivate</button> : null}
+                    <button
+                      className="text-button danger-text"
+                      onClick={() => setModal({ user, action: "suspend" })}
+                    >
+                      Restrict
+                    </button>
                     <button
                       className="text-button"
-                      onClick={() => setModal({ user: displayUser, action: "name" })}
+                      onClick={() => setModal({ user, action: "active" })}
+                    >
+                      Reactivate
+                    </button>
+                    <button
+                      className="text-button"
+                      onClick={() => setModal({ user, action: "name" })}
                     >
                       Correct name
                     </button>
                   </div>
                 </td>
               ) : null}
-            </tr>;
-          })}
+            </tr>
+          ))}
         </Table>
         {!page.loading && !filtered.length ? (
           <EmptyState title="No accounts in this result" />
@@ -738,10 +710,7 @@ function UsersPage({
           modal={modal}
           close={() => setModal(null)}
           notify={notify}
-          refreshed={() => {
-            page.refresh();
-            setModerationVersion((value) => value + 1);
-          }}
+          refreshed={page.refresh}
         />
       ) : null}
     </div>
@@ -865,7 +834,8 @@ function ApplicationsPage() {
         <div>
           <h2>Applications monitoring</h2>
           <p>
-            Applications are read-only in this portal. Only the employer who posted the task can accept or decline worker applications. Administrators may monitor application records but cannot make hiring decisions on behalf of employers.
+            Application records are read-only here; employer selection remains
+            unchanged.
           </p>
         </div>
         <SearchBox value={search} onChange={setSearch} />
@@ -885,12 +855,17 @@ function ApplicationsPage() {
             <tr key={match.id}>
               <td>
                 <strong>{taskTitle(tasks[match.taskId || ""])}</strong>
+                <small>{match.taskId || "—"}</small>
               </td>
               <td>
-                {profileName(profiles[match.workerId || ""])}
+                {profiles[match.workerId || ""]?.fullName ||
+                  match.workerId ||
+                  "—"}
               </td>
               <td>
-                {profileName(profiles[match.clientId || ""])}
+                {profiles[match.clientId || ""]?.fullName ||
+                  match.clientId ||
+                  "—"}
               </td>
               <td>{match.proposedAmount || "—"}</td>
               <td>
@@ -1190,33 +1165,17 @@ function HelpPage() {
 }
 
 function FeedbackPage() {
+  const page = usePaged<Rating>("ratings", "createdAt");
   const [score, setScore] = useState("all");
-  const page = useRatingsPaged(score);
-  const [totalCount, setTotalCount] = useState<number | null>(null);
-  const [filteredCount, setFilteredCount] = useState<number | null>(null);
-  useEffect(() => {
-    let active = true;
-    void Promise.all([getRatingCount(), score === "all" ? Promise.resolve<number | null>(null) : getRatingCount(Number(score))])
-      .then(([total, filtered]) => {
-        if (!active) return;
-        setTotalCount(total);
-        setFilteredCount(filtered);
-      })
-      .catch(() => {
-        if (!active) return;
-        setTotalCount(null);
-        setFilteredCount(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [score]);
+  const filtered = page.items.filter(
+    (rating) => score === "all" || String(rating.score) === score,
+  );
   const profiles = useRecordLookup<Profile>(
-    page.items.map((rating) => rating.targetUserId || ""),
+    filtered.map((rating) => rating.targetUserId || ""),
     loadProfilesById,
   );
   const tasks = useRecordLookup<Task>(
-    page.items.map((rating) => rating.taskId || ""),
+    filtered.map((rating) => rating.taskId || ""),
     loadTasksById,
   );
   return (
@@ -1238,9 +1197,9 @@ function FeedbackPage() {
           ))}
         </select>
       </div>
-      <Panel title={totalCount === null ? "Feedback" : score === "all" ? `Feedback — ${totalCount} total records` : `Feedback — showing ${filteredCount ?? 0} of ${totalCount} records`}>
-        <Table className="feedback-table" headers={["Rating", "Feedback", "Target user", "Task title", "Date"]}>
-          {page.items.map((rating) => (
+      <Panel title="Feedback">
+        <Table headers={["Rating", "Feedback", "Target user", "Task title", "Date"]}>
+          {filtered.map((rating) => (
             <tr key={rating.id}>
               <td>
                 <span className="rating">
@@ -1255,7 +1214,7 @@ function FeedbackPage() {
             </tr>
           ))}
         </Table>
-        {!page.loading && !page.items.length ? (
+        {!page.loading && !filtered.length ? (
           <EmptyState title="No feedback in this result" />
         ) : null}
         {page.error ? (
@@ -1296,7 +1255,7 @@ function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
       <div className="page-heading">
         <div>
           <h2>Violation reports</h2>
-          <p>Superadmin-only report data from the trusted administrator API.</p>
+          <p>Superadmin-only report data from the trusted overview Function.</p>
         </div>
         <button
           className="button secondary"
@@ -1570,16 +1529,12 @@ function VerificationDocumentModal({
   close: () => void;
 }) {
   const [url, setUrl] = useState("");
-  const [mimeType, setMimeType] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
     void getVerificationDocumentUrl(document.path)
       .then((next) => {
-        if (active) {
-          setUrl(next.url);
-          setMimeType(next.mimeType);
-        }
+        if (active) setUrl(next);
       })
       .catch((failure) => {
         if (active) setError(errorText(failure));
@@ -1588,7 +1543,7 @@ function VerificationDocumentModal({
       active = false;
     };
   }, [document.path]);
-  const isPdf = mimeType === "application/pdf" || document.path.toLowerCase().endsWith(".pdf");
+  const isPdf = document.path.toLowerCase().endsWith(".pdf");
   return (
     <Modal title={document.label} close={close}>
       {error ? <ErrorState message={error} /> : null}
@@ -1723,7 +1678,6 @@ function ModalActions({
         Cancel
       </button>
       <button
-        aria-busy={busy}
         className={`button ${danger ? "danger" : "primary"}`}
         disabled={busy}
       >
@@ -1780,17 +1734,15 @@ function Metric({
   ) : <article className="metric">{contents}</article>;
 }
 function Table({
-  className,
   headers,
   children,
 }: {
-  className?: string;
   headers: string[];
   children: ReactNode;
 }) {
   return (
     <div className="table-wrap">
-      <table className={className}>
+      <table>
         <thead>
           <tr>
             {headers.map((header) => (
@@ -1809,18 +1761,16 @@ function Pager({
   next,
   previous,
   canGoBack,
-  pageNumber,
 }: {
   loading: boolean;
   hasMore: boolean;
   next: () => void;
   previous: () => void;
   canGoBack: boolean;
-  pageNumber: number;
 }) {
   return (
     <div className="pager">
-      <span>{loading ? "Loading…" : `Page ${pageNumber}`}</span>
+      <span>{loading ? "Loading…" : ""}</span>
       <div>
         <button
           className="icon-button"
@@ -1866,7 +1816,7 @@ function Badge({ value }: { value: string }) {
 }
 function EmptyState({ title }: { title: string }) {
   return (
-    <div aria-live="polite" className="empty">
+    <div className="empty">
       <Bell size={22} />
       <p>{title}</p>
     </div>
@@ -1880,7 +1830,7 @@ function ErrorState({
   retry?: () => void;
 }) {
   return (
-    <div aria-live="assertive" className="error-state" role="alert">
+    <div className="error-state">
       <ShieldAlert size={20} />
       <div>
         <strong>Data unavailable</strong>
@@ -1896,14 +1846,14 @@ function ErrorState({
 }
 function TableLoading() {
   return (
-    <div aria-busy="true" aria-live="polite" className="table-loading">
+    <div className="table-loading">
       <LoaderCircle className="spin" size={20} /> Loading live data…
     </div>
   );
 }
 function SkeletonCards() {
   return (
-    <section aria-busy="true" aria-label="Loading dashboard metrics" className="metric-grid">
+    <section className="metric-grid">
       {[1, 2, 3, 4].map((key) => (
         <div className="skeleton metric" key={key} />
       ))}
@@ -1918,7 +1868,7 @@ function NoticeBanner({
   onClose: () => void;
 }) {
   return (
-    <div aria-live={notice.tone === "error" ? "assertive" : "polite"} className={`notice ${notice.tone}`} role={notice.tone === "error" ? "alert" : "status"}>
+    <div className={`notice ${notice.tone}`}>
       <span>
         {notice.tone === "success" ? (
           <CheckCircle2 size={18} />

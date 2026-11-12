@@ -1,29 +1,16 @@
-import { Inter_400Regular } from "@expo-google-fonts/inter/400Regular";
-import { Inter_500Medium } from "@expo-google-fonts/inter/500Medium";
-import { Inter_600SemiBold } from "@expo-google-fonts/inter/600SemiBold";
-import { Inter_700Bold } from "@expo-google-fonts/inter/700Bold";
-import { Inter_800ExtraBold } from "@expo-google-fonts/inter/800ExtraBold";
-import { useFonts } from "expo-font";
 import { Href, Stack, useRouter, useSegments } from "expo-router";
 import * as Network from "expo-network";
 import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
-import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProvider, useApp } from "../src/context/AppContext";
 import { AppErrorBoundary } from "../src/components/AppErrorBoundary";
-import { LiquidGlassBackdrop } from "../src/components/LiquidGlassBackdrop";
 import { RouteTransition, usePrefersReducedMotion } from "../src/components/RouteTransition";
 import { colors } from "../src/theme";
 import { configureNotificationChannel } from "../src/services/pushNotificationService";
 import { markNotificationOpened } from "../src/services/notificationService";
-import { typography } from "../src/typography";
-import { AppText as Text } from "../src/components/AppText";
-import { MotionModal as Modal } from "../src/components/MotionModal";
-import { MotionPressable as Pressable } from "../src/components/MotionPressable";
-import { MotionReveal } from "../src/components/MotionReveal";
-import { MotionPreferenceProvider } from "../src/hooks/useReducedMotion";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -35,37 +22,14 @@ Notifications.setNotificationHandler({
 });
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    Inter_800ExtraBold
-  });
-
-  if (!fontsLoaded && !fontError) {
-    return (
-      <View accessibilityLabel="Loading TaskLink" accessibilityLiveRegion="polite" accessibilityRole="progressbar" style={styles.fontLoadingScreen}>
-        <StatusBar style="light" />
-        <LiquidGlassBackdrop />
-        <ActivityIndicator color={colors.primary} size="large" />
-      </View>
-    );
-  }
-
   return (
     <SafeAreaProvider>
-      <MotionPreferenceProvider>
-        <AppErrorBoundary>
-          <AppProvider>
-            <StatusBar style="light" />
-            <View style={styles.appRoot}>
-              <LiquidGlassBackdrop />
-              <ProtectedNavigator />
-            </View>
-          </AppProvider>
-        </AppErrorBoundary>
-      </MotionPreferenceProvider>
+      <AppErrorBoundary>
+        <AppProvider>
+          <StatusBar style="dark" />
+          <ProtectedNavigator />
+        </AppProvider>
+      </AppErrorBoundary>
     </SafeAreaProvider>
   );
 }
@@ -167,7 +131,7 @@ function ProtectedNavigator() {
 
   if (appLoading) {
     return (
-      <View accessibilityLabel="Loading your TaskLink workspace" accessibilityLiveRegion="polite" accessibilityRole="progressbar" style={styles.loadingScreen}>
+      <View style={styles.loadingScreen}>
         <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
@@ -176,33 +140,33 @@ function ProtectedNavigator() {
   return (
     <View style={styles.navigator}>
       {offline ? (
-        <MotionReveal accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.offlineBanner}>
+        <View accessibilityRole="alert" style={styles.offlineBanner}>
           <Text style={styles.offlineMessage}>You are offline. Cached information may remain visible; reconnect before retrying an action.</Text>
-        </MotionReveal>
+        </View>
       ) : null}
       {currentUser && error ? (
-        <MotionReveal accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.syncBanner}>
+        <View accessibilityRole="alert" style={styles.syncBanner}>
           <Text numberOfLines={2} style={styles.syncMessage}>{error}</Text>
-          <Pressable accessibilityLabel="Retry data sync" accessibilityRole="button" onPress={retryDataSync} style={styles.syncButton}>
+          <Pressable accessibilityRole="button" onPress={retryDataSync} style={styles.syncButton}>
             <Text style={styles.syncButtonText}>Retry Sync</Text>
           </Pressable>
           <Pressable accessibilityLabel="Dismiss error" accessibilityRole="button" onPress={clearError} style={styles.dismissButton}>
             <Text style={styles.dismissText}>Dismiss</Text>
           </Pressable>
-        </MotionReveal>
+        </View>
       ) : null}
       <Stack
         screenLayout={({ children, route: screenRoute }) => (
           <RouteTransition reduceMotion={reduceMotion} routeName={screenRoute.name}>{children}</RouteTransition>
         )}
         screenOptions={{
-          animation: reduceMotion || Platform.OS === "web" ? "none" : "default",
+          animation: reduceMotion ? "none" : "slide_from_right",
           headerShown: false,
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,
           headerTintColor: colors.text,
-          headerTitleStyle: { ...typography.screenTitle },
-          contentStyle: { backgroundColor: "transparent" }
+          headerTitleStyle: { fontWeight: "800" },
+          contentStyle: { backgroundColor: colors.background }
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
@@ -233,10 +197,10 @@ function ProtectedNavigator() {
         visible={Boolean(actionErrorDialog)}
       >
         <View accessibilityViewIsModal style={styles.dialogBackdrop}>
-          <View accessibilityLabel="Unable to complete action" accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.dialogCard}>
+          <View accessibilityRole="alert" style={styles.dialogCard}>
             <Text style={styles.dialogTitle}>Unable to complete action</Text>
             <Text style={styles.dialogMessage}>{actionErrorDialog}</Text>
-            <Pressable accessibilityLabel="Dismiss error" accessibilityRole="button" onPress={clearActionErrorDialog} style={styles.dialogButton}>
+            <Pressable accessibilityRole="button" onPress={clearActionErrorDialog} style={styles.dialogButton}>
               <Text style={styles.dialogButtonText}>Got it</Text>
             </Pressable>
           </View>
@@ -247,27 +211,25 @@ function ProtectedNavigator() {
 }
 
 const styles = StyleSheet.create({
-  appRoot: { flex: 1, backgroundColor: colors.canvas },
-  fontLoadingScreen: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.canvas },
-  navigator: { flex: 1, overflow: "hidden", backgroundColor: "transparent" },
+  navigator: { flex: 1, overflow: "hidden" },
   loadingScreen: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "transparent"
+    backgroundColor: colors.background
   },
-  dialogBackdrop: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(1,15,25,0.72)" },
-  dialogCard: { width: "100%", maxWidth: 420, padding: 20, borderRadius: 24, borderWidth: 1, borderColor: colors.borderHighlight, backgroundColor: colors.cardSolid, gap: 12, elevation: 16 },
-  dialogTitle: { ...typography.cardTitleStrong, color: colors.text },
-  dialogMessage: { ...typography.body, color: colors.muted },
+  dialogBackdrop: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(17,24,39,0.55)" },
+  dialogCard: { width: "100%", maxWidth: 420, padding: 20, borderRadius: 16, backgroundColor: "#FFFFFF", gap: 12, elevation: 16 },
+  dialogTitle: { color: colors.text, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  dialogMessage: { color: "#3E4947", fontSize: 15, lineHeight: 22 },
   dialogButton: { minHeight: 46, marginTop: 4, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
-  dialogButtonText: { ...typography.button, color: "#FFFFFF" },
-  syncBanner: { minHeight: 54, paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(244,201,93,0.16)", borderBottomWidth: 1, borderBottomColor: "rgba(244,201,93,0.52)" },
-  offlineBanner: { minHeight: 42, paddingHorizontal: 14, paddingVertical: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(124,45,18,0.92)" },
-  offlineMessage: { ...typography.metadata, color: "#FFFFFF", textAlign: "center" },
-  syncMessage: { ...typography.metadata, flex: 1, color: colors.warning },
-  syncButton: { minHeight: 38, borderRadius: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(244,201,93,0.28)" },
-  syncButtonText: { ...typography.button, color: "#FFFFFF" },
+  dialogButtonText: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
+  syncBanner: { minHeight: 54, paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF7ED", borderBottomWidth: 1, borderBottomColor: "#FDBA74" },
+  offlineBanner: { minHeight: 42, paddingHorizontal: 14, paddingVertical: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#7C2D12" },
+  offlineMessage: { color: "#FFFFFF", fontSize: 12, lineHeight: 17, fontWeight: "800", textAlign: "center" },
+  syncMessage: { flex: 1, color: "#9A3412", fontSize: 12, lineHeight: 16, fontWeight: "700" },
+  syncButton: { minHeight: 38, borderRadius: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#9A3412" },
+  syncButtonText: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" },
   dismissButton: { minHeight: 38, paddingHorizontal: 6, alignItems: "center", justifyContent: "center" },
-  dismissText: { ...typography.badge, color: colors.warning }
+  dismissText: { color: "#9A3412", fontSize: 12, fontWeight: "900" }
 });

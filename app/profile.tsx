@@ -1,15 +1,13 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Href, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
-import { MotionModal as Modal } from "../src/components/MotionModal";
-import { MotionPressable as Pressable } from "../src/components/MotionPressable";
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
-import { StoredImage } from "../src/components/StoredImage";
 import { workerCapabilities } from "../src/constants/capabilities";
+import { FREE_WEB_DEMO } from "../src/config/release";
 import { useApp } from "../src/context/AppContext";
 import { getScheduleBasedAvailability, getUserTaskHistory } from "../src/domain/taskMarketplace";
 import { isIdentityLocked } from "../src/domain/profileIdentity";
@@ -20,12 +18,28 @@ import { submitVerificationRequest } from "../src/services/verificationService";
 import { parseCoordinate } from "../src/utils/location";
 import { AddressDetails, formatAddressDetails } from "../src/utils/address";
 import type { MapCoordinate } from "../src/components/LocationMap.types";
-import { screenPalette } from "../src/theme";
-import { typography } from "../src/typography";
-import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 
-const palette = screenPalette;
-const PROFILE_CITY = "Bacolod City";
+const palette = {
+  background: "#F7FAF8",
+  surface: "#FFFFFF",
+  surfaceLow: "#F1F4F3",
+  surfaceContainer: "#EBEFED",
+  surfaceHigh: "#E5E9E7",
+  primary: "#005C55",
+  primaryFixed: "#9CF2E8",
+  primaryContainer: "#0F766E",
+  secondary: "#855300",
+  secondaryFixed: "#FFDDB8",
+  secondaryContainer: "#FEA619",
+  text: "#181C1C",
+  textStrong: "#111827",
+  muted: "#3E4947",
+  outline: "#6E7977",
+  outlineVariant: "#BDC9C6",
+  success: "#10B981",
+  danger: "#BA1A1A",
+  white: "#FFFFFF"
+};
 
 const skillOptions = workerCapabilities;
 const workerRadiusOptions = [
@@ -43,8 +57,7 @@ export default function ProfileScreen() {
   const [addressDetails, setAddressDetails] = useState<AddressDetails>(() => ({
     // Registration currently collects one Barangay value. Keep that value in the
     // single Barangay field instead of showing a duplicate generic address box.
-    barangay: currentUser?.address ?? "",
-    city: PROFILE_CITY
+    barangay: currentUser?.address ?? ""
   }));
   const [addressMapOpen, setAddressMapOpen] = useState(false);
   const [addressMapCoordinate, setAddressMapCoordinate] = useState<MapCoordinate>();
@@ -68,9 +81,7 @@ export default function ProfileScreen() {
   const [policeClearanceUrl, setPoliceClearanceUrl] = useState(currentUser?.policeClearanceUrl ?? "");
   const [documentsChanged, setDocumentsChanged] = useState(false);
   const [uploadingField, setUploadingField] = useState<string>();
-  const [uploadErrors, setUploadErrors] = useState<Partial<Record<UploadFieldKey, string>>>({});
   const [uploadMessage, setUploadMessage] = useState("");
-  const [editProfileExpanded, setEditProfileExpanded] = useState(false);
   const [currentLatitude, setCurrentLatitude] = useState(String(currentUser?.currentLatitude ?? ""));
   const [currentLongitude, setCurrentLongitude] = useState(String(currentUser?.currentLongitude ?? ""));
   const [locationSource, setLocationSource] = useState(currentUser?.locationSource);
@@ -86,9 +97,7 @@ export default function ProfileScreen() {
     .filter((rating) => rating.targetUserId === currentUser?.id)
     .map((rating) => ({
       ...rating,
-      reviewerName: users.find((user) => user.id === rating.reviewerId)?.fullName ?? "TaskLink User",
-      taskTitle: tasks.find((task) => task.id === rating.taskId)?.title,
-      reviewDate: formatReviewDate(rating.createdAt)
+      reviewerName: users.find((user) => user.id === rating.reviewerId)?.fullName ?? "TaskLink User"
     }));
   const averageRating = profileRatings.length
     ? (profileRatings.reduce((total, rating) => total + rating.score, 0) / profileRatings.length).toFixed(1)
@@ -162,19 +171,16 @@ export default function ProfileScreen() {
   async function uploadProfilePhoto() {
     if (!currentUser) return;
     setUploadingField("profile-photo");
-    setUploadErrors((current) => ({ ...current, "profile-photo": undefined }));
     setUploadMessage("");
     try {
       const uploaded = await pickAndUploadProfilePhoto(currentUser.id);
       if (uploaded) {
-        setProfilePhotoUrl(uploaded.path);
-        await updateProfile({ profilePhotoUrl: uploaded.path });
+        setProfilePhotoUrl(uploaded.url);
+        await updateProfile({ profilePhotoUrl: uploaded.url });
         setUploadMessage("Profile photo uploaded and saved.");
       }
     } catch (uploadError) {
-      const message = uploadError instanceof Error ? uploadError.message : "Unable to upload profile photo.";
-      setUploadErrors((current) => ({ ...current, "profile-photo": message }));
-      setUploadMessage(message);
+      setUploadMessage(uploadError instanceof Error ? uploadError.message : "Unable to upload profile photo.");
     } finally {
       setUploadingField(undefined);
     }
@@ -183,7 +189,6 @@ export default function ProfileScreen() {
   async function uploadVerificationDocument(kind: "valid-id" | "medical-certificate" | "police-clearance") {
     if (!currentUser) return;
     setUploadingField(kind);
-    setUploadErrors((current) => ({ ...current, [kind]: undefined }));
     setUploadMessage("");
     try {
       const uploaded = await pickAndUploadPrivateDocument(currentUser.id, kind);
@@ -195,9 +200,7 @@ export default function ProfileScreen() {
         setUploadMessage(`${uploaded.name} uploaded privately. Save changes to submit it for review.`);
       }
     } catch (uploadError) {
-      const message = uploadError instanceof Error ? uploadError.message : "Unable to upload this document.";
-      setUploadErrors((current) => ({ ...current, [kind]: message }));
-      setUploadMessage(message);
+      setUploadMessage(uploadError instanceof Error ? uploadError.message : "Unable to upload this document.");
     } finally {
       setUploadingField(undefined);
     }
@@ -252,15 +255,12 @@ export default function ProfileScreen() {
   }
 
   function updateAddressDetail(field: keyof AddressDetails, value: string) {
-    setAddressDetails((current) => ({ ...current, [field]: field === "city" ? PROFILE_CITY : value }));
+    setAddressDetails((current) => ({ ...current, [field]: value }));
   }
 
   function applyAddressDetails(details: AddressDetails, message: string) {
     setAddressDetails((current) => ({
       ...details,
-      // TaskLink currently operates in Bacolod City. Map data may use a nearby
-      // locality label, but the profile's required service city is fixed.
-      city: PROFILE_CITY,
       // A building/house number is optional and commonly absent from map data;
       // never erase a value the user already entered manually.
       houseNumber: current.houseNumber?.trim() || details.houseNumber
@@ -319,7 +319,7 @@ export default function ProfileScreen() {
           <View style={styles.profileHeader}>
             <View style={styles.photoWrap}>
               <View style={styles.profilePhoto}>
-                <StoredImage accessibilityLabel="Profile photo" sourceUri={profilePhotoUrl} style={styles.profilePhotoImage} fallback={<Text style={styles.profilePhotoText}>{fullName[0] ?? "U"}</Text>} />
+                {profilePhotoUrl ? <Image source={{ uri: profilePhotoUrl }} style={styles.profilePhotoImage} /> : <Text style={styles.profilePhotoText}>{fullName[0] ?? "U"}</Text>}
               </View>
               <View style={styles.verifiedPill}>
                 <Text style={styles.verifiedText}>{currentUser?.verificationStatus ?? "Not Submitted"}</Text>
@@ -342,22 +342,8 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <View style={styles.settingsCard}>
-          <Pressable
-            accessibilityHint="Shows or hides your editable profile details without discarding changes."
-            accessibilityRole="button"
-            accessibilityState={{ expanded: editProfileExpanded }}
-            onPress={() => setEditProfileExpanded((value) => !value)}
-            style={styles.collapsibleHeader}
-          >
-            <View style={styles.flex}>
-              <Text style={styles.settingsTitle}>Edit Profile</Text>
-              <Text style={styles.collapsibleSummary}>{fullName || "Profile details"} · {PROFILE_CITY}</Text>
-            </View>
-            <Feather accessibilityElementsHidden color={palette.primary} name={editProfileExpanded ? "chevron-up" : "chevron-down"} size={22} />
-          </Pressable>
-          {editProfileExpanded ? <>
-            <Field
+        <SettingsCard title="Edit Profile">
+          <Field
             editable={!fullNameLocked}
             helper={fullNameLocked ? "Locked after identity approval. Contact support to request a correction." : "This name will lock after identity approval."}
             label="Full Name"
@@ -365,7 +351,7 @@ export default function ProfileScreen() {
             onChangeText={setFullName}
             placeholder="Full name"
           />
-            <Field
+          <Field
             editable={false}
             label="Mobile Number (verified identity)"
             value={mobileNumber}
@@ -373,23 +359,26 @@ export default function ProfileScreen() {
             keyboardType="phone-pad"
             placeholder="Mobile number"
           />
-            <View style={styles.twoColumn}>
+          <View style={styles.twoColumn}>
             <View style={styles.flex}><Field label="House / Building" value={addressDetails.houseNumber ?? ""} onChangeText={(value) => updateAddressDetail("houseNumber", value)} placeholder="Optional" /></View>
             <View style={styles.flex}><Field label="Street" value={addressDetails.street ?? ""} onChangeText={(value) => updateAddressDetail("street", value)} placeholder="Optional" /></View>
           </View>
-            <View style={styles.twoColumn}>
+          <View style={styles.twoColumn}>
             <View style={styles.flex}><Field label="Barangay" value={addressDetails.barangay ?? ""} onChangeText={(value) => updateAddressDetail("barangay", value)} placeholder="Barangay" /></View>
-            <View style={styles.flex}><Field editable={false} helper="Required service city" label="City" value={PROFILE_CITY} onChangeText={() => undefined} placeholder="Bacolod City" /></View>
+            <View style={styles.flex}><Field label="City / Municipality" value={addressDetails.city ?? ""} onChangeText={(value) => updateAddressDetail("city", value)} placeholder="City" /></View>
           </View>
-            <Pressable accessibilityRole="button" onPress={() => setAddressMapOpen(true)} style={styles.selectMapButton}>
+          <View style={styles.twoColumn}>
+            <View style={styles.flex}><Field label="Province" value={addressDetails.province ?? ""} onChangeText={(value) => updateAddressDetail("province", value)} placeholder="Province" /></View>
+            <View style={styles.flex}><Field label="Postal Code" value={addressDetails.postalCode ?? ""} onChangeText={(value) => updateAddressDetail("postalCode", value.replace(/\D/g, ""))} placeholder="Optional" /></View>
+          </View>
+          <Pressable accessibilityRole="button" onPress={() => setAddressMapOpen(true)} style={styles.selectMapButton}>
             <Feather accessibilityElementsHidden color={palette.primary} name="map-pin" size={18} />
             <Text style={styles.selectMapButtonText}>Select on map</Text>
           </Pressable>
-            <Text style={styles.helperText}>Choose a map pin or search an address to fill these fields. House/building is optional.</Text>
-            {addressLookupMessage ? <Text style={styles.locationMessage}>{addressLookupMessage}</Text> : null}
-            <Field label={currentUser?.role === "client" ? "Business Bio" : "Worker Bio"} value={bio} onChangeText={setBio} placeholder="Tell people about yourself" multiline />
-          </> : null}
-        </View>
+          <Text style={styles.helperText}>Choose a map pin or search an address to fill these fields. House/building and postal code are optional.</Text>
+          {addressLookupMessage ? <Text style={styles.locationMessage}>{addressLookupMessage}</Text> : null}
+          <Field label={currentUser?.role === "client" ? "Business Bio" : "Worker Bio"} value={bio} onChangeText={setBio} placeholder="Tell people about yourself" multiline />
+        </SettingsCard>
 
         <SettingsCard title="Account Mode">
           <Text style={styles.helperText}>You are currently using TaskLink as {currentUser?.role === "client" ? "an employer" : "a tasker"}.</Text>
@@ -441,10 +430,12 @@ export default function ProfileScreen() {
                   multiline
                 />
               </> : null}
+              {FREE_WEB_DEMO ? (
+                <Text style={styles.helperText}>Profile-photo and verification-document uploads are unavailable in this no-billing web deployment because Firebase Storage is not active. Existing saved photos remain visible; account and task features continue to work.</Text>
+              ) : <>
                 <UploadField
-                  error={uploadErrors["profile-photo"]}
+                  disabled={uploadingField === "profile-photo"}
                   label="Profile Photo"
-                  loading={uploadingField === "profile-photo"}
                   value={profilePhotoUrl}
                   placeholder="Tap to upload profile photo"
                   onSelect={uploadProfilePhoto}
@@ -454,28 +445,22 @@ export default function ProfileScreen() {
                     setDocumentsChanged(true);
                   }} placeholder="e.g. National ID, Driver's License" />
                   <UploadField
-                    disabled={fullNameLocked}
-                    error={uploadErrors["valid-id"]}
+                    disabled={fullNameLocked || uploadingField === "valid-id"}
                     label="Valid ID"
-                    loading={uploadingField === "valid-id"}
                     value={validIdUrl}
                     placeholder="Tap to upload valid ID"
                     onSelect={() => uploadVerificationDocument("valid-id")}
                   />
                   <UploadField
-                    disabled={fullNameLocked}
-                    error={uploadErrors["medical-certificate"]}
+                    disabled={fullNameLocked || uploadingField === "medical-certificate"}
                     label="Medical Certificate"
-                    loading={uploadingField === "medical-certificate"}
                     value={medicalCertificateUrl}
                     placeholder="Tap to upload medical certificate"
                     onSelect={() => uploadVerificationDocument("medical-certificate")}
                   />
                   <UploadField
-                    disabled={fullNameLocked}
-                    error={uploadErrors["police-clearance"]}
+                    disabled={fullNameLocked || uploadingField === "police-clearance"}
                     label="Police Clearance"
-                    loading={uploadingField === "police-clearance"}
                     value={policeClearanceUrl}
                     placeholder="Tap to upload police clearance"
                     onSelect={() => uploadVerificationDocument("police-clearance")}
@@ -483,6 +468,7 @@ export default function ProfileScreen() {
                   <Text style={styles.helperText}>{fullNameLocked
                     ? "Your approved identity details are locked. Contact support if a correction is needed."
                     : "Submit a valid ID, medical certificate, and police clearance. Documents are private and available only to you and authorized administrators."}</Text>
+              </>}
               {uploadMessage ? <Text style={styles.locationMessage}>{uploadMessage}</Text> : null}
             </SettingsCard>
 
@@ -546,8 +532,7 @@ export default function ProfileScreen() {
                 key={rating.id}
                 initials={rating.reviewerName[0] ?? "U"}
                 name={rating.reviewerName}
-                context={rating.taskTitle}
-                date={rating.reviewDate}
+                date="Task review"
                 stars={rating.score}
                 text={rating.feedback}
               />
@@ -581,8 +566,8 @@ export default function ProfileScreen() {
       <AnimatedBottomNav active="profile" role={currentUser?.role} />
 
       <Modal animationType="fade" transparent visible={skillDropdownOpen} onRequestClose={() => setSkillDropdownOpen(false)}>
-        <Pressable accessibilityLabel="Close worker capabilities" accessibilityRole="button" motionDisabled style={styles.modalBackdrop} onPress={() => setSkillDropdownOpen(false)}>
-          <View accessibilityViewIsModal style={styles.dropdownMenu}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setSkillDropdownOpen(false)}>
+          <View style={styles.dropdownMenu}>
             <Text style={styles.dropdownTitle}>Worker Capabilities</Text>
             {skillOptions.map((skill) => {
               const selected = skillDraft.includes(skill);
@@ -701,8 +686,6 @@ function Field({
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
-        accessibilityLabel={label}
-        accessibilityHint={helper}
         editable={editable}
         keyboardType={keyboardType}
         multiline={multiline}
@@ -718,21 +701,15 @@ function Field({
   );
 }
 
-type UploadFieldKey = "profile-photo" | "valid-id" | "medical-certificate" | "police-clearance";
-
 function UploadField({
   disabled,
-  error,
   label,
-  loading = false,
   value,
   placeholder,
   onSelect
 }: {
   disabled?: boolean;
-  error?: string;
   label: string;
-  loading?: boolean;
   value: string;
   placeholder: string;
   onSelect: () => void | Promise<void>;
@@ -742,37 +719,28 @@ function UploadField({
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <Pressable accessibilityRole="button" accessibilityState={{ busy: loading, disabled: disabled || loading }} disabled={disabled || loading} onPress={() => void onSelect()} style={[styles.uploadInput, (disabled || loading) && styles.uploadDisabled]}>
+      <Pressable accessibilityRole="button" disabled={disabled} onPress={() => void onSelect()} style={[styles.uploadInput, disabled && styles.uploadDisabled]}>
         <View style={styles.uploadCopy}>
           <Text style={[styles.uploadText, !selectedFile && styles.uploadPlaceholder]}>
             {selectedFile || placeholder}
           </Text>
-          {selectedFile ? <Text style={styles.uploadMeta}>Saved privately · submit with Save Changes</Text> : null}
+          {selectedFile ? <Text style={styles.uploadMeta}>Ready for review</Text> : null}
         </View>
         <View style={styles.uploadButton}>
-          <Text style={styles.uploadButtonText}>{loading ? "Uploading..." : error ? "Retry" : selectedFile ? "Change" : "Upload"}</Text>
+          <Text style={styles.uploadButtonText}>{disabled ? "Uploading..." : selectedFile ? "Change" : "Upload"}</Text>
         </View>
       </Pressable>
-      {error ? <Text accessibilityRole="alert" style={styles.uploadError}>{error}</Text> : null}
     </View>
   );
 }
 
 function getUploadedFileName(value: string) {
   if (!value) return "";
-  if (value.startsWith("http") || value.startsWith("firestoreProfilePhotos/")) return "Profile photo uploaded";
-  if (value.startsWith("firestoreVerificationFiles/")) return "Document uploaded";
+  if (value.startsWith("http")) return "Profile photo uploaded";
   return value.split("/").pop()?.replace(/^\d+_/, "") ?? value;
 }
 
-function formatReviewDate(value?: string) {
-  const parsed = value ? new Date(value) : undefined;
-  return parsed && Number.isFinite(parsed.getTime())
-    ? new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", year: "numeric" }).format(parsed)
-    : "Task review";
-}
-
-function ReviewCard({ context, initials, name, date, stars, text }: { context?: string; initials: string; name: string; date: string; stars: number; text: string }) {
+function ReviewCard({ initials, name, date, stars, text }: { initials: string; name: string; date: string; stars: number; text: string }) {
   const score = Number.isFinite(stars) ? Math.min(5, Math.max(0, Math.round(stars))) : 0;
   return (
     <View style={styles.reviewCard}>
@@ -788,46 +756,43 @@ function ReviewCard({ context, initials, name, date, stars, text }: { context?: 
         </View>
         <Text accessibilityLabel={`${score} out of 5 stars`} style={styles.reviewStars}>{"★".repeat(score)}{"☆".repeat(5 - score)} <Text style={styles.reviewScore}>{score}/5</Text></Text>
       </View>
-      {context ? <Text style={styles.reviewContext} numberOfLines={1}>{context}</Text> : null}
-      {text.trim() ? <Text style={styles.reviewText}>{text}</Text> : null}
+      <Text style={styles.reviewText}>{text}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
-  header: { minHeight: 56, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: "rgba(207, 249, 255, 0.20)" },
+  header: { minHeight: 56, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: "#EDF1EF" },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  brand: { ...typography.screenTitle, color: palette.primary },
+  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   smallAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.surfaceHigh, alignItems: "center", justifyContent: "center" },
-  avatarText: { ...typography.bodyMedium, color: palette.secondary },
+  avatarText: { color: palette.secondary, fontWeight: "900" },
   content: { padding: 16, paddingTop: 24, gap: 16 },
-  profileCard: { padding: 24, borderRadius: 24, borderWidth: 1, borderColor: palette.primaryFixed, backgroundColor: palette.surface, shadowColor: palette.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 6 },
+  profileCard: { padding: 24, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surface, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
   profileHeader: { alignItems: "center", gap: 20 },
   photoWrap: { position: "relative" },
   profilePhoto: { width: 132, height: 132, borderRadius: 66, borderWidth: 4, borderColor: palette.primaryFixed, backgroundColor: palette.secondaryContainer, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   profilePhotoImage: { width: "100%", height: "100%" },
-  profilePhotoText: { ...typography.heroNumber, color: "#F4C95D" },
+  profilePhotoText: { color: "#684000", fontSize: 42, fontWeight: "900" },
   verifiedPill: { position: "absolute", right: -4, bottom: 8, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: palette.success },
-  verifiedText: { ...typography.badge, color: palette.white },
+  verifiedText: { color: palette.white, fontSize: 10, fontWeight: "900" },
   profileCopy: { width: "100%", alignItems: "center", gap: 8 },
-  profileName: { ...typography.screenTitle, color: palette.textStrong, textAlign: "center" },
+  profileName: { color: palette.textStrong, fontSize: 24, lineHeight: 32, fontWeight: "900", textAlign: "center" },
   ratingRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
-  star: { ...typography.sectionTitleSmall, color: palette.secondary },
-  ratingValue: { ...typography.sectionTitle, color: palette.secondary },
-  reviewCount: { ...typography.heroNumber, color: palette.muted },
-  bio: { ...typography.cardTitle, color: palette.muted, textAlign: "center" },
+  star: { color: palette.secondary, fontSize: 18, fontWeight: "900" },
+  ratingValue: { color: palette.secondary, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  reviewCount: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  bio: { color: palette.muted, fontSize: 16, lineHeight: 24, textAlign: "center" },
   statsGrid: { flexDirection: "row", gap: 8, width: "100%", paddingTop: 8 },
-  statBox: { alignItems: "center", backgroundColor: palette.surfaceContainer, borderRadius: 16, borderWidth: 1, borderColor: palette.outlineVariant, flex: 1, justifyContent: "center", minHeight: 92, paddingHorizontal: 8, paddingVertical: 10 },
-  statLabel: { ...typography.fieldLabel, color: palette.muted, textAlign: "center" },
-  statValue: { ...typography.heroNumber, color: palette.primary, textAlign: "center" },
-  settingsCard: { padding: 18, borderRadius: 20, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, gap: 12 },
-  settingsTitle: { ...typography.sectionTitleSmall, color: palette.textStrong },
-  collapsibleHeader: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 12 },
-  collapsibleSummary: { ...typography.metadata, color: palette.muted, marginTop: 2 },
+  statBox: { alignItems: "center", backgroundColor: palette.surfaceContainer, borderRadius: 8, flex: 1, justifyContent: "center", minHeight: 82, paddingHorizontal: 8, paddingVertical: 10 },
+  statLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, textAlign: "center" },
+  statValue: { color: palette.primary, fontSize: 20, lineHeight: 28, fontWeight: "900", textAlign: "center" },
+  settingsCard: { padding: 16, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, gap: 12 },
+  settingsTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 26, fontWeight: "900" },
   field: { gap: 6 },
-  fieldLabel: { ...typography.fieldLabel, color: palette.text },
-  input: { ...typography.inputText, minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceHigh, color: palette.text, paddingHorizontal: 14 },
+  fieldLabel: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "800" },
+  input: { minHeight: 48, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, color: palette.text, fontSize: 16, paddingHorizontal: 14 },
   inputDisabled: { color: palette.outline, backgroundColor: palette.surfaceContainer },
   textArea: { minHeight: 96, paddingTop: 12 },
   uploadInput: {
@@ -845,10 +810,9 @@ const styles = StyleSheet.create({
   },
   uploadDisabled: { opacity: 0.6 },
   uploadCopy: { flex: 1, gap: 2 },
-  uploadText: { ...typography.bodyMedium, color: palette.text },
-  uploadPlaceholder: { ...typography.body, color: palette.outline },
-  uploadMeta: { ...typography.metadata, color: palette.success },
-  uploadError: { ...typography.metadata, color: palette.danger },
+  uploadText: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: "800" },
+  uploadPlaceholder: { color: palette.outline, fontWeight: "500" },
+  uploadMeta: { color: palette.success, fontSize: 11, lineHeight: 14, fontWeight: "800" },
   uploadButton: {
     minHeight: 38,
     borderRadius: 8,
@@ -857,115 +821,114 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: palette.primary
   },
-  uploadButtonText: { ...typography.button, color: palette.white },
+  uploadButtonText: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   flex: { flex: 1 },
   twoColumn: { flexDirection: "row", gap: 10 },
-  helperText: { ...typography.metadata, color: palette.muted },
+  helperText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   section: { gap: 12 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  sectionTitle: { ...typography.sectionTitle, color: palette.textStrong },
-  viewAll: { ...typography.button, color: palette.primary },
+  sectionTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "800" },
+  viewAll: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   viewAllComingSoon: { alignItems: "flex-end" },
-  viewAllHint: { ...typography.button, color: palette.muted },
+  viewAllHint: { color: palette.muted, fontSize: 10, lineHeight: 14, fontWeight: "700" },
   skillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  skillChip: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: palette.primaryContainer, borderWidth: 1, borderColor: "rgba(0,201,179,0.24)", flexDirection: "row", alignItems: "center", gap: 6 },
-  skillText: { ...typography.bodyMedium, color: "#7FF6E6" },
+  skillChip: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: palette.primaryContainer, borderWidth: 1, borderColor: "rgba(0,92,85,0.2)", flexDirection: "row", alignItems: "center", gap: 6 },
+  skillText: { color: "#A3FAEF", fontSize: 14, lineHeight: 20, fontWeight: "900" },
   dropdownButton: { minHeight: 48, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, backgroundColor: palette.surface, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14 },
-  dropdownText: { ...typography.bodyMedium, color: palette.primary },
-  dropdownIcon: { ...typography.bodyMedium, color: palette.primary },
-  settingTitle: { ...typography.bodyMedium, color: palette.text },
+  dropdownText: { color: palette.primary, fontSize: 14, fontWeight: "900" },
+  dropdownIcon: { color: palette.primary, fontSize: 14, fontWeight: "900" },
+  settingTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   verificationStatusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  verificationBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: "rgba(38, 229, 178, 0.16)" },
-  verificationBadgeText: { ...typography.badge, color: palette.success },
+  verificationBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: "#EAF8F1" },
+  verificationBadgeText: { color: palette.success, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   serviceHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   availabilityChip: { minHeight: 38, borderRadius: 19, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
   availabilityChipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
-  availabilityText: { ...typography.badge, color: palette.muted },
+  availabilityText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   availabilityTextSelected: { color: palette.white },
   locationButton: { minHeight: 44, borderRadius: 8, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
-  locationButtonText: { ...typography.button, color: palette.white },
+  locationButtonText: { color: palette.white, fontSize: 13, fontWeight: "900" },
   selectMapButton: { alignItems: "center", alignSelf: "flex-start", borderColor: palette.primary, borderRadius: 8, borderWidth: 1, flexDirection: "row", gap: 8, minHeight: 42, paddingHorizontal: 14 },
-  selectMapButtonText: { ...typography.button, color: palette.primary },
-  locationMessage: { ...typography.metadata, color: palette.primary },
-  workerMapCard: { height: 150, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "rgba(20, 217, 226, 0.12)", overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  selectMapButtonText: { color: palette.primary, fontSize: 13, fontWeight: "900" },
+  locationMessage: { color: palette.primary, fontSize: 12, lineHeight: 17, fontWeight: "700" },
+  workerMapCard: { height: 150, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "#E5F1EE", overflow: "hidden", alignItems: "center", justifyContent: "center" },
   workerRadiusRing: {
     position: "absolute",
     width: 118,
     height: 118,
     borderRadius: 59,
     borderWidth: 2,
-    borderColor: "rgba(0,201,179,0.30)",
-    backgroundColor: "rgba(0,201,179,0.10)"
+    borderColor: "rgba(0,92,85,0.25)",
+    backgroundColor: "rgba(0,92,85,0.07)"
   },
   workerPin: { width: 52, height: 52, borderRadius: 26, borderWidth: 4, borderColor: palette.white, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center", elevation: 5 },
-  workerPinText: { ...typography.badge, color: palette.white },
-  workerMapBadge: { position: "absolute", left: 12, bottom: 12, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "rgba(3,35,52,0.94)", borderWidth: 1, borderColor: "rgba(207,249,255,0.42)" },
-  workerMapBadgeLabel: { ...typography.badge, color: palette.muted },
-  workerMapBadgeText: { ...typography.badge, color: palette.text },
+  workerPinText: { color: palette.white, fontSize: 11, lineHeight: 14, fontWeight: "900" },
+  workerMapBadge: { position: "absolute", left: 12, bottom: 12, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "rgba(255,255,255,0.94)", borderWidth: 1, borderColor: "rgba(189,201,198,0.75)" },
+  workerMapBadgeLabel: { color: palette.muted, fontSize: 10, lineHeight: 14, fontWeight: "800", textTransform: "uppercase" },
+  workerMapBadgeText: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   areaPresetGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   areaPresetChip: { minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
   areaPresetChipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
-  areaPresetText: { ...typography.badge, color: palette.muted },
+  areaPresetText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   areaPresetTextSelected: { color: palette.white },
   radiusGrid: { gap: 8 },
   radiusCard: { minHeight: 64, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, padding: 12 },
-  radiusCardSelected: { borderColor: palette.primary, backgroundColor: "rgba(20, 217, 226, 0.12)" },
-  radiusTitle: { ...typography.bodyMedium, color: palette.text },
+  radiusCardSelected: { borderColor: palette.primary, backgroundColor: "#E5F1EE" },
+  radiusTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   radiusTitleSelected: { color: palette.primary },
-  radiusValue: { ...typography.badge, color: palette.secondary, marginTop: 2 },
+  radiusValue: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: "900", marginTop: 2 },
   radiusValueSelected: { color: palette.primary },
-  radiusHelper: { ...typography.metadata, color: palette.muted, marginTop: 2 },
+  radiusHelper: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
   radiusHelperSelected: { color: palette.text },
-  reviewCard: { padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surface, gap: 6 },
+  reviewCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surface, gap: 10 },
   reviewEmptyCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow },
-  reviewEmptyText: { ...typography.bodyMedium, color: palette.muted },
+  reviewEmptyText: { color: palette.muted, fontSize: 14, lineHeight: 20, fontWeight: "700" },
   reviewTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
   reviewPerson: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  reviewAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.secondaryFixed, alignItems: "center", justifyContent: "center" },
-  reviewAvatarText: { ...typography.bodyMedium, color: "#F5FCFF" },
-  reviewName: { ...typography.bodyMedium, color: palette.text },
-  reviewDate: { ...typography.metadata, color: palette.muted },
-  reviewStars: { ...typography.bodyMedium, color: palette.secondary },
-  reviewContext: { ...typography.metadata, color: palette.text },
-  reviewText: { ...typography.body, color: palette.muted },
-  coverageCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surfaceLow, gap: 12 },
+  reviewAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.secondaryFixed, alignItems: "center", justifyContent: "center" },
+  reviewAvatarText: { color: "#2A1700", fontWeight: "900" },
+  reviewName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  reviewDate: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  reviewStars: { color: palette.secondary, fontSize: 19, lineHeight: 24, fontWeight: "900" },
+  reviewText: { color: palette.muted, fontSize: 16, lineHeight: 24 },
+  coverageCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surfaceLow, gap: 12 },
   coverageHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  coverageIcon: { ...typography.heroNumber, color: palette.primary },
-  coverageTitle: { ...typography.bodyMedium, color: palette.textStrong },
-  coverageMap: { height: 128, borderRadius: 8, backgroundColor: "rgba(20, 217, 226, 0.12)", overflow: "hidden", alignItems: "center", justifyContent: "center" },
-  mapRoadOne: { position: "absolute", left: -18, right: -18, top: 58, height: 14, backgroundColor: "#17607A", transform: [{ rotate: "-12deg" }] },
-  mapRoadTwo: { position: "absolute", top: -12, bottom: -12, left: "58%", width: 16, backgroundColor: "#14556D", transform: [{ rotate: "18deg" }] },
+  coverageIcon: { color: palette.primary, fontSize: 24, fontWeight: "900" },
+  coverageTitle: { color: palette.textStrong, fontSize: 14, lineHeight: 20, fontWeight: "900", textTransform: "uppercase" },
+  coverageMap: { height: 128, borderRadius: 8, backgroundColor: "#E5F1EE", overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  mapRoadOne: { position: "absolute", left: -18, right: -18, top: 58, height: 14, backgroundColor: "#C8DBD7", transform: [{ rotate: "-12deg" }] },
+  mapRoadTwo: { position: "absolute", top: -12, bottom: -12, left: "58%", width: 16, backgroundColor: "#D6C29E", transform: [{ rotate: "18deg" }] },
   coverageBadge: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9, backgroundColor: palette.surface },
-  coverageBadgeText: { ...typography.badge, color: palette.primary },
+  coverageBadgeText: { color: palette.primary, fontSize: 14, fontWeight: "900" },
   saveButton: { minHeight: 48, borderRadius: 10, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
-  saveButtonText: { ...typography.button, color: palette.white },
+  saveButtonText: { color: palette.white, fontSize: 14, fontWeight: "900" },
   supportButton: { minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, alignItems: "center", justifyContent: "center", paddingHorizontal: 14, backgroundColor: palette.surface },
-  supportButtonText: { ...typography.button, color: palette.primary, textAlign: "center" },
-  logoutButton: { minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: "rgba(255, 125, 140, 0.16)", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255, 125, 140, 0.14)" },
-  logoutText: { ...typography.button, color: palette.danger },
-  errorText: { ...typography.metadata, color: palette.danger },
-  fieldHelper: { ...typography.metadata, color: palette.muted },
-  modalBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(1,15,25,0.56)", alignItems: "center", justifyContent: "center" },
+  supportButtonText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900", textAlign: "center" },
+  logoutButton: { minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: "#FFDAD6", alignItems: "center", justifyContent: "center", backgroundColor: "#FFF7F6" },
+  logoutText: { color: palette.danger, fontSize: 14, fontWeight: "900" },
+  errorText: { color: palette.danger, fontSize: 12, lineHeight: 16, fontWeight: "700" },
+  fieldHelper: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  modalBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(24,28,28,0.32)", alignItems: "center", justifyContent: "center" },
   dropdownMenu: { width: "100%", maxWidth: 420, borderRadius: 12, padding: 12, backgroundColor: palette.surface },
-  dropdownTitle: { ...typography.cardTitleStrong, color: palette.text, paddingHorizontal: 8, paddingVertical: 8 },
+  dropdownTitle: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: "900", paddingHorizontal: 8, paddingVertical: 8 },
   dropdownOption: { minHeight: 48, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12 },
-  dropdownOptionText: { ...typography.bodyMedium, color: palette.muted },
+  dropdownOptionText: { color: palette.muted, fontSize: 16, lineHeight: 24, fontWeight: "700" },
   addressMapModal: { backgroundColor: palette.surface, borderRadius: 16, gap: 12, maxHeight: "92%", maxWidth: 560, padding: 16, width: "100%" },
   addressMapHeader: { alignItems: "flex-start", flexDirection: "row", gap: 12 },
   addressMapClose: { alignItems: "center", height: 40, justifyContent: "center", width: 40 },
   addressSearchRow: { alignItems: "center", flexDirection: "row", gap: 8 },
   addressSearchInput: { flex: 1 },
   addressSearchButton: { alignItems: "center", backgroundColor: palette.primary, borderRadius: 8, justifyContent: "center", minHeight: 48, minWidth: 72, paddingHorizontal: 10 },
-  addressSearchButtonText: { ...typography.button, color: palette.white },
+  addressSearchButtonText: { color: palette.white, fontSize: 13, fontWeight: "900" },
   addressSearchResults: { borderColor: palette.outlineVariant, borderRadius: 8, borderWidth: 1, maxHeight: 132 },
   addressSearchResult: { borderBottomColor: palette.outlineVariant, borderBottomWidth: 1, minHeight: 48, justifyContent: "center", paddingHorizontal: 12, paddingVertical: 8 },
-  addressSearchResultText: { ...typography.bodyMedium, color: palette.text },
-  dropdownOptionSelected: { ...typography.bodyMedium, color: palette.primary },
-  dropdownOptionActive: { backgroundColor: "rgba(20, 217, 226, 0.12)" },
+  addressSearchResultText: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: "700" },
+  dropdownOptionSelected: { color: palette.primary, fontWeight: "900" },
+  dropdownOptionActive: { backgroundColor: "#E5F1EE" },
   capabilityActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 8 },
   capabilityCancelButton: { minHeight: 42, justifyContent: "center", paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: palette.primary },
-  capabilityCancelText: { ...typography.button, color: palette.primary },
+  capabilityCancelText: { color: palette.primary, fontSize: 13, fontWeight: "900" },
   capabilitySaveButton: { minHeight: 42, justifyContent: "center", paddingHorizontal: 14, borderRadius: 8, backgroundColor: palette.primary },
-  capabilitySaveText: { ...typography.button, color: palette.white },
-  reviewScore: { ...typography.badge, color: palette.muted }
+  capabilitySaveText: { color: palette.white, fontSize: 13, fontWeight: "900" },
+  reviewScore: { color: palette.muted, fontSize: 12, fontWeight: "800" }
 });

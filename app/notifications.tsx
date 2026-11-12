@@ -1,8 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { FlatList, StyleSheet, Switch, View } from "react-native";
-import { MotionPressable as Pressable } from "../src/components/MotionPressable";
+import { FlatList, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { AppCard } from "../src/components/AppCard";
 import { EmptyState } from "../src/components/EmptyState";
 import { ScreenContainer } from "../src/components/ScreenContainer";
@@ -11,8 +10,6 @@ import { FREE_WEB_DEMO } from "../src/config/release";
 import { useApp } from "../src/context/AppContext";
 import { useTasklinkBack } from "../src/hooks/useTasklinkBack";
 import { AppNotification, NotificationPreferences } from "../src/types";
-import { typography } from "../src/typography";
-import { AppText as Text } from "../src/components/AppText";
 
 
 export default function NotificationsScreen() {
@@ -59,7 +56,7 @@ export default function NotificationsScreen() {
   return (
     <ScreenContainer style={localStyles.screen}>
       <Pressable accessibilityLabel="Back" accessibilityRole="button" onPress={goBack} style={({ pressed }) => [localStyles.backButton, pressed && localStyles.pressed]}>
-        <Feather accessibilityElementsHidden color="#00C9B3" name="arrow-left" size={22} />
+        <Feather accessibilityElementsHidden color="#005C55" name="arrow-left" size={22} />
       </Pressable>
       <View style={localStyles.headingRow}>
         <View>
@@ -67,7 +64,7 @@ export default function NotificationsScreen() {
           <Text style={localStyles.meta}>{unreadCount} unread</Text>
         </View>
         {unreadCount ? (
-          <Pressable accessibilityLabel="Mark all notifications as read" accessibilityRole="button" onPress={() => {
+          <Pressable accessibilityRole="button" onPress={() => {
             void markEveryNotificationRead().catch(() => setSettingsError("Unable to mark notifications as read."));
           }}>
             <Text style={localStyles.link}>Mark all read</Text>
@@ -87,8 +84,7 @@ export default function NotificationsScreen() {
             <PreferenceRow disabled={saving} label="Matching jobs" onValueChange={(value) => void updatePreference({ matchingEnabled: value })} value={notificationPreferences.matchingEnabled} />
           </>
         )}
-        {saving ? <Text accessibilityLiveRegion="polite" style={localStyles.meta}>Saving notification preferences...</Text> : null}
-        {settingsError ? <Text accessibilityLiveRegion="assertive" style={localStyles.error}>{settingsError}</Text> : null}
+        {settingsError ? <Text style={localStyles.error}>{settingsError}</Text> : null}
       </AppCard>
 
       <FlatList
@@ -98,7 +94,7 @@ export default function NotificationsScreen() {
         contentContainerStyle={localStyles.listContent}
         ListEmptyComponent={<EmptyState title="No notifications yet" message="Task and message updates will appear here." />}
         renderItem={({ item }) => (
-          <Pressable accessibilityLabel={`${item.readStatus ? "Read" : "Unread"} ${item.notificationType}: ${item.message}`} accessibilityRole="button" onPress={() => void openNotification(item)}>
+          <Pressable accessibilityRole="button" onPress={() => void openNotification(item)}>
             <AppCard>
               <View style={localStyles.rowBetween}>
                 <Text style={localStyles.type}>{item.notificationType}</Text>
@@ -123,7 +119,7 @@ function PreferenceRow({ disabled, label, onValueChange, value }: {
   return (
     <View style={localStyles.preferenceRow}>
       <Text style={localStyles.preferenceLabel}>{label}</Text>
-      <Switch accessibilityLabel={label} accessibilityRole="switch" accessibilityState={{ checked: value, disabled }} disabled={disabled} onValueChange={onValueChange} value={value} />
+      <Switch disabled={disabled} onValueChange={onValueChange} value={value} />
     </View>
   );
 }
@@ -136,21 +132,21 @@ function formatTimestamp(timestamp: string) {
 const localStyles = StyleSheet.create({
   screen: { padding: 16 },
   backButton: { alignSelf: "flex-start", minHeight: 42, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, marginLeft: -8, marginBottom: 4, borderRadius: 8 },
-  backArrow: { ...typography.heroNumber, color: "#00C9B3" },
-  backText: { ...typography.button, color: "#00C9B3" },
+  backArrow: { color: "#005C55", fontSize: 28, lineHeight: 28, fontWeight: "400" },
+  backText: { color: "#005C55", fontSize: 14, fontWeight: "900" },
   headingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  heading: { ...typography.sectionTitle, color: "#F5FCFF" },
-  meta: { color: "#BBD5DE", marginTop: 2 },
-  link: { ...typography.button, color: "#00C9B3" },
-  sectionTitle: { ...typography.sectionTitleSmall, color: "#F5FCFF", marginBottom: 6 },
+  heading: { fontSize: 28, lineHeight: 34, fontWeight: "900", color: "#181C1C" },
+  meta: { color: "#596562", marginTop: 2 },
+  link: { color: "#005C55", fontWeight: "900" },
+  sectionTitle: { color: "#181C1C", fontSize: 17, fontWeight: "900", marginBottom: 6 },
   preferenceRow: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  preferenceLabel: { ...typography.fieldLabel, flex: 1, color: "#F5FCFF" },
+  preferenceLabel: { flex: 1, color: "#181C1C", fontSize: 15 },
   listContent: { gap: 12, paddingBottom: 32 },
   list: { flex: 1 },
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  type: { ...typography.bodyMedium, flex: 1, color: "#00C9B3" },
-  message: { ...typography.body, color: "#F5FCFF", marginTop: 8 },
-  time: { ...typography.metadata, color: "#92B2C0", marginTop: 8 },
-  error: { ...typography.metadata, color: "#FF7D8C", marginTop: 8 },
+  type: { flex: 1, color: "#005C55", fontSize: 15, fontWeight: "900" },
+  message: { color: "#181C1C", fontSize: 15, lineHeight: 21, marginTop: 8 },
+  time: { color: "#6E7977", fontSize: 11, marginTop: 8 },
+  error: { color: "#BA1A1A", marginTop: 8, fontWeight: "700" },
   pressed: { opacity: 0.72 }
 });

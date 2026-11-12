@@ -1,27 +1,38 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
-import { MotionPressable as Pressable } from "../src/components/MotionPressable";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import { HelpShortcut } from "../src/components/HelpShortcut";
 import { NotificationShortcut } from "../src/components/NotificationShortcut";
 import { StatusBadge } from "../src/components/StatusBadge";
-import { StoredImage } from "../src/components/StoredImage";
 import { useApp } from "../src/context/AppContext";
-import { useMotionLayout } from "../src/hooks/useMotionLayout";
 import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
-import { screenPalette } from "../src/theme";
 import { Task } from "../src/types";
-import { typography } from "../src/typography";
-import { AppText as Text } from "../src/components/AppText";
 
-const palette = screenPalette;
+const palette = {
+  background: "#F7FAF8",
+  surface: "#FFFFFF",
+  surfaceLow: "#F1F4F3",
+  surfaceContainer: "#EBEFED",
+  primary: "#005C55",
+  primaryContainer: "#0F766E",
+  secondary: "#855300",
+  secondaryContainer: "#FEA619",
+  tertiaryContainer: "#9C573A",
+  text: "#181C1C",
+  textStrong: "#111827",
+  muted: "#3E4947",
+  outline: "#6E7977",
+  outlineVariant: "#BDC9C6",
+  success: "#10B981",
+  urgent: "#EF4444",
+  pending: "#F97316",
+  white: "#FFFFFF"
+};
 
 export default function ClientDashboardScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const prepareLayout = useMotionLayout();
   const { currentUser, notifications, tasks, users } = useApp();
   const [showAllOngoing, setShowAllOngoing] = useState(false);
   const clientTasks = tasks.filter((task) => task.clientId === currentUser?.id);
@@ -43,7 +54,7 @@ export default function ClientDashboardScreen() {
         onPostTask={() => router.push("/post-task")}
         unreadCount={notifications.filter((notification) => notification.userId === currentUser?.id && !notification.readStatus).length}
       />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 112 + insets.bottom }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.heroGrid}>
           <View style={styles.heroPanel}>
             <View style={styles.heroCopy}>
@@ -59,6 +70,7 @@ export default function ClientDashboardScreen() {
                 <Text style={styles.heroButtonText}>Post New Task</Text>
               </Pressable>
             </View>
+            <Text style={styles.heroMark}>TL</Text>
           </View>
 
         </View>
@@ -73,7 +85,7 @@ export default function ClientDashboardScreen() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Ongoing Jobs</Text>
           {activeClientTasks.length > 2 ? (
-            <Pressable accessibilityRole="button" onPress={() => { prepareLayout(); setShowAllOngoing((value) => !value); }}>
+            <Pressable accessibilityRole="button" onPress={() => setShowAllOngoing((value) => !value)}>
               <Text style={styles.linkText}>{showAllOngoing ? "Show Less" : "View All"}</Text>
             </Pressable>
           ) : null}
@@ -147,7 +159,7 @@ export default function ClientDashboardScreen() {
         accessibilityLabel="Post a task"
         accessibilityRole="button"
         onPress={() => router.push("/post-task")}
-        style={({ pressed }) => [styles.fab, { bottom: 80 + Math.max(insets.bottom, 10) }, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
       >
         <Text style={styles.fabText}>Post</Text>
       </Pressable>
@@ -183,7 +195,7 @@ function DashboardHeader({ onPostTask, onHelp, onNotifications, onProfile, initi
         <HelpShortcut onPress={onHelp} />
         <NotificationShortcut onPress={onNotifications} unreadCount={unreadCount} />
         <Pressable accessibilityLabel="Open employer profile" accessibilityRole="button" onPress={onProfile} style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}>
-          <StoredImage accessibilityLabel="Employer profile photo" sourceUri={profilePhotoUrl} style={styles.avatarImage} fallback={<Text style={styles.avatarText}>{initials}</Text>} />
+          {profilePhotoUrl ? <Image source={{ uri: profilePhotoUrl }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{initials}</Text>}
         </Pressable>
       </View>
     </View>
@@ -290,14 +302,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: palette.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(207, 249, 255, 0.20)"
+    borderBottomColor: "#EDF1EF"
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
-  menuText: { ...typography.bodyMedium, color: palette.primary },
-  brand: { ...typography.screenTitle, color: palette.primary },
+  menuText: { color: palette.primary, fontSize: 24, fontWeight: "800" },
+  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "800" },
   headerPostButton: { display: "none" },
-  headerPostText: { ...typography.bodyMedium, color: "#F4C95D" },
+  headerPostText: { color: "#684000", fontSize: 14, fontWeight: "800" },
   avatar: {
     width: 40,
     height: 40,
@@ -310,22 +322,20 @@ const styles = StyleSheet.create({
     borderColor: palette.outlineVariant
   },
   avatarImage: { width: "100%", height: "100%" },
-  avatarText: { ...typography.bodyMedium, color: "#F4C95D" },
-  content: { padding: 16, gap: 12 },
+  avatarText: { color: "#684000", fontWeight: "900" },
+  content: { padding: 16, paddingBottom: 112, gap: 12 },
   heroGrid: { gap: 12 },
   heroPanel: {
     minHeight: 178,
-    borderRadius: 24,
+    borderRadius: 12,
     padding: 24,
-    backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.outlineVariant,
+    backgroundColor: palette.primaryContainer,
     overflow: "hidden",
-    elevation: 5
+    flexDirection: "row"
   },
   heroCopy: { flex: 1, justifyContent: "center" },
-  heroTitle: { ...typography.screenTitle, color: palette.textStrong, marginBottom: 8 },
-  heroText: { ...typography.cardTitle, color: palette.muted, marginBottom: 20 },
+  heroTitle: { color: "#A3FAEF", fontSize: 20, lineHeight: 28, fontWeight: "800", marginBottom: 8 },
+  heroText: { color: "#DFF8F4", fontSize: 16, lineHeight: 24, marginBottom: 20 },
   heroButton: {
     alignSelf: "flex-start",
     minHeight: 46,
@@ -333,64 +343,63 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: palette.primary,
-    borderWidth: 1,
-    borderColor: palette.primaryFixed
+    backgroundColor: palette.secondaryContainer
   },
-  heroButtonText: { ...typography.button, color: palette.white },
-  healthCard: { padding: 20, borderRadius: 20, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, elevation: 2, gap: 18 },
+  heroButtonText: { color: "#684000", fontWeight: "900", fontSize: 14 },
+  heroMark: { position: "absolute", right: 18, top: 24, color: "rgba(255,255,255,0.12)", fontSize: 80, fontWeight: "900" },
+  healthCard: { padding: 20, borderRadius: 12, backgroundColor: palette.surface, elevation: 2, gap: 18 },
   healthTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   healthDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: palette.success },
   healthBody: { gap: 10 },
-  cardMutedBold: { ...typography.body, color: palette.muted },
+  cardMutedBold: { color: palette.muted, fontSize: 14, lineHeight: 20, fontWeight: "800" },
   progressTrack: { height: 8, borderRadius: 8, backgroundColor: palette.surfaceContainer, overflow: "hidden" },
   progressFill: { width: "85%", height: 8, borderRadius: 8, backgroundColor: palette.success },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  statCard: { width: "47.8%", minHeight: 116, padding: 16, borderRadius: 20, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, justifyContent: "center" },
-  statValue: { ...typography.heroNumber, marginTop: 4 },
+  statCard: { width: "47.8%", padding: 16, borderRadius: 12, backgroundColor: palette.surfaceLow, borderWidth: 1, borderColor: palette.outlineVariant },
+  statValue: { fontSize: 24, lineHeight: 32, fontWeight: "900", marginTop: 4 },
   sectionHeader: { marginTop: 4, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  sectionTitle: { ...typography.sectionTitle, color: palette.text },
-  linkText: { ...typography.button, color: palette.primary },
+  sectionTitle: { color: palette.text, fontSize: 20, lineHeight: 28, fontWeight: "800" },
+  linkText: { color: palette.primary, fontSize: 14, fontWeight: "800" },
   jobGrid: { gap: 12 },
-  jobCard: { padding: 18, borderRadius: 20, borderWidth: 1, borderLeftWidth: 4, borderColor: palette.outlineVariant, backgroundColor: palette.surface, elevation: 2, gap: 10 },
+  jobCard: { padding: 16, borderRadius: 12, borderLeftWidth: 4, backgroundColor: palette.surface, elevation: 2, gap: 10 },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  statusChip: { ...typography.badge, overflow: "hidden", borderRadius: 4, paddingHorizontal: 8, paddingVertical: 4 },
-  urgentChip: { backgroundColor: "rgba(255, 125, 140, 0.16)", color: "#FF7D8C" },
+  statusChip: { overflow: "hidden", borderRadius: 4, paddingHorizontal: 8, paddingVertical: 4, fontSize: 10, fontWeight: "900" },
+  urgentChip: { backgroundColor: "#FFDAD6", color: "#93000A" },
   scheduledChip: { backgroundColor: palette.surfaceContainer, color: palette.muted },
-  priceText: { ...typography.price, color: palette.primary },
-  jobTitle: { ...typography.cardTitleStrong, color: palette.text },
-  smallMuted: { ...typography.metadata, color: palette.muted },
-  smallLabel: { ...typography.fieldLabel, color: palette.text },
-  successText: { ...typography.badge, color: palette.success },
+  priceText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  jobTitle: { color: palette.text, fontSize: 18, lineHeight: 26, fontWeight: "800" },
+  smallMuted: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  smallLabel: { color: palette.text, fontSize: 12, lineHeight: 16 },
+  successText: { color: palette.success, fontSize: 12, fontWeight: "900" },
   jobFooter: { paddingTop: 12, borderTopWidth: 1, borderTopColor: palette.outlineVariant, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   workerStack: { flexDirection: "row" },
   smallAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary, borderWidth: 2, borderColor: palette.white },
   smallAvatarMuted: { width: 32, height: 32, borderRadius: 16, marginLeft: -8, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceContainer, borderWidth: 2, borderColor: palette.white },
-  smallAvatarText: { ...typography.overline, color: palette.white },
+  smallAvatarText: { color: palette.white, fontSize: 10, fontWeight: "900" },
   detailButton: { minHeight: 38, borderRadius: 8, paddingHorizontal: 16, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  detailButtonText: { ...typography.button, color: palette.white },
+  detailButtonText: { color: palette.white, fontSize: 14, fontWeight: "800" },
   completedPanel: { padding: 20, borderRadius: 12, backgroundColor: palette.surfaceLow, gap: 12 },
   archivedPanel: { padding: 20, borderRadius: 12, backgroundColor: palette.surfaceLow, gap: 12 },
   archivedHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   archiveEmptyRow: { padding: 12, borderRadius: 8, backgroundColor: palette.surface },
-  panelTitle: { ...typography.cardTitleStrong, color: palette.text },
+  panelTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   historyRow: { padding: 12, borderRadius: 8, backgroundColor: palette.surface, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   historyLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
   historyIcon: { width: 36, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.tertiaryContainer },
-  historyIconText: { ...typography.bodyMedium, color: palette.danger },
-  historyTitle: { ...typography.cardTitleStrong, color: palette.text },
+  historyIconText: { color: "#FFE5DB", fontWeight: "900" },
+  historyTitle: { color: palette.text, fontSize: 14, fontWeight: "800" },
   workerPanel: { padding: 16, borderRadius: 12, backgroundColor: palette.surface, elevation: 2 },
   workerRow: { minHeight: 68, borderBottomWidth: 1, borderBottomColor: palette.outlineVariant, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   workerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   workerAvatar: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceContainer },
   onlineDot: { position: "absolute", right: 1, bottom: 1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: palette.white },
-  workerName: { ...typography.cardTitleStrong, color: palette.text },
-  ratingText: { ...typography.overline, color: palette.text },
-  availableText: { ...typography.badge, color: palette.success },
-  tipCard: { padding: 16, borderRadius: 12, backgroundColor: "rgba(244, 201, 93, 0.16)", borderWidth: 1, borderColor: palette.warning, flexDirection: "row", alignItems: "center", gap: 12 },
-  tipIcon: { ...typography.sectionTitleSmall, color: palette.secondary },
-  tipText: { ...typography.metadata, color: "#F4C95D", flex: 1 },
-  fab: { position: "absolute", right: 20, minWidth: 64, height: 56, paddingHorizontal: 12, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primaryFixed, elevation: 12 },
-  fabText: { ...typography.button, color: palette.white },
-  pressed: { opacity: 0.78 }
+  workerName: { color: palette.text, fontSize: 14, fontWeight: "800" },
+  ratingText: { color: palette.text, fontSize: 10, fontWeight: "800" },
+  availableText: { color: palette.success, fontSize: 12, fontWeight: "900" },
+  tipCard: { padding: 16, borderRadius: 12, backgroundColor: "#FFF8EE", borderWidth: 1, borderColor: "#E7C18C", flexDirection: "row", alignItems: "center", gap: 12 },
+  tipIcon: { color: palette.secondary, fontSize: 18, fontWeight: "900" },
+  tipText: { color: "#684000", flex: 1, fontSize: 12, lineHeight: 16 },
+  fab: { position: "absolute", right: 20, bottom: 88, minWidth: 64, height: 56, paddingHorizontal: 12, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer, elevation: 12 },
+  fabText: { color: "#684000", fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
 });

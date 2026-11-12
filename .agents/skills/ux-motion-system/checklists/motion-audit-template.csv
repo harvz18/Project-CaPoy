@@ -1,2 +1,0 @@
-route_or_screen,role,platform,component_or_event,current_behavior,proposed_motion,token,reduced_motion_fallback,preserved_behavior,status,test_evidence,notes
-/home,example_only,web_or_native,bottom_tab_switch,inspect_first,subtle_active_indicator,quick,instant_selected_state,correct_route,planned,,replace example with real screen

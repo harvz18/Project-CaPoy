@@ -1,9 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
-import { ScrollView, ScrollViewInstance, StyleSheet, View } from "react-native";
-import { MotionModal as Modal } from "../src/components/MotionModal";
-import { MotionPressable as Pressable } from "../src/components/MotionPressable";
+import { Modal, Pressable, ScrollView, ScrollViewInstance, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import {
@@ -26,11 +24,22 @@ import { sanitizeDurationInput, sanitizeMoneyInput } from "../src/utils/numericI
 import { AddressDetails, formatTaskAddressDetails } from "../src/utils/address";
 import { ReverseGeocodeResult, reverseGeocodeSelectedPin } from "../src/services/reverseGeocoding";
 import { getTaskPostingErrors, TaskPostingField } from "../src/domain/taskPosting";
-import { screenPalette } from "../src/theme";
-import { typography } from "../src/typography";
-import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 
-const palette = screenPalette;
+const palette = {
+  background: "#F7FAF8",
+  surface: "#FFFFFF",
+  surfaceLow: "#F1F4F3",
+  surfaceContainer: "#EBEFED",
+  primary: "#005C55",
+  secondary: "#855300",
+  secondaryFixed: "#FFDDB8",
+  text: "#181C1C",
+  textStrong: "#111827",
+  muted: "#3E4947",
+  outline: "#6E7977",
+  outlineVariant: "#BDC9C6",
+  white: "#FFFFFF"
+};
 
 const categories = [...taskCategories];
 const durationUnits: Array<{ label: string; value: DurationUnit }> = [
@@ -298,7 +307,6 @@ export default function PostTaskScreen() {
 
           <Field label="Task Title *">
             <TextInput
-              accessibilityLabel="Task title"
               onChangeText={(value) => { setTitle(value); setFormErrors((current) => ({ ...current, title: value.trim() ? undefined : current.title })); }}
               placeholder="e.g. Move furniture to 2nd floor"
               placeholderTextColor={palette.outline}
@@ -376,18 +384,18 @@ export default function PostTaskScreen() {
                 />
                 <View style={styles.twoColumn}>
                   <Field label="House / building" style={styles.flex}>
-                    <TextInput accessibilityLabel="House or unit number, optional" onChangeText={(value) => updateAddressDetail("houseNumber", value)} placeholder="Optional" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.houseNumber ?? ""} />
+                    <TextInput onChangeText={(value) => updateAddressDetail("houseNumber", value)} placeholder="Optional" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.houseNumber ?? ""} />
                   </Field>
                   <Field label="Street" style={styles.flex}>
-                    <TextInput accessibilityLabel="Street, optional" onChangeText={(value) => updateAddressDetail("street", value)} placeholder="Optional" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.street ?? ""} />
+                    <TextInput onChangeText={(value) => updateAddressDetail("street", value)} placeholder="Optional" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.street ?? ""} />
                   </Field>
                 </View>
                 <View style={styles.twoColumn}>
                   <Field label="Barangay" style={styles.flex}>
-                    <TextInput accessibilityLabel="Barangay" onChangeText={(value) => updateAddressDetail("barangay", value)} placeholder="Barangay" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.barangay ?? ""} />
+                    <TextInput onChangeText={(value) => updateAddressDetail("barangay", value)} placeholder="Barangay" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.barangay ?? ""} />
                   </Field>
                   <Field label="City" style={styles.flex}>
-                    <TextInput accessibilityLabel="City" editable={false} placeholderTextColor={palette.outline} style={[styles.input, styles.readOnlyInput]} value="Bacolod City" />
+                    <TextInput editable={false} placeholderTextColor={palette.outline} style={[styles.input, styles.readOnlyInput]} value="Bacolod City" />
                   </Field>
                 </View>
                 {addressSuggestion ? <View style={styles.addressSuggestion}>
@@ -585,7 +593,7 @@ export default function PostTaskScreen() {
           </Field>
 
           <Field label="Perks (Optional)">
-            <TextInput accessibilityLabel="Task perks, optional" onChangeText={setPerksText} placeholder="Free lunch, transportation allowance" placeholderTextColor={palette.outline} style={styles.input} value={perksText} />
+            <TextInput onChangeText={setPerksText} placeholder="Free lunch, transportation allowance" placeholderTextColor={palette.outline} style={styles.input} value={perksText} />
             <Text style={styles.helperText}>Separate multiple perks with commas. Perks do not change the monetary payment.</Text>
           </Field>
 
@@ -611,7 +619,6 @@ export default function PostTaskScreen() {
 
           <Field label="Task Description *">
             <TextInput
-              accessibilityLabel="Task description"
               multiline
               onChangeText={(value) => { setDescription(value); setFormErrors((current) => ({ ...current, description: value.trim() ? undefined : current.description })); }}
               placeholder="Provide more details for your neighbor..."
@@ -634,7 +641,7 @@ export default function PostTaskScreen() {
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
       </ScrollView>
 
-      <View style={[styles.bottomAction, { bottom: 96 + Math.max(insets.bottom, 10), paddingBottom: 16 }]}>
+      <View style={[styles.bottomAction, { bottom: 58 + Math.max(insets.bottom, 10), paddingBottom: 16 }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ disabled: actionLoading }}
@@ -707,7 +714,7 @@ export default function PostTaskScreen() {
       />
 
       <Modal animationType="slide" transparent visible={capabilityPickerOpen} onRequestClose={() => setCapabilityPickerOpen(false)}>
-        <Pressable accessibilityLabel="Close required capabilities" accessibilityRole="button" motionDisabled onPress={() => setCapabilityPickerOpen(false)} style={styles.pickerBackdrop}>
+        <Pressable accessibilityLabel="Close required capabilities" accessibilityRole="button" onPress={() => setCapabilityPickerOpen(false)} style={styles.pickerBackdrop}>
           <Pressable accessibilityRole="none" onPress={() => undefined} style={styles.capabilitySheet}>
             <View style={styles.pickerHandle} />
             <View style={styles.pickerHeader}>
@@ -830,8 +837,8 @@ function PickerModal({
 }) {
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
-      <Pressable accessibilityLabel={`Close ${title} picker`} accessibilityRole="button" motionDisabled style={styles.pickerBackdrop} onPress={onClose}>
-        <Pressable accessibilityRole="none" onPress={() => undefined} style={styles.pickerSheet}>
+      <Pressable style={styles.pickerBackdrop} onPress={onClose}>
+        <Pressable onPress={() => undefined} style={styles.pickerSheet}>
           <View style={styles.pickerHandle} />
           <View style={styles.pickerHeader}>
             <Text style={styles.pickerTitle}>{title}</Text>
@@ -843,8 +850,7 @@ function PickerModal({
             const selected = selectedValue === option;
             return (
               <Pressable
-                accessibilityRole="radio"
-                accessibilityState={{ selected }}
+                accessibilityRole="button"
                 key={option}
                 onPress={() => onSelect(option)}
                 style={[styles.pickerOption, selected && styles.pickerOptionSelected]}
@@ -883,12 +889,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: palette.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(207, 249, 255, 0.20)"
+    borderBottomColor: "#EDF1EF"
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   closeButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  closeText: { ...typography.heroNumber, color: palette.muted },
-  headerTitle: { ...typography.screenTitle, color: palette.primary },
+  closeText: { color: palette.muted, fontSize: 22, fontWeight: "800" },
+  headerTitle: { color: palette.primary, fontSize: 20, lineHeight: 28, fontWeight: "800" },
   avatar: {
     width: 32,
     height: 32,
@@ -899,34 +905,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.outlineVariant
   },
-  avatarText: { ...typography.bodyMedium, color: palette.secondary },
+  avatarText: { color: palette.secondary, fontWeight: "900" },
   content: { padding: 16, paddingTop: 24, gap: 12 },
-  heroTitle: { ...typography.screenTitle, color: palette.primary },
-  heroText: { ...typography.cardTitle, color: palette.muted, marginTop: 4 },
+  heroTitle: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
+  heroText: { color: palette.muted, fontSize: 16, lineHeight: 24, marginTop: 4 },
   section: { paddingTop: 8 },
   formCard: {
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(207,249,255,0.28)",
+    borderColor: "rgba(189,201,198,0.35)",
     backgroundColor: palette.surfaceLow,
     gap: 12
   },
   field: { gap: 6 },
-  fieldLabel: { ...typography.fieldLabel, color: palette.text },
+  fieldLabel: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "800" },
   input: {
-    ...typography.inputText,
     minHeight: 48,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: palette.outlineVariant,
     backgroundColor: palette.surface,
     color: palette.text,
+    fontSize: 16,
     paddingHorizontal: 14
   },
-  inputError: { borderColor: "#FF7D8C", borderWidth: 2 },
-  fieldError: { ...typography.metadata, color: "#FF7D8C", marginTop: 4 },
-  placeholderValue: { ...typography.bodyMedium, color: palette.outline },
+  inputError: { borderColor: "#BA1A1A", borderWidth: 2 },
+  fieldError: { color: "#BA1A1A", fontSize: 12, lineHeight: 16, fontWeight: "800", marginTop: 4 },
+  placeholderValue: { color: palette.outline, fontWeight: "700" },
   readOnlyInput: { backgroundColor: palette.surfaceContainer, color: palette.muted },
   selectButton: {
     minHeight: 48,
@@ -940,8 +946,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12
   },
-  selectValue: { ...typography.cardTitleStrong, color: palette.text, flex: 1 },
-  selectChevron: { ...typography.bodyMedium, color: palette.primary },
+  selectValue: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: "800", flex: 1 },
+  selectChevron: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   locationInputWrap: {
     minHeight: 48,
     borderRadius: 8,
@@ -951,18 +957,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center"
   },
-  locationInput: { ...typography.inputText, flex: 1, minHeight: 48, color: palette.text, paddingHorizontal: 12 },
+  locationInput: { flex: 1, minHeight: 48, color: palette.text, fontSize: 16, paddingHorizontal: 12 },
   mapPreview: {
     height: 128,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: palette.outlineVariant,
-    backgroundColor: "rgba(20, 217, 226, 0.12)",
+    backgroundColor: "#E5F1EE",
     overflow: "hidden",
     marginTop: 8
   },
-  mapRoadOne: { position: "absolute", left: -18, right: -18, top: 58, height: 14, backgroundColor: "#17607A", transform: [{ rotate: "-12deg" }] },
-  mapRoadTwo: { position: "absolute", top: -12, bottom: -12, left: "58%", width: 16, backgroundColor: "#14556D", transform: [{ rotate: "18deg" }] },
+  mapRoadOne: { position: "absolute", left: -18, right: -18, top: 58, height: 14, backgroundColor: "#C8DBD7", transform: [{ rotate: "-12deg" }] },
+  mapRoadTwo: { position: "absolute", top: -12, bottom: -12, left: "58%", width: 16, backgroundColor: "#D6C29E", transform: [{ rotate: "18deg" }] },
   mapPin: { position: "absolute", left: "48%", top: 50, width: 20, height: 20, borderRadius: 10, backgroundColor: palette.primary, borderWidth: 4, borderColor: palette.white },
   twoColumn: { flexDirection: "row", gap: 8 },
   flex: { flex: 1 },
@@ -972,19 +978,19 @@ const styles = StyleSheet.create({
   durationStepButtonDisabled: { opacity: 0.45 },
   durationDropdown: { borderWidth: 1, borderColor: palette.outlineVariant, borderRadius: 8, backgroundColor: palette.surface, overflow: "hidden", marginTop: 2 },
   durationDropdownOption: { minHeight: 42, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  durationDropdownOptionSelected: { backgroundColor: "rgba(20, 217, 226, 0.12)" },
-  durationDropdownText: { ...typography.bodyMedium, color: palette.text },
-  durationDropdownTextSelected: { ...typography.bodyMedium, color: palette.primary },
+  durationDropdownOptionSelected: { backgroundColor: "#E5F1EE" },
+  durationDropdownText: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: "700" },
+  durationDropdownTextSelected: { color: palette.primary, fontWeight: "900" },
   paymentRow: { flexDirection: "row", gap: 8 },
   scheduleModeRow: { flexDirection: "row", gap: 8 },
   scheduleModeButton: { flex: 1, minHeight: 38, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, alignItems: "center", justifyContent: "center" },
   scheduleModeButtonSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
-  scheduleModeText: { ...typography.bodyMedium, color: palette.muted },
+  scheduleModeText: { color: palette.muted, fontSize: 13, lineHeight: 18, fontWeight: "800" },
   scheduleModeTextSelected: { color: palette.white },
   capabilityGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   capabilityChip: { minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
   capabilityChipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
-  capabilityText: { ...typography.badge, color: palette.muted },
+  capabilityText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   capabilityTextSelected: { color: palette.white },
   serviceAreaCard: { padding: 14, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 12 },
   serviceAreaHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
@@ -993,13 +999,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: palette.outlineVariant,
-    backgroundColor: "rgba(20, 217, 226, 0.12)",
+    backgroundColor: "#E5F1EE",
     overflow: "hidden"
   },
-  pinMapRoadOne: { position: "absolute", left: -28, right: -28, top: 84, height: 18, backgroundColor: "#17607A", transform: [{ rotate: "-12deg" }] },
-  pinMapRoadTwo: { position: "absolute", top: -24, bottom: -24, left: "58%", width: 18, backgroundColor: "#14556D", transform: [{ rotate: "18deg" }] },
-  pinMapRoadThree: { position: "absolute", left: "18%", top: -20, bottom: -20, width: 12, backgroundColor: "#1A6478", transform: [{ rotate: "-28deg" }] },
-  pinMapPark: { position: "absolute", right: 18, top: 18, width: 82, height: 54, borderRadius: 18, backgroundColor: "#0D5962" },
+  pinMapRoadOne: { position: "absolute", left: -28, right: -28, top: 84, height: 18, backgroundColor: "#C8DBD7", transform: [{ rotate: "-12deg" }] },
+  pinMapRoadTwo: { position: "absolute", top: -24, bottom: -24, left: "58%", width: 18, backgroundColor: "#D6C29E", transform: [{ rotate: "18deg" }] },
+  pinMapRoadThree: { position: "absolute", left: "18%", top: -20, bottom: -20, width: 12, backgroundColor: "#D9E5E2", transform: [{ rotate: "-28deg" }] },
+  pinMapPark: { position: "absolute", right: 18, top: 18, width: 82, height: 54, borderRadius: 18, backgroundColor: "#CDE7CE" },
   radiusRing: {
     position: "absolute",
     left: "50%",
@@ -1010,8 +1016,8 @@ const styles = StyleSheet.create({
     marginTop: -60,
     borderRadius: 60,
     borderWidth: 2,
-    borderColor: "rgba(0,201,179,0.28)",
-    backgroundColor: "rgba(0,201,179,0.10)"
+    borderColor: "rgba(0,92,85,0.22)",
+    backgroundColor: "rgba(0,92,85,0.06)"
   },
   centerPin: {
     position: "absolute",
@@ -1029,7 +1035,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     elevation: 5
   },
-  centerPinText: { ...typography.overline, color: palette.white },
+  centerPinText: { color: palette.white, fontSize: 10, lineHeight: 14, fontWeight: "900" },
   mapPinButton: {
     position: "absolute",
     width: 28,
@@ -1052,7 +1058,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: palette.primary
   },
-  mapPinButtonText: { ...typography.button, color: palette.white },
+  mapPinButtonText: { color: palette.white, fontSize: 9, lineHeight: 12, fontWeight: "900" },
   mapPinButtonTextSelected: { color: palette.white },
   openMapBadge: {
     position: "absolute",
@@ -1063,7 +1069,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     backgroundColor: palette.primary
   },
-  openMapBadgeText: { ...typography.badge, color: palette.white },
+  openMapBadgeText: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   mapCallout: {
     position: "absolute",
     left: 12,
@@ -1071,68 +1077,68 @@ const styles = StyleSheet.create({
     maxWidth: "72%",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "rgba(207,249,255,0.42)",
-    backgroundColor: "rgba(3,35,52,0.94)",
+    borderColor: "rgba(189,201,198,0.75)",
+    backgroundColor: "rgba(255,255,255,0.94)",
     paddingHorizontal: 12,
     paddingVertical: 9
   },
-  mapCalloutLabel: { ...typography.fieldLabel, color: palette.muted },
-  mapCalloutTitle: { ...typography.bodyMedium, color: palette.text },
+  mapCalloutLabel: { color: palette.muted, fontSize: 10, lineHeight: 14, fontWeight: "800", textTransform: "uppercase" },
+  mapCalloutTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   areaPresetGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   locationActionRow: { flexDirection: "row", gap: 8 },
   locationButton: { flex: 1, minHeight: 44, borderRadius: 8, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
-  locationButtonText: { ...typography.button, color: palette.white },
+  locationButtonText: { color: palette.white, fontSize: 12, fontWeight: "900" },
   locationOutlineButton: { flex: 1, minHeight: 44, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center" },
-  locationOutlineText: { ...typography.badge, color: palette.primary },
-  locationMessage: { ...typography.metadata, color: palette.primary },
+  locationOutlineText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
+  locationMessage: { color: palette.primary, fontSize: 12, lineHeight: 17, fontWeight: "700" },
   addressCard: { padding: 12, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, gap: 8 },
   addressCardHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   addressLookupButton: { minHeight: 38, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: palette.surface },
-  addressLookupText: { ...typography.badge, color: palette.primary },
+  addressLookupText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   addressInput: { minHeight: 70, paddingTop: 10 },
-  addressSuggestion: { padding: 10, borderRadius: 8, backgroundColor: "rgba(20, 217, 226, 0.12)", gap: 4 },
-  addressSuggestionLabel: { ...typography.fieldLabel, color: palette.primary },
-  addressSuggestionText: { ...typography.bodyMedium, color: palette.text },
+  addressSuggestion: { padding: 10, borderRadius: 8, backgroundColor: "#E5F1EE", gap: 4 },
+  addressSuggestionLabel: { color: palette.primary, fontSize: 11, lineHeight: 15, fontWeight: "900" },
+  addressSuggestionText: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: "800" },
   addressApplyButton: { alignSelf: "flex-start", minHeight: 34, borderRadius: 7, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary, marginTop: 2 },
-  addressApplyText: { ...typography.badge, color: palette.white },
-  addressPrivacyText: { ...typography.metadata, color: palette.muted },
+  addressApplyText: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  addressPrivacyText: { color: palette.muted, fontSize: 11, lineHeight: 15 },
   areaPresetChip: { minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
   areaPresetChipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
-  areaPresetText: { ...typography.badge, color: palette.muted },
+  areaPresetText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   areaPresetTextSelected: { color: palette.white },
   radiusGrid: { gap: 8 },
   radiusCard: { minHeight: 68, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, padding: 12 },
-  radiusCardSelected: { borderColor: palette.primary, backgroundColor: "rgba(20, 217, 226, 0.12)" },
-  radiusTitle: { ...typography.bodyMedium, color: palette.text },
+  radiusCardSelected: { borderColor: palette.primary, backgroundColor: "#E5F1EE" },
+  radiusTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   radiusTitleSelected: { color: palette.primary },
-  radiusValue: { ...typography.badge, color: palette.secondary, marginTop: 2 },
+  radiusValue: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: "900", marginTop: 2 },
   radiusValueSelected: { color: palette.primary },
-  radiusHelper: { ...typography.metadata, color: palette.muted, marginTop: 2 },
+  radiusHelper: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
   radiusHelperSelected: { color: palette.text },
   coordinateSummary: { borderRadius: 8, padding: 10, backgroundColor: palette.surfaceLow, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  coordinateLabel: { ...typography.fieldLabel, color: palette.muted },
-  coordinateAddress: { ...typography.bodyMedium, color: palette.text, marginTop: 2 },
-  coordinateValue: { ...typography.badge, color: palette.text, flexShrink: 0 },
+  coordinateLabel: { color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: "800" },
+  coordinateAddress: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: "900", marginTop: 2 },
+  coordinateValue: { color: palette.text, fontSize: 11, lineHeight: 14, fontWeight: "900", flexShrink: 0 },
   coordinateValueSelected: { color: palette.primary },
   paymentChip: { flex: 1, minHeight: 42, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, alignItems: "center", justifyContent: "center" },
   paymentChipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
-  paymentText: { ...typography.bodyMedium, color: palette.muted },
+  paymentText: { color: palette.muted, fontSize: 14, fontWeight: "800" },
   paymentTextSelected: { color: palette.white },
   dateButton: { minHeight: 70, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, padding: 10, flexDirection: "row", alignItems: "center", gap: 11 },
-  dateIcon: { width: 44, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(20, 217, 226, 0.12)" },
-  dateIconText: { ...typography.metadata, color: palette.primary, letterSpacing: 0.6 },
+  dateIcon: { width: 44, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#E5F1EE" },
+  dateIconText: { color: palette.primary, fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 0.6 },
   dateCopy: { flex: 1 },
-  dateValue: { ...typography.body, color: palette.text },
-  datePlaceholder: { ...typography.metadata, color: palette.outline },
-  dateHint: { ...typography.metadata, color: palette.muted, marginTop: 2 },
-  dateChevron: { ...typography.body, color: palette.primary },
+  dateValue: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: "900" },
+  datePlaceholder: { color: palette.outline, fontWeight: "700" },
+  dateHint: { color: palette.muted, fontSize: 11, lineHeight: 15, marginTop: 2 },
+  dateChevron: { color: palette.primary, fontSize: 24, lineHeight: 28, fontWeight: "900" },
   textArea: { minHeight: 96, paddingTop: 12 },
-  helperText: { ...typography.metadata, color: palette.muted },
-  tipCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.secondaryFixed, backgroundColor: "rgba(244, 201, 93, 0.16)", flexDirection: "row", gap: 8 },
-  tipIcon: { ...typography.sectionTitleSmall, color: palette.secondary },
-  tipTitle: { ...typography.bodyMedium, color: "#F5FCFF" },
-  tipText: { ...typography.metadata, color: "#F4C95D" },
-  errorText: { ...typography.metadata, color: "#FF7D8C" },
+  helperText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  tipCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.secondaryFixed, backgroundColor: "#FFF8EE", flexDirection: "row", gap: 8 },
+  tipIcon: { color: palette.secondary, fontSize: 18, fontWeight: "900" },
+  tipTitle: { color: "#2A1700", fontSize: 14, fontWeight: "900" },
+  tipText: { color: "#653E00", fontSize: 12, lineHeight: 16 },
+  errorText: { color: "#BA1A1A", fontSize: 12, lineHeight: 16, fontWeight: "700" },
   bottomAction: {
     position: "absolute",
     left: 0,
@@ -1141,56 +1147,54 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     backgroundColor: palette.surface,
-    borderTopWidth: 1,
-    borderTopColor: palette.outlineVariant,
-    shadowColor: "#001722",
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.24,
-    shadowRadius: 16,
-    elevation: 16
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 12
   },
   postButton: { minHeight: 48, borderRadius: 8, backgroundColor: palette.primary, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" },
-  postButtonText: { ...typography.button, color: palette.white },
+  postButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   mapModalSafeArea: { flex: 1, backgroundColor: palette.background },
   mapModalHeader: {
     minHeight: 72,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(207, 249, 255, 0.20)",
+    borderBottomColor: "#EDF1EF",
     backgroundColor: palette.surface,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12
   },
-  mapModalTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
-  mapModalSubtitle: { ...typography.metadata, color: palette.muted, marginTop: 2 },
+  mapModalTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  mapModalSubtitle: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
   modalCloseButton: { minHeight: 40, borderRadius: 20, paddingHorizontal: 16, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  modalCloseText: { ...typography.bodyMedium, color: palette.white },
+  modalCloseText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   mapModalBody: { flex: 1, padding: 16, gap: 12 },
   overviewContent: { padding: 16, gap: 10 },
   overviewRow: { padding: 14, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 3 },
-  overviewLabel: { ...typography.fieldLabel, color: palette.muted },
-  overviewValue: { ...typography.bodyMedium, color: palette.text },
-  successBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(1,15,25,0.72)", alignItems: "center", justifyContent: "center" },
+  overviewLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  overviewValue: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: "800" },
+  successBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(24,28,28,0.48)", alignItems: "center", justifyContent: "center" },
   successCard: { width: "100%", maxWidth: 420, padding: 24, borderRadius: 20, backgroundColor: palette.surface, alignItems: "center", gap: 12 },
   successIcon: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  successTitle: { ...typography.sectionTitle, color: palette.textStrong, textAlign: "center" },
-  successText: { ...typography.body, color: palette.muted, textAlign: "center", marginBottom: 4 },
+  successTitle: { color: palette.textStrong, fontSize: 21, lineHeight: 28, fontWeight: "900", textAlign: "center" },
+  successText: { color: palette.muted, fontSize: 14, lineHeight: 21, textAlign: "center", marginBottom: 4 },
   largePinMap: {
     flex: 1,
     minHeight: 300,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: palette.outlineVariant,
-    backgroundColor: "rgba(20, 217, 226, 0.12)",
+    backgroundColor: "#E5F1EE",
     overflow: "hidden"
   },
-  largeRoadOne: { position: "absolute", left: -40, right: -40, top: "48%", height: 24, backgroundColor: "#17607A", transform: [{ rotate: "-12deg" }] },
-  largeRoadTwo: { position: "absolute", top: -40, bottom: -40, left: "58%", width: 24, backgroundColor: "#14556D", transform: [{ rotate: "18deg" }] },
-  largeRoadThree: { position: "absolute", top: -24, bottom: -24, left: "22%", width: 16, backgroundColor: "#1A6478", transform: [{ rotate: "-28deg" }] },
-  largePark: { position: "absolute", right: 24, top: 24, width: 108, height: 76, borderRadius: 24, backgroundColor: "#0D5962" },
+  largeRoadOne: { position: "absolute", left: -40, right: -40, top: "48%", height: 24, backgroundColor: "#C8DBD7", transform: [{ rotate: "-12deg" }] },
+  largeRoadTwo: { position: "absolute", top: -40, bottom: -40, left: "58%", width: 24, backgroundColor: "#D6C29E", transform: [{ rotate: "18deg" }] },
+  largeRoadThree: { position: "absolute", top: -24, bottom: -24, left: "22%", width: 16, backgroundColor: "#D9E5E2", transform: [{ rotate: "-28deg" }] },
+  largePark: { position: "absolute", right: 24, top: 24, width: 108, height: 76, borderRadius: 24, backgroundColor: "#CDE7CE" },
   largeRadiusRing: {
     position: "absolute",
     left: "50%",
@@ -1201,8 +1205,8 @@ const styles = StyleSheet.create({
     marginTop: -110,
     borderRadius: 110,
     borderWidth: 3,
-    borderColor: "rgba(0,201,179,0.30)",
-    backgroundColor: "rgba(0,201,179,0.12)"
+    borderColor: "rgba(0,92,85,0.25)",
+    backgroundColor: "rgba(0,92,85,0.08)"
   },
   largeCenterPin: {
     position: "absolute",
@@ -1220,7 +1224,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     elevation: 8
   },
-  largeCenterPinText: { ...typography.badge, color: palette.white },
+  largeCenterPinText: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   largeMapCallout: {
     position: "absolute",
     left: 16,
@@ -1228,40 +1232,40 @@ const styles = StyleSheet.create({
     maxWidth: "76%",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(207,249,255,0.42)",
-    backgroundColor: "rgba(3,35,52,0.94)",
+    borderColor: "rgba(189,201,198,0.75)",
+    backgroundColor: "rgba(255,255,255,0.94)",
     paddingHorizontal: 14,
     paddingVertical: 10
   },
-  largeMapMeta: { ...typography.metadata, color: palette.secondary, marginTop: 2 },
+  largeMapMeta: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: "900", marginTop: 2 },
   modalPanel: { padding: 14, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 10 },
-  pickerBackdrop: { flex: 1, paddingHorizontal: 16, paddingTop: 24, backgroundColor: "rgba(1,15,25,0.68)", alignItems: "center", justifyContent: "flex-end" },
+  pickerBackdrop: { flex: 1, paddingHorizontal: 16, paddingTop: 24, backgroundColor: "rgba(24,28,28,0.42)", alignItems: "center", justifyContent: "flex-end" },
   pickerSheet: { width: "100%", maxWidth: 520, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 12, paddingBottom: 20, backgroundColor: palette.surface, gap: 4 },
   pickerHandle: { width: 42, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: palette.outlineVariant, marginBottom: 8 },
   pickerHeader: { minHeight: 48, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  pickerTitle: { ...typography.sectionTitleSmall, color: palette.textStrong, flex: 1 },
+  pickerTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 24, fontWeight: "900", flex: 1 },
   pickerCloseButton: { minHeight: 40, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
-  pickerCloseText: { ...typography.bodyMedium, color: palette.primary },
+  pickerCloseText: { color: palette.primary, fontSize: 13, fontWeight: "900" },
   pickerOption: { minHeight: 48, borderRadius: 8, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  pickerOptionSelected: { backgroundColor: "rgba(20, 217, 226, 0.12)" },
-  pickerOptionText: { ...typography.bodyMedium, color: palette.text, flex: 1 },
-  pickerOptionTextSelected: { ...typography.bodyMedium, color: palette.primary },
-  pickerCheck: { ...typography.badge, color: palette.primary },
+  pickerOptionSelected: { backgroundColor: "#E5F1EE" },
+  pickerOptionText: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: "700", flex: 1 },
+  pickerOptionTextSelected: { color: palette.primary, fontWeight: "900" },
+  pickerCheck: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   capabilitySheet: { width: "100%", maxWidth: 520, maxHeight: "82%", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 12, paddingBottom: 20, backgroundColor: palette.surface, gap: 8 },
-  capabilityCount: { ...typography.heroNumber, color: palette.muted, marginTop: 2 },
+  capabilityCount: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800", marginTop: 2 },
   capabilityList: { gap: 6, paddingHorizontal: 4, paddingVertical: 4 },
   capabilityOption: { minHeight: 48, borderRadius: 8, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow },
-  capabilityOptionSelected: { borderColor: palette.primary, backgroundColor: "rgba(20, 217, 226, 0.12)" },
+  capabilityOptionSelected: { borderColor: palette.primary, backgroundColor: "#E5F1EE" },
   checkbox: { width: 22, height: 22, borderRadius: 5, borderWidth: 2, borderColor: palette.outline, alignItems: "center", justifyContent: "center" },
   checkboxSelected: { borderColor: palette.primary, backgroundColor: palette.primary },
-  capabilityOptionText: { ...typography.bodyMedium, color: palette.text, flex: 1 },
-  capabilityOptionTextSelected: { ...typography.bodyMedium, color: palette.primary },
-  capabilityValidation: { ...typography.badge, color: "#FF7D8C", paddingHorizontal: 8 },
+  capabilityOptionText: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: "700", flex: 1 },
+  capabilityOptionTextSelected: { color: palette.primary, fontWeight: "900" },
+  capabilityValidation: { color: "#BA1A1A", fontSize: 12, lineHeight: 16, fontWeight: "800", paddingHorizontal: 8 },
   capabilityActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: palette.outlineVariant },
   capabilityCancelButton: { minHeight: 44, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center" },
-  capabilityCancelText: { ...typography.button, color: palette.primary },
+  capabilityCancelText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   capabilitySaveButton: { minHeight: 44, paddingHorizontal: 20, borderRadius: 8, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
-  capabilitySaveText: { ...typography.button, color: palette.white },
+  capabilitySaveText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   disabled: { opacity: 0.55 },
-  pressed: { opacity: 0.78 }
+  pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
 });

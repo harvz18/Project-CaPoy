@@ -1,18 +1,31 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
-import { MotionPressable as Pressable } from "../../src/components/MotionPressable";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBadge } from "../../src/components/StatusBadge";
-import { StoredImage } from "../../src/components/StoredImage";
 import { useApp } from "../../src/context/AppContext";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
-import { screenPalette } from "../../src/theme";
-import { typography } from "../../src/typography";
-import { AppText as Text } from "../../src/components/AppText";
 
-const palette = screenPalette;
+const palette = {
+  background: "#F7FAF8",
+  surface: "#FFFFFF",
+  surfaceLow: "#F1F4F3",
+  surfaceContainer: "#EBEFED",
+  surfaceHigh: "#E5E9E7",
+  primary: "#005C55",
+  primaryFixed: "#9CF2E8",
+  primaryContainer: "#0F766E",
+  secondary: "#855300",
+  secondaryFixed: "#FFDDB8",
+  secondaryContainer: "#FEA619",
+  text: "#181C1C",
+  textStrong: "#111827",
+  muted: "#3E4947",
+  outlineVariant: "#BDC9C6",
+  success: "#10B981",
+  white: "#FFFFFF"
+};
 
 export default function WorkerPublicProfileScreen() {
   const router = useRouter();
@@ -52,9 +65,7 @@ export default function WorkerPublicProfileScreen() {
     .filter((rating) => rating.targetUserId === id)
     .map((rating) => ({
       ...rating,
-      reviewerName: users.find((user) => user.id === rating.reviewerId)?.fullName ?? "TaskLink User",
-      taskTitle: tasks.find((task) => task.id === rating.taskId)?.title,
-      reviewDate: formatReviewDate(rating.createdAt)
+      reviewerName: users.find((user) => user.id === rating.reviewerId)?.fullName ?? "TaskLink User"
     }));
   const averageRating = workerRatings.length
     ? (workerRatings.reduce((total, rating) => total + rating.score, 0) / workerRatings.length).toFixed(1)
@@ -113,7 +124,7 @@ export default function WorkerPublicProfileScreen() {
           <View style={styles.profileHeader}>
             <View style={styles.photoWrap}>
               <View style={styles.profilePhoto}>
-                <StoredImage accessibilityLabel={`${name} profile photo`} sourceUri={worker.profilePhotoUrl} style={styles.profilePhotoImage} fallback={<Text style={styles.profilePhotoText}>{name[0]}</Text>} />
+                {worker.profilePhotoUrl ? <Image source={{ uri: worker.profilePhotoUrl }} style={styles.profilePhotoImage} /> : <Text style={styles.profilePhotoText}>{name[0]}</Text>}
               </View>
               <View style={styles.verifiedPill}>
                 <Text style={styles.verifiedText}>{verificationStatus}</Text>
@@ -169,8 +180,7 @@ export default function WorkerPublicProfileScreen() {
                 key={rating.id}
                 initials={rating.reviewerName[0] ?? "U"}
                 name={rating.reviewerName}
-                context={rating.taskTitle}
-                date={rating.reviewDate}
+                date="Task review"
                 stars={rating.score}
                 text={rating.feedback}
               />
@@ -196,9 +206,7 @@ export default function WorkerPublicProfileScreen() {
 
       <View style={[styles.bottomAction, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <Pressable
-          accessibilityLabel="Message worker"
           accessibilityRole="button"
-          accessibilityState={{ disabled: !canMessageWorker }}
           disabled={!canMessageWorker}
           style={[styles.messageButton, !canMessageWorker && styles.messageButtonDisabled]}
           onPress={() =>
@@ -210,7 +218,7 @@ export default function WorkerPublicProfileScreen() {
         >
           <Text style={styles.messageButtonText}>Message</Text>
         </Pressable>
-        <Pressable accessibilityLabel="Accept worker application" accessibilityRole="button" accessibilityState={{ busy: actionLoading, disabled: !canAcceptApplication || actionLoading }} disabled={!canAcceptApplication || actionLoading} style={[styles.hireButton, (!canAcceptApplication || actionLoading) && styles.hireButtonDisabled]} onPress={handleAcceptWorker}>
+        <Pressable accessibilityRole="button" disabled={!canAcceptApplication || actionLoading} style={[styles.hireButton, (!canAcceptApplication || actionLoading) && styles.hireButtonDisabled]} onPress={handleAcceptWorker}>
           <Text style={[styles.hireButtonText, !canAcceptApplication && styles.hireButtonTextDisabled]}>
             {actionLoading ? "Accepting..." : canAcceptApplication ? "Accept Application" : selectedTask?.workerId === worker.id ? "Worker Accepted" : taskId ? "Not an Active Applicant" : "No Task Selected"}
           </Text>
@@ -229,7 +237,7 @@ function StatBox({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ReviewCard({ context, initials, name, date, stars, text }: { context?: string; initials: string; name: string; date: string; stars: number; text: string }) {
+function ReviewCard({ initials, name, date, stars, text }: { initials: string; name: string; date: string; stars: number; text: string }) {
   const score = Number.isFinite(stars) ? Math.min(5, Math.max(0, Math.round(stars))) : 0;
   return (
     <View style={styles.reviewCard}>
@@ -245,100 +253,91 @@ function ReviewCard({ context, initials, name, date, stars, text }: { context?: 
         </View>
         <Text accessibilityLabel={`${score} out of 5 stars`} style={styles.reviewStars}>{"★".repeat(score)}{"☆".repeat(5 - score)} <Text style={styles.reviewScore}>{score}/5</Text></Text>
       </View>
-      {context ? <Text style={styles.reviewContext} numberOfLines={1}>{context}</Text> : null}
-      {text.trim() ? <Text style={styles.reviewText}>{text}</Text> : null}
+      <Text style={styles.reviewText}>{text}</Text>
     </View>
   );
 }
 
-function formatReviewDate(value?: string) {
-  const parsed = value ? new Date(value) : undefined;
-  return parsed && Number.isFinite(parsed.getTime())
-    ? new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", year: "numeric" }).format(parsed)
-    : "Task review";
-}
-
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
-  header: { minHeight: 56, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: "rgba(207, 249, 255, 0.20)" },
+  header: { minHeight: 56, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: "#EDF1EF" },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   backButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
-  backText: { ...typography.button, color: palette.primary },
-  brand: { ...typography.screenTitle, color: palette.primary },
+  backText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   smallAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.surfaceHigh, alignItems: "center", justifyContent: "center" },
-  avatarText: { ...typography.bodyMedium, color: palette.secondary },
+  avatarText: { color: palette.secondary, fontWeight: "900" },
   content: { padding: 16, paddingTop: 24, gap: 16 },
   missingProfile: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 10 },
-  profileCard: { padding: 24, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surface, shadowColor: "#001722", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
+  profileCard: { padding: 24, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surface, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
   profileHeader: { alignItems: "center", gap: 20 },
   photoWrap: { position: "relative" },
   profilePhoto: { width: 132, height: 132, borderRadius: 66, borderWidth: 4, borderColor: palette.primaryFixed, backgroundColor: palette.secondaryContainer, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   profilePhotoImage: { width: "100%", height: "100%" },
-  profilePhotoText: { ...typography.heroNumber, color: "#F4C95D" },
+  profilePhotoText: { color: "#684000", fontSize: 42, fontWeight: "900" },
   verifiedPill: { position: "absolute", right: -4, bottom: 8, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: palette.success },
-  verifiedText: { ...typography.badge, color: palette.white },
+  verifiedText: { color: palette.white, fontSize: 10, fontWeight: "900" },
   profileCopy: { width: "100%", alignItems: "center", gap: 8 },
-  profileName: { ...typography.screenTitle, color: palette.textStrong, textAlign: "center" },
+  profileName: { color: palette.textStrong, fontSize: 24, lineHeight: 32, fontWeight: "900", textAlign: "center" },
   ratingRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
-  star: { ...typography.sectionTitleSmall, color: palette.secondary },
-  ratingValue: { ...typography.sectionTitle, color: palette.secondary },
-  reviewCount: { ...typography.heroNumber, color: palette.muted },
-  bio: { ...typography.cardTitle, color: palette.muted, textAlign: "center" },
+  star: { color: palette.secondary, fontSize: 18, fontWeight: "900" },
+  ratingValue: { color: palette.secondary, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  reviewCount: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  bio: { color: palette.muted, fontSize: 16, lineHeight: 24, textAlign: "center" },
   statsGrid: { flexDirection: "row", gap: 12, width: "100%", paddingTop: 8 },
   statBox: { flex: 1, padding: 12, borderRadius: 8, backgroundColor: palette.surfaceContainer, alignItems: "center" },
-  statLabel: { ...typography.fieldLabel, color: palette.muted },
-  statValue: { ...typography.heroNumber, color: palette.primary },
+  statLabel: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  statValue: { color: palette.primary, fontSize: 20, lineHeight: 28, fontWeight: "900" },
   section: { gap: 12 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  sectionTitle: { ...typography.sectionTitle, color: palette.textStrong },
-  viewAll: { ...typography.button, color: palette.primary },
+  sectionTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "800" },
+  viewAll: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   viewAllComingSoon: { alignItems: "flex-end" },
-  viewAllHint: { ...typography.button, color: palette.muted },
+  viewAllHint: { color: palette.muted, fontSize: 10, lineHeight: 14, fontWeight: "700" },
   skillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  skillChip: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: palette.primaryContainer, borderWidth: 1, borderColor: "rgba(0,201,179,0.24)" },
+  skillChip: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: palette.primaryContainer, borderWidth: 1, borderColor: "rgba(0,92,85,0.2)" },
   skillChipMuted: { backgroundColor: palette.surfaceHigh, borderColor: palette.surfaceHigh },
-  skillText: { ...typography.bodyMedium, color: "#7FF6E6" },
+  skillText: { color: "#A3FAEF", fontSize: 14, lineHeight: 20, fontWeight: "900" },
   skillTextMuted: { color: palette.muted },
-  verificationCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surface, gap: 12 },
-  verificationStatusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "rgba(38, 229, 178, 0.16)" },
-  verificationStatusText: { ...typography.badge, color: palette.success },
+  verificationCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surface, gap: 12 },
+  verificationStatusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "#EAF8F1" },
+  verificationStatusText: { color: palette.success, fontSize: 11, lineHeight: 14, fontWeight: "900" },
   documentGrid: { gap: 8 },
   documentRow: { minHeight: 42, borderRadius: 8, backgroundColor: palette.surfaceLow, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 },
   documentDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.outlineVariant },
   documentDotComplete: { backgroundColor: palette.success },
-  documentText: { ...typography.badge, color: palette.text, flex: 1 },
-  documentStatus: { ...typography.badge, color: palette.muted },
+  documentText: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: "800", flex: 1 },
+  documentStatus: { color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: "900" },
   documentStatusComplete: { color: palette.success },
-  reviewCard: { padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surface, gap: 6 },
+  reviewCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surface, gap: 10 },
   reviewEmptyCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow },
-  reviewEmptyText: { ...typography.bodyMedium, color: palette.muted },
+  reviewEmptyText: { color: palette.muted, fontSize: 14, lineHeight: 20, fontWeight: "700" },
   reviewTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
   reviewPerson: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  reviewAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.secondaryFixed, alignItems: "center", justifyContent: "center" },
-  reviewAvatarText: { ...typography.bodyMedium, color: "#F5FCFF" },
-  reviewName: { ...typography.bodyMedium, color: palette.text },
-  reviewDate: { ...typography.metadata, color: palette.muted },
-  reviewStars: { ...typography.bodyMedium, color: palette.secondary },
-  reviewScore: { ...typography.badge, color: palette.muted },
-  reviewContext: { ...typography.metadata, color: palette.text },
-  reviewText: { ...typography.body, color: palette.muted },
-  coverageCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surfaceLow, gap: 12 },
-  actionError: { ...typography.button, color: "#FF7D8C", textAlign: "center" },
-  applicationHint: { ...typography.metadata, color: "#F4C95D", textAlign: "center" },
+  reviewAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.secondaryFixed, alignItems: "center", justifyContent: "center" },
+  reviewAvatarText: { color: "#2A1700", fontWeight: "900" },
+  reviewName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  reviewDate: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  reviewStars: { color: palette.secondary, fontSize: 19, lineHeight: 24, fontWeight: "900" },
+  reviewScore: { color: palette.muted, fontSize: 12, fontWeight: "800" },
+  reviewText: { color: palette.muted, fontSize: 16, lineHeight: 24 },
+  coverageCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surfaceLow, gap: 12 },
+  actionError: { color: "#BA1A1A", fontSize: 13, lineHeight: 18, fontWeight: "700", textAlign: "center" },
+  applicationHint: { color: "#684000", fontSize: 13, lineHeight: 18, fontWeight: "700", textAlign: "center" },
   coverageHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  coverageIcon: { ...typography.heroNumber, color: palette.primary },
-  coverageTitle: { ...typography.bodyMedium, color: palette.textStrong },
-  coverageMap: { height: 128, borderRadius: 8, backgroundColor: "rgba(20, 217, 226, 0.12)", overflow: "hidden", alignItems: "center", justifyContent: "center" },
-  mapRoadOne: { position: "absolute", left: -18, right: -18, top: 58, height: 14, backgroundColor: "#17607A", transform: [{ rotate: "-12deg" }] },
-  mapRoadTwo: { position: "absolute", top: -12, bottom: -12, left: "58%", width: 16, backgroundColor: "#14556D", transform: [{ rotate: "18deg" }] },
+  coverageIcon: { color: palette.primary, fontSize: 24, fontWeight: "900" },
+  coverageTitle: { color: palette.textStrong, fontSize: 14, lineHeight: 20, fontWeight: "900", textTransform: "uppercase" },
+  coverageMap: { height: 128, borderRadius: 8, backgroundColor: "#E5F1EE", overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  mapRoadOne: { position: "absolute", left: -18, right: -18, top: 58, height: 14, backgroundColor: "#C8DBD7", transform: [{ rotate: "-12deg" }] },
+  mapRoadTwo: { position: "absolute", top: -12, bottom: -12, left: "58%", width: 16, backgroundColor: "#D6C29E", transform: [{ rotate: "18deg" }] },
   coverageBadge: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9, backgroundColor: palette.surface },
-  coverageBadgeText: { ...typography.badge, color: palette.primary },
+  coverageBadgeText: { color: palette.primary, fontSize: 14, fontWeight: "900" },
   bottomAction: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: palette.outlineVariant, backgroundColor: palette.surface, flexDirection: "row", gap: 12, elevation: 12 },
   messageButton: { flex: 1, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceHigh },
   messageButtonDisabled: { opacity: 0.5 },
-  messageButtonText: { ...typography.button, color: palette.text },
+  messageButtonText: { color: palette.text, fontSize: 14, fontWeight: "900" },
   hireButton: { flex: 2, minHeight: 48, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   hireButtonDisabled: { backgroundColor: palette.surfaceHigh },
-  hireButtonText: { ...typography.button, color: palette.white, textAlign: "center" },
+  hireButtonText: { color: palette.white, fontSize: 14, fontWeight: "900", textAlign: "center" },
   hireButtonTextDisabled: { color: palette.muted }
 });

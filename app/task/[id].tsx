@@ -1,8 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
-import { MotionPressable as Pressable } from "../../src/components/MotionPressable";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
@@ -12,11 +11,25 @@ import { formatPaymentMethod, formatRequiredCapabilities, formatTaskDuration, fo
 import { TaskMatch } from "../../src/types";
 import { formatDistance } from "../../src/utils/location";
 import { sanitizeMoneyInput } from "../../src/utils/numericInput";
-import { screenPalette } from "../../src/theme";
-import { typography } from "../../src/typography";
-import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
 
-const palette = screenPalette;
+const palette = {
+  background: "#F7FAF8",
+  surface: "#FFFFFF",
+  surfaceLow: "#F1F4F3",
+  surfaceContainer: "#EBEFED",
+  surfaceHigh: "#E0E3E1",
+  primary: "#005C55",
+  primaryContainer: "#0F766E",
+  secondary: "#855300",
+  secondaryContainer: "#FEA619",
+  text: "#181C1C",
+  textStrong: "#111827",
+  muted: "#3E4947",
+  outline: "#6E7977",
+  outlineVariant: "#BDC9C6",
+  success: "#10B981",
+  white: "#FFFFFF"
+};
 
 export default function TaskDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -160,7 +173,7 @@ export default function TaskDetailsScreen() {
               <Text style={styles.sectionTitle}>{task.status === "Accepted" ? "Assigned Worker" : "Worker Applications"}</Text>
               <Text style={styles.sectionMeta}>{task.status === "Accepted" ? "Ready to start" : "Review before accepting"}</Text>
             </View>
-            {actionError ? <Text accessibilityLiveRegion="assertive" style={styles.errorText}>{actionError}</Text> : null}
+            {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
             {hasAcceptedWorker ? (
               <View style={styles.workerCard}>
                 <Pressable
@@ -189,8 +202,6 @@ export default function TaskDetailsScreen() {
                 </View>
                 <View style={styles.workerActions}>
                   <Pressable
-                    accessibilityLabel="View worker profile"
-                    accessibilityRole="button"
                     style={styles.secondaryButton}
                     onPress={() =>
                       router.push({
@@ -202,10 +213,7 @@ export default function TaskDetailsScreen() {
                     <Text style={styles.secondaryButtonText}>View Profile</Text>
                   </Pressable>
                   <Pressable
-                    accessibilityLabel={task.status === "Accepted" ? "Worker accepted" : "Accept application"}
-                    accessibilityRole="button"
-                    accessibilityState={{ busy: actionLoading, disabled: task.status !== "Applied" || !task.workerId || actionLoading }}
-                    disabled={task.status !== "Applied" || !task.workerId || actionLoading}
+                    disabled={task.status !== "Applied" || !task.workerId}
                     onPress={() => task.workerId && handleClientAcceptWorker(task.workerId)}
                     style={[styles.primaryButton, (task.status !== "Applied" || !task.workerId) && styles.disabledButton]}
                   >
@@ -246,8 +254,6 @@ export default function TaskDetailsScreen() {
                   </View>
                   <View style={styles.workerActions}>
                     <Pressable
-                      accessibilityLabel={`View ${applicant.fullName}'s profile`}
-                      accessibilityRole="button"
                       style={styles.secondaryButton}
                       onPress={() =>
                         router.push({
@@ -258,11 +264,11 @@ export default function TaskDetailsScreen() {
                     >
                       <Text style={styles.secondaryButtonText}>View Profile</Text>
                     </Pressable>
-                    <Pressable accessibilityLabel={`Accept ${applicant.fullName}'s application`} accessibilityRole="button" accessibilityState={{ busy: actionLoading, disabled: actionLoading }} disabled={actionLoading} style={[styles.primaryButton, actionLoading && styles.disabledButton]} onPress={() => handleClientAcceptWorker(applicant.id)}>
+                    <Pressable disabled={actionLoading} style={[styles.primaryButton, actionLoading && styles.disabledButton]} onPress={() => handleClientAcceptWorker(applicant.id)}>
                       <Text style={styles.primaryButtonText}>{actionLoading ? "Working..." : "Accept"}</Text>
                     </Pressable>
                   </View>
-                  <Pressable accessibilityLabel={`Reject ${applicant.fullName}'s application`} accessibilityRole="button" accessibilityState={{ busy: actionLoading, disabled: actionLoading }} disabled={actionLoading} style={[styles.rejectButton, actionLoading && styles.disabledButton]} onPress={() => handleClientRejectWorker(applicant.id)}>
+                  <Pressable disabled={actionLoading} style={[styles.rejectButton, actionLoading && styles.disabledButton]} onPress={() => handleClientRejectWorker(applicant.id)}>
                     <Text style={styles.rejectButtonText}>Reject Application</Text>
                   </Pressable>
                 </View>
@@ -281,14 +287,13 @@ export default function TaskDetailsScreen() {
             <Text style={styles.sectionTitle}>Ready to take this job?</Text>
             {task.status === "Finding Workers" || task.status === "Applied" ? (
               hasApplied ? (
-                <Pressable accessibilityRole="button" style={styles.primaryButtonLarge} onPress={() => router.push(`/task-status/${task.id}`)}>
+                <Pressable style={styles.primaryButtonLarge} onPress={() => router.push(`/task-status/${task.id}`)}>
                   <Text style={styles.primaryButtonText}>Open Task Status</Text>
                 </Pressable>
               ) : (
                 <View style={styles.applyBox}>
                   {task.pricingMode === "bidding" ? <TextInput
                     accessibilityLabel="Offer amount"
-                    accessibilityHint="Enter your proposed amount in Philippine pesos."
                     keyboardType="decimal-pad"
                     onChangeText={(value) => setProposedAmount(sanitizeMoneyInput(value))}
                     placeholder="Your offer amount (₱)"
@@ -296,14 +301,14 @@ export default function TaskDetailsScreen() {
                     style={styles.bidInput}
                     value={proposedAmount}
                   /> : null}
-                  <Pressable accessibilityLabel={task.pricingMode === "bidding" ? "Submit offer" : "Apply for task"} accessibilityRole="button" accessibilityState={{ busy: actionLoading, disabled: actionLoading }} disabled={actionLoading} style={[styles.primaryButtonLarge, actionLoading && styles.disabledButton]} onPress={handleWorkerAccept}>
+                  <Pressable style={styles.primaryButtonLarge} onPress={handleWorkerAccept}>
                     <Text style={styles.primaryButtonText}>{task.pricingMode === "bidding" ? "Submit Offer" : "Apply"}</Text>
                   </Pressable>
-                  {actionError ? <Text accessibilityLiveRegion="assertive" style={styles.errorText}>{actionError}</Text> : null}
+                  {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
                 </View>
               )
             ) : (
-              <Pressable accessibilityRole="button" style={styles.primaryButtonLarge} onPress={() => router.push(`/task-status/${task.id}`)}>
+              <Pressable style={styles.primaryButtonLarge} onPress={() => router.push(`/task-status/${task.id}`)}>
                 <Text style={styles.primaryButtonText}>Open Task Status</Text>
               </Pressable>
             )}
@@ -311,10 +316,10 @@ export default function TaskDetailsScreen() {
         )}
 
         <View style={styles.actionRow}>
-          <Pressable accessibilityLabel="Open task chat" accessibilityRole="button" style={styles.secondaryButton} onPress={openTaskChat}>
+          <Pressable style={styles.secondaryButton} onPress={openTaskChat}>
             <Text style={styles.secondaryButtonText}>Chat</Text>
           </Pressable>
-          <Pressable accessibilityLabel="Open task status" accessibilityRole="button" style={styles.secondaryButton} onPress={() => router.push(`/task-status/${task.id}`)}>
+          <Pressable style={styles.secondaryButton} onPress={() => router.push(`/task-status/${task.id}`)}>
             <Text style={styles.secondaryButtonText}>Status</Text>
           </Pressable>
         </View>
@@ -387,63 +392,63 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: palette.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(207, 249, 255, 0.20)",
+    borderBottomColor: "#EDF1EF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between"
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
   backButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
-  backText: { ...typography.button, color: palette.primary },
-  headerTitle: { ...typography.screenTitle, color: palette.text },
-  brand: { ...typography.cardTitleStrong, color: palette.primary },
+  backText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  headerTitle: { color: palette.text, fontSize: 20, lineHeight: 28, fontWeight: "800" },
+  brand: { color: palette.primary, fontSize: 16, lineHeight: 22, fontWeight: "900" },
   content: { padding: 16, gap: 14 },
   notFound: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  heroCard: { padding: 20, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", gap: 16, elevation: 2 },
+  heroCard: { padding: 20, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", gap: 16, elevation: 2 },
   heroTop: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   flex: { flex: 1 },
-  eyebrow: { ...typography.overline, color: palette.primary },
-  title: { ...typography.screenTitle, color: palette.textStrong },
-  description: { ...typography.body, color: palette.muted, marginTop: 6 },
+  eyebrow: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900", textTransform: "uppercase" },
+  title: { color: palette.textStrong, fontSize: 22, lineHeight: 30, fontWeight: "900" },
+  description: { color: palette.muted, fontSize: 16, lineHeight: 24, marginTop: 6 },
   priceBlock: { alignItems: "flex-end" },
-  price: { ...typography.heroNumber, color: palette.primary },
-  rateText: { ...typography.metadata, color: palette.muted },
+  price: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
+  rateText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   detailsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   detailBox: { width: "48.4%", padding: 12, borderRadius: 10, backgroundColor: palette.surfaceLow, borderWidth: 1, borderColor: palette.outlineVariant },
-  detailLabel: { ...typography.fieldLabel, color: palette.muted },
-  detailValue: { ...typography.bodyMedium, color: palette.text, marginTop: 4 },
+  detailLabel: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  detailValue: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900", marginTop: 4 },
   section: { gap: 12 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", gap: 8 },
-  sectionTitle: { ...typography.sectionTitle, color: palette.textStrong },
-  sectionMeta: { ...typography.metadata, color: palette.muted, flexShrink: 0 },
+  sectionTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  sectionMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, flexShrink: 0 },
   workerCard: { padding: 16, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, gap: 14, elevation: 2 },
   workerIdentity: { flexDirection: "row", alignItems: "center", gap: 12 },
   workerAvatar: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer },
-  workerAvatarText: { ...typography.heroNumber, color: "#F4C95D" },
-  workerName: { ...typography.cardTitleStrong, color: palette.text },
-  workerMeta: { ...typography.metadata, color: palette.secondary },
-  workerNote: { ...typography.metadata, color: palette.muted, marginTop: 2 },
+  workerAvatarText: { color: "#684000", fontSize: 22, fontWeight: "900" },
+  workerName: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  workerMeta: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  workerNote: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
   matchSummary: { gap: 6 },
-  breakdownText: { ...typography.metadata, color: palette.muted },
+  breakdownText: { color: palette.muted, fontSize: 11, lineHeight: 16 },
   skillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  skillChip: { ...typography.badge, overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: palette.surfaceContainer, color: palette.muted },
+  skillChip: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: palette.surfaceContainer, color: palette.muted, fontSize: 12, fontWeight: "800" },
   workerActions: { flexDirection: "row", gap: 10 },
   emptyWorkerState: { padding: 16, borderRadius: 12, backgroundColor: palette.surfaceLow, borderWidth: 1, borderColor: palette.outlineVariant, gap: 4 },
-  emptyWorkerTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
-  emptyWorkerText: { ...typography.metadata, color: palette.muted },
+  emptyWorkerTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  emptyWorkerText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   actionRow: { flexDirection: "row", gap: 10 },
   primaryButton: { flex: 1, minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   primaryButtonLarge: { minHeight: 52, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  primaryButtonText: { ...typography.button, color: palette.white },
-  editTaskButton: { minHeight: 44, borderRadius: 10, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "rgba(20, 217, 226, 0.14)", borderWidth: 1, borderColor: "#5DF7F2" },
-  editTaskText: { ...typography.bodyMedium, color: palette.primary },
+  primaryButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  editTaskButton: { minHeight: 44, borderRadius: 10, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#E5F3F0", borderWidth: 1, borderColor: "#9CCBC4" },
+  editTaskText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   secondaryButton: { flex: 1, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
-  secondaryButtonText: { ...typography.button, color: palette.primary },
+  secondaryButtonText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   disabledButton: { backgroundColor: palette.surfaceHigh },
-  rejectButton: { minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: "#FF7D8C", alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
-  rejectButtonText: { ...typography.button, color: "#FF7D8C" },
+  rejectButton: { minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: "#B91C1C", alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
+  rejectButtonText: { color: "#B91C1C", fontSize: 13, lineHeight: 18, fontWeight: "900" },
   applyBox: { gap: 10 },
   bidInput: { minHeight: 48, borderWidth: 1, borderColor: palette.outlineVariant, borderRadius: 10, paddingHorizontal: 14, backgroundColor: palette.surface, color: palette.text },
-  bidChip: { ...typography.badge, overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "rgba(244, 201, 93, 0.14)", color: palette.secondary },
-  errorText: { ...typography.metadata, color: "#FF7D8C" },
+  bidChip: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "#FFF2DB", color: palette.secondary, fontSize: 13, fontWeight: "900" },
+  errorText: { color: "#B91C1C", fontSize: 13, lineHeight: 18, fontWeight: "700" },
 });

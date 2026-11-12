@@ -1,6 +1,7 @@
 import { getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
 
 const config = {
@@ -17,4 +18,5 @@ const app = firebaseConfigured ? getApps()[0] ?? initializeApp(config) : undefin
 
 export const auth = app ? getAuth(app) : undefined;
 export const db = app ? getFirestore(app) : undefined;
+export const functions = app ? getFunctions(app, "asia-southeast1") : undefined;
 export const storage = app ? getStorage(app) : undefined;

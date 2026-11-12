@@ -1,11 +1,10 @@
 import { StyleSheet } from "react-native";
-import { colors, glass, radii, shadows, spacing } from "./theme";
-import { typography } from "./typography";
+import { colors, radii, spacing, typography } from "./theme";
 
 export const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "transparent"
+    backgroundColor: colors.background
   },
   screenContent: {
     padding: spacing.lg,
@@ -16,7 +15,7 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: spacing.lg,
-    backgroundColor: "transparent"
+    backgroundColor: colors.background
   },
   centeredContent: {
     flexGrow: 1,
@@ -25,25 +24,32 @@ export const styles = StyleSheet.create({
     padding: spacing.lg
   },
   title: {
-    ...typography.bodyMedium,
+    fontSize: typography.title,
+    lineHeight: 36,
+    fontWeight: "800",
     color: colors.text,
     marginBottom: spacing.sm
   },
   heading: {
-    ...typography.sectionTitle,
+    fontSize: typography.heading,
+    lineHeight: 28,
+    fontWeight: "800",
     color: colors.text,
     marginBottom: spacing.md
   },
   heroTitle: {
-    ...typography.screenTitle,
-    color: colors.text,
+    fontSize: 36,
+    lineHeight: 42,
+    fontWeight: "900",
+    color: colors.primary,
     textAlign: "center",
     marginBottom: spacing.sm
   },
   heroSubtitle: {
-    ...typography.body,
+    fontSize: typography.body,
     color: colors.muted,
-    textAlign: "center"
+    textAlign: "center",
+    lineHeight: 23
   },
   sectionHeader: {
     flexDirection: "row",
@@ -53,30 +59,36 @@ export const styles = StyleSheet.create({
     marginBottom: spacing.md
   },
   subheading: {
-    ...typography.sectionTitle,
+    fontSize: typography.subheading,
+    fontWeight: "700",
     color: colors.text
   },
   text: {
-    ...typography.body,
+    fontSize: typography.body,
+    lineHeight: 23,
     color: colors.text,
     marginBottom: spacing.sm
   },
   muted: {
-    ...typography.metadata,
+    fontSize: typography.small,
+    lineHeight: 20,
     color: colors.muted,
     marginBottom: spacing.sm
   },
   errorText: {
-    ...typography.metadata,
+    fontSize: typography.small,
+    lineHeight: 20,
     color: colors.danger,
-    marginBottom: spacing.sm
+    marginBottom: spacing.sm,
+    fontWeight: "700"
   },
   statNumber: {
-    ...typography.heroNumber,
+    fontSize: 24,
+    fontWeight: "800",
     color: colors.primary
   },
   statLabel: {
-    ...typography.fieldLabel,
+    fontSize: typography.tiny,
     color: colors.muted,
     marginTop: spacing.xs
   },
@@ -84,43 +96,20 @@ export const styles = StyleSheet.create({
     marginBottom: spacing.md
   },
   inputLabel: {
-    ...typography.inputText,
+    fontSize: typography.small,
+    fontWeight: "700",
     color: colors.text,
     marginBottom: spacing.xs
   },
   input: {
-    ...typography.inputText,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
+    fontSize: typography.body,
     color: colors.text,
-    backgroundColor: "rgba(3, 35, 52, 0.62)",
-    ...shadows.resting
-  },
-  inputFocused: {
-    borderColor: colors.focus,
-    borderWidth: 2,
-    shadowColor: colors.focus,
-    shadowOpacity: 0.10
-  },
-  inputError: {
-    borderColor: colors.danger
-  },
-  inputErrorText: {
-    ...typography.metadata,
-    color: colors.danger,
-    marginTop: spacing.xs
-  },
-  inputHelperText: {
-    ...typography.metadata,
-    color: colors.muted,
-    marginTop: spacing.xs
-  },
-  requiredMark: {
-    ...typography.inputText,
-    color: colors.danger
+    backgroundColor: colors.white
   },
   inputMultiline: {
     minHeight: 94,
@@ -153,25 +142,15 @@ export const styles = StyleSheet.create({
   },
   card: {
     borderWidth: 1,
-    borderColor: colors.borderHighlight,
+    borderColor: colors.border,
     borderRadius: radii.lg,
     padding: spacing.lg,
     marginBottom: spacing.md,
-    backgroundColor: colors.card,
-    overflow: "hidden",
-    ...shadows.raised
-  },
-  glassHighlight: {
-    position: "absolute",
-    top: 0,
-    left: 18,
-    right: 18,
-    height: 1,
-    backgroundColor: glass.highlight
+    backgroundColor: colors.card
   },
   heroCard: {
-    borderColor: colors.borderHighlight,
-    backgroundColor: "rgba(55, 126, 151, 0.34)"
+    borderColor: colors.infoLight,
+    backgroundColor: colors.white
   },
   statCard: {
     flex: 1,
@@ -184,10 +163,12 @@ export const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radii.md,
     marginBottom: spacing.sm,
-    backgroundColor: glass.standard
+    backgroundColor: colors.white
   },
   linkText: {
-    ...typography.button,
+    fontSize: typography.body,
+    lineHeight: 22,
+    fontWeight: "800",
     color: colors.text
   },
   appButton: {
@@ -197,11 +178,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.primary,
-    borderWidth: 1,
-    borderColor: "rgba(181, 255, 249, 0.54)",
-    overflow: "hidden",
-    ...shadows.raised
+    backgroundColor: colors.primary
   },
   appButtonCompact: {
     minHeight: 40,
@@ -209,45 +186,36 @@ export const styles = StyleSheet.create({
     paddingHorizontal: spacing.md
   },
   appButtonSecondary: {
-    backgroundColor: "rgba(41, 172, 213, 0.72)"
+    backgroundColor: colors.secondary
   },
   appButtonDanger: {
     backgroundColor: colors.danger
   },
   appButtonOutline: {
-    backgroundColor: "rgba(3, 35, 52, 0.42)",
+    backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.primary
   },
   appButtonGhost: {
-    backgroundColor: glass.subtle,
-    borderColor: colors.border
+    backgroundColor: colors.mutedLight
   },
   appButtonDisabled: {
     opacity: 0.55
   },
   appButtonText: {
-    ...typography.button,
     color: colors.white,
+    fontSize: typography.body,
+    fontWeight: "800",
     textAlign: "center"
   },
-  appButtonContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm
-  },
   appButtonOutlineText: {
-    color: colors.text
+    color: colors.primary
   },
   appButtonGhostText: {
     color: colors.text
   },
   pressed: {
-    opacity: 0.88
-  },
-  pressedOpacity: {
-    opacity: 0.88
+    opacity: 0.78
   },
   badge: {
     alignSelf: "flex-start",
@@ -276,7 +244,8 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.mutedLight
   },
   badgeText: {
-    ...typography.badge,
+    fontSize: typography.tiny,
+    fontWeight: "800",
     color: colors.text
   },
   emptyState: {
@@ -285,33 +254,21 @@ export const styles = StyleSheet.create({
     borderRadius: radii.lg,
     padding: spacing.lg,
     alignItems: "center",
-    backgroundColor: glass.standard,
-    marginVertical: spacing.md,
-    ...shadows.resting
+    backgroundColor: colors.white,
+    marginVertical: spacing.md
   },
   emptyTitle: {
-    ...typography.cardTitleStrong,
+    fontSize: typography.body,
+    fontWeight: "800",
     color: colors.text,
     marginBottom: spacing.xs,
     textAlign: "center"
   },
   emptyMessage: {
-    ...typography.metadata,
+    fontSize: typography.small,
     color: colors.muted,
-    textAlign: "center"
-  },
-  emptyAction: {
-    minHeight: 48,
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radii.md,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primary
-  },
-  emptyActionText: {
-    ...typography.button,
-    color: colors.white
+    textAlign: "center",
+    lineHeight: 20
   },
   pill: {
     borderRadius: radii.pill,
@@ -321,17 +278,16 @@ export const styles = StyleSheet.create({
     alignSelf: "flex-start"
   },
   pillText: {
-    ...typography.badge,
-    color: colors.muted
+    fontSize: typography.tiny,
+    color: colors.muted,
+    fontWeight: "700"
   },
   messageMine: {
     alignSelf: "flex-end",
     maxWidth: "85%",
     padding: spacing.md,
     borderRadius: radii.lg,
-    backgroundColor: "rgba(0, 201, 179, 0.26)",
-    borderWidth: 1,
-    borderColor: colors.borderHighlight,
+    backgroundColor: colors.infoLight,
     marginBottom: spacing.sm
   },
   messageOther: {
@@ -339,21 +295,23 @@ export const styles = StyleSheet.create({
     maxWidth: "85%",
     padding: spacing.md,
     borderRadius: radii.lg,
-    backgroundColor: glass.elevated,
+    backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
     marginBottom: spacing.sm
   },
   messageText: {
-    ...typography.metadata,
-    color: colors.text
+    fontSize: typography.body,
+    color: colors.text,
+    lineHeight: 22
   },
   listContent: {
     paddingBottom: spacing.xl
   },
   footerNote: {
-    ...typography.metadata,
     marginTop: spacing.md,
-    color: colors.muted
+    color: colors.muted,
+    fontSize: typography.small,
+    lineHeight: 20
   }
 });

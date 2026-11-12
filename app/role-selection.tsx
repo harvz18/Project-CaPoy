@@ -1,28 +1,30 @@
-import Feather from "@expo/vector-icons/Feather";
 import { Href, useRouter } from "expo-router";
-import { ScrollView, StyleSheet, View } from "react-native";
-import { MotionPressable as Pressable } from "../src/components/MotionPressable";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../src/context/AppContext";
-import { screenPalette } from "../src/theme";
 import { PublicRole } from "../src/types";
-import { typography } from "../src/typography";
-import { AppText as Text } from "../src/components/AppText";
 
-const palette = screenPalette;
+const palette = {
+  background: "#F7FAF8",
+  surface: "#FFFFFF",
+  surfaceLow: "#F1F4F3",
+  surfaceHigh: "#E0E3E1",
+  primary: "#005C55",
+  primaryFixed: "#9CF2E8",
+  secondary: "#855300",
+  secondaryFixed: "#FFDDB8",
+  secondaryContainer: "#FEA619",
+  text: "#181C1C",
+  textStrong: "#111827",
+  muted: "#3E4947",
+  outline: "#6E7977",
+  outlineVariant: "#BDC9C6",
+  white: "#FFFFFF"
+};
 
 export default function RoleSelectionScreen() {
   const router = useRouter();
-  const { actionLoading, currentUser, error, setRole } = useApp();
-  const canReturnToProfile = Boolean(currentUser?.id);
-
-  function goBack() {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-    router.replace(canReturnToProfile ? "/profile" : "/login");
-  }
+  const { actionLoading, error, setRole } = useApp();
 
   async function chooseRole(role: PublicRole) {
     try {
@@ -35,7 +37,7 @@ export default function RoleSelectionScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <AppHeader showBack={canReturnToProfile} onBack={goBack} />
+      <AppHeader />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.intro}>
           <Text style={styles.title}>Welcome to TaskLink</Text>
@@ -75,15 +77,10 @@ export default function RoleSelectionScreen() {
   );
 }
 
-function AppHeader({ onBack, showBack }: { onBack: () => void; showBack: boolean }) {
+function AppHeader() {
   return (
     <View style={styles.header}>
       <View style={styles.headerLeft}>
-        {showBack ? (
-          <Pressable accessibilityLabel="Return to profile" accessibilityRole="button" onPress={onBack} style={styles.iconButton}>
-            <Feather accessibilityElementsHidden color={palette.primary} name="arrow-left" size={22} />
-          </Pressable>
-        ) : null}
         <Text style={styles.brand}>TASKLINK</Text>
       </View>
       <View style={styles.avatar}>
@@ -141,7 +138,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: palette.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(207, 249, 255, 0.20)"
+    borderBottomColor: "#EDF1EF"
   },
   headerLeft: {
     flexDirection: "row",
@@ -156,12 +153,15 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   iconButtonText: {
-    ...typography.button,
-    color: palette.primary
+    color: palette.primary,
+    fontSize: 24,
+    fontWeight: "800"
   },
   brand: {
-    ...typography.screenTitle,
-    color: palette.primary
+    color: palette.primary,
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: "800"
   },
   avatar: {
     width: 40,
@@ -174,8 +174,8 @@ const styles = StyleSheet.create({
     borderColor: palette.outlineVariant
   },
   avatarText: {
-    ...typography.bodyMedium,
-    color: palette.muted
+    color: palette.muted,
+    fontWeight: "900"
   },
   content: {
     flexGrow: 1,
@@ -191,19 +191,24 @@ const styles = StyleSheet.create({
     marginBottom: 36
   },
   title: {
-    ...typography.sectionTitle,
     color: palette.textStrong,
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: "700",
     textAlign: "center"
   },
   subtitle: {
-    ...typography.cardTitle,
-    color: "#BBD5DE",
+    color: "#4B5563",
+    fontSize: 16,
+    lineHeight: 24,
     textAlign: "center",
     marginTop: 8
   },
   errorText: {
-    ...typography.metadata,
-    color: "#FF7D8C",
+    color: "#BA1A1A",
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
     textAlign: "center",
     marginTop: 12
   },
@@ -218,7 +223,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface,
     borderWidth: 1,
     borderColor: palette.outlineVariant,
-    shadowColor: "#001722",
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 12,
@@ -242,19 +247,25 @@ const styles = StyleSheet.create({
     marginBottom: 16
   },
   roleIconText: {
-    ...typography.heroNumber
+    fontSize: 24,
+    fontWeight: "900"
   },
   roleTitle: {
-    ...typography.sectionTitle,
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: "700",
     marginBottom: 4
   },
   roleDescription: {
-    ...typography.body,
-    color: palette.muted
+    color: palette.muted,
+    fontSize: 16,
+    lineHeight: 24
   },
   cardAction: {
-    ...typography.button,
-    color: palette.outline
+    color: palette.outline,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "900"
   },
   roleButton: {
     minHeight: 48,
@@ -264,16 +275,19 @@ const styles = StyleSheet.create({
     marginTop: 24
   },
   roleButtonText: {
-    ...typography.button,
-    color: palette.white
+    color: palette.white,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "800"
   },
   termsBlock: {
     marginTop: 44,
     alignItems: "center"
   },
   termsText: {
-    ...typography.metadata,
     color: palette.outline,
+    fontSize: 12,
+    lineHeight: 16,
     marginBottom: 16,
     textAlign: "center"
   },
@@ -284,11 +298,14 @@ const styles = StyleSheet.create({
     gap: 24
   },
   linkText: {
-    ...typography.button,
     color: palette.primary,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "800",
     textDecorationLine: "underline"
   },
   pressed: {
-    opacity: 0.78
+    opacity: 0.78,
+    transform: [{ scale: 0.99 }]
   }
 });

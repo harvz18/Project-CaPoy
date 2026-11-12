@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
-import { MotionPressable as Pressable } from "../src/components/MotionPressable";
-import { StoredImage } from "../src/components/StoredImage";
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Href, useRouter } from "expo-router";
 import { useApp } from "../src/context/AppContext";
@@ -13,8 +11,6 @@ import {
 } from "../src/services/adminService";
 import { ModerationUser } from "../src/types";
 import { colors } from "../src/theme";
-import { typography } from "../src/typography";
-import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 
 const emptyOverview: SuperadminOverview = { users: [], reports: [], auditLogs: [] };
 
@@ -104,8 +100,6 @@ export default function SuperadminScreen() {
             Give a clear reason. Restricting an account also requires an evidence reference or a linked violation report.
           </Text>
           <TextInput
-            accessibilityLabel="Decision reason"
-            accessibilityHint="Required. Enter at least 10 characters."
             value={reason}
             onChangeText={setReason}
             placeholder="Decision reason (at least 10 characters)"
@@ -113,13 +107,12 @@ export default function SuperadminScreen() {
             style={[styles.input, styles.multiline]}
           />
           <TextInput
-            accessibilityLabel="Evidence reference"
             value={evidenceReference}
             onChangeText={setEvidenceReference}
             placeholder="Evidence URL, file path, or external reference"
             style={styles.input}
           />
-          {error ? <Text accessibilityLiveRegion="assertive" style={styles.error}>{error}</Text> : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
 
         <Section title="Open violation reports" empty="No open violation reports.">
@@ -153,7 +146,7 @@ export default function SuperadminScreen() {
             return (
               <View key={user.id} style={styles.userRow}>
                 <View style={styles.grow}>
-                  <StoredImage accessibilityLabel={`${user.fullName} profile photo`} sourceUri={user.profilePhotoUrl} style={styles.moderationAvatarImage} />
+                  {user.profilePhotoUrl ? <Image source={{ uri: user.profilePhotoUrl }} style={styles.moderationAvatarImage} /> : null}
                   <Text style={styles.cardTitle}>{user.fullName}</Text>
                   <Text style={styles.meta}>{user.role} · {user.accountStatus ?? "active"} · identity {user.identityStatus ?? "legacy"}</Text>
                   {user.restrictionReason ? <Text style={styles.body}>Restriction: {user.restrictionReason}</Text> : null}
@@ -186,7 +179,7 @@ export default function SuperadminScreen() {
           <View style={styles.notice}>
             <Text style={styles.sectionTitle}>Correct locked name</Text>
             <Text style={styles.help}>Selected: {correctionTarget.fullName}. Only approved identities can use this action.</Text>
-            <TextInput accessibilityLabel="Corrected full name" value={correctedName} onChangeText={setCorrectedName} style={styles.input} />
+            <TextInput value={correctedName} onChangeText={setCorrectedName} style={styles.input} />
             <View style={styles.row}>
               <Action
                 label="Save correction"
@@ -248,42 +241,42 @@ function Action({ label, tone, disabled, onPress }: { label: string; tone: Tone;
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
-  header: { padding: 20, flexDirection: "row", gap: 12, justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(91, 169, 188, 0.18)", borderBottomWidth: 1, borderBottomColor: colors.border },
-  eyebrow: { ...typography.overline, color: colors.primary, letterSpacing: 1.2 },
-  title: { ...typography.screenTitle, color: colors.text, marginTop: 3 },
+  header: { padding: 20, flexDirection: "row", gap: 12, justifyContent: "space-between", alignItems: "center", backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: colors.border },
+  eyebrow: { color: colors.primary, fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
+  title: { color: colors.text, fontSize: 24, fontWeight: "900", marginTop: 3 },
   subtitle: { color: colors.muted, marginTop: 2 },
   headerActions: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 },
   reviewLink: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary },
-  reviewLinkText: { ...typography.button, color: "#FFFFFF" },
+  reviewLinkText: { color: "#FFFFFF", fontWeight: "800", fontSize: 12 },
   logout: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border },
-  logoutText: { ...typography.button, color: colors.danger },
+  logoutText: { color: colors.danger, fontWeight: "800", fontSize: 12 },
   content: { padding: 18, paddingBottom: 48, gap: 18 },
   stats: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  stat: { flexGrow: 1, minWidth: 130, padding: 16, backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 14, borderWidth: 1, borderColor: colors.border },
-  statValue: { ...typography.heroNumber, color: colors.primary },
+  stat: { flexGrow: 1, minWidth: 130, padding: 16, backgroundColor: "#FFFFFF", borderRadius: 14, borderWidth: 1, borderColor: colors.border },
+  statValue: { color: colors.primary, fontSize: 26, fontWeight: "900" },
   notice: { backgroundColor: colors.infoLight, borderRadius: 14, padding: 16, gap: 10 },
-  input: { minHeight: 44, backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12 },
+  input: { minHeight: 44, backgroundColor: "#FFFFFF", borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12 },
   multiline: { minHeight: 76, textAlignVertical: "top" },
-  help: { ...typography.body, color: colors.muted },
-  error: { ...typography.metadata, color: colors.danger },
+  help: { color: colors.muted, fontSize: 13, lineHeight: 18 },
+  error: { color: colors.danger, fontWeight: "700" },
   section: { gap: 10 },
-  sectionTitle: { ...typography.sectionTitle, color: colors.text },
-  card: { backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 10 },
-  cardTitle: { ...typography.cardTitleStrong, color: colors.text },
-  meta: { ...typography.metadata, color: colors.muted },
-  body: { ...typography.body, color: colors.text },
+  sectionTitle: { color: colors.text, fontSize: 19, fontWeight: "900" },
+  card: { backgroundColor: "#FFFFFF", borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 10 },
+  cardTitle: { color: colors.text, fontSize: 15, fontWeight: "800" },
+  meta: { color: colors.muted, fontSize: 12 },
+  body: { color: colors.text, lineHeight: 20 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   action: { minHeight: 38, justifyContent: "center", alignItems: "center", borderRadius: 9, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.mutedLight },
   action_neutral: { borderWidth: 1, borderColor: colors.border },
   action_positive: { backgroundColor: colors.success },
   action_warning: { backgroundColor: colors.warning },
   action_danger: { backgroundColor: colors.danger },
-  actionText: { ...typography.button, color: colors.text },
+  actionText: { color: colors.text, fontSize: 12, fontWeight: "800" },
   actionTextLight: { color: "#FFFFFF" },
   disabled: { opacity: 0.5 },
-  empty: { color: colors.muted, padding: 16, backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 12 },
-  userRow: { gap: 10, backgroundColor: "rgba(91, 169, 188, 0.18)", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
+  empty: { color: colors.muted, padding: 16, backgroundColor: "#FFFFFF", borderRadius: 12 },
+  userRow: { gap: 10, backgroundColor: "#FFFFFF", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
   moderationAvatarImage: { width: 44, height: 44, borderRadius: 22, marginBottom: 8 },
   grow: { flex: 1 },
-  auditRow: { backgroundColor: "rgba(91, 169, 188, 0.18)", borderLeftWidth: 3, borderLeftColor: colors.primary, padding: 13, gap: 4 }
+  auditRow: { backgroundColor: "#FFFFFF", borderLeftWidth: 3, borderLeftColor: colors.primary, padding: 13, gap: 4 }
 });

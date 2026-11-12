@@ -1,43 +1,35 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Animated, LayoutChangeEvent, Platform, StyleSheet, View } from "react-native";
+import { Animated, Easing, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomNavIcon } from "./BottomNavIcon";
 import { usePrefersReducedMotion } from "./RouteTransition";
-import { motionDuration, motionEasing } from "../motion";
-import { colors, glass, motion, shadows } from "../theme";
-import { typography } from "../typography";
-import { AppText as Text } from "./AppText";
-import { MotionPressable } from "./MotionPressable";
 
 export type BottomNavKey = "home" | "jobs" | "chat" | "profile";
 
-const ACTIVE_COLOR = colors.white;
-const INACTIVE_COLOR = colors.text;
+const ACTIVE_COLOR = "#684000";
+const INACTIVE_COLOR = "#3E4947";
 const TAB_COUNT = 4;
 const NAV_HORIZONTAL_PADDING = 8;
 const MARKER_MARGIN = 6;
-const NAV_TRANSITION_DURATION_MS = motion.duration.quick;
+const NAV_TRANSITION_DURATION_MS = 220;
 let lastActiveIndex: number | undefined;
 
 export function AnimatedBottomNav({ active, role }: { active: BottomNavKey; role?: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const reduceMotion = usePrefersReducedMotion();
-  const navItems = getNavItems(role);
   const activeIndex = navItems.findIndex((item) => item.key === active);
   const markerPosition = useRef(new Animated.Value(lastActiveIndex ?? activeIndex)).current;
   const [navWidth, setNavWidth] = useState(0);
-  const [focusedKey, setFocusedKey] = useState<BottomNavKey>();
   const slotWidth = Math.max(0, (navWidth - NAV_HORIZONTAL_PADDING * 2) / TAB_COUNT);
-  const bottomPadding = Math.max(insets.bottom, 10);
 
   useEffect(() => {
     const animation = Animated.timing(markerPosition, {
       toValue: activeIndex,
-      duration: motionDuration(NAV_TRANSITION_DURATION_MS, reduceMotion),
-      easing: motionEasing.standard,
-      useNativeDriver: Platform.OS !== "web"
+      duration: reduceMotion ? 0 : NAV_TRANSITION_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false
     });
     animation.start();
     lastActiveIndex = activeIndex;
@@ -49,130 +41,99 @@ export function AnimatedBottomNav({ active, role }: { active: BottomNavKey; role
   }
 
   return (
-    <View pointerEvents="box-none" style={styles.bottomNavFrame}>
-      <View
-        accessibilityRole="tablist"
-        onLayout={handleLayout}
-        style={[styles.bottomNav, { paddingBottom: bottomPadding }]}
-      >
-        {slotWidth > 0 ? (
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.activeMarker,
-              {
-                left: NAV_HORIZONTAL_PADDING + MARKER_MARGIN,
-                bottom: Math.max(bottomPadding - 2, 8),
-                width: Math.max(0, slotWidth - MARKER_MARGIN * 2),
-                transform: [{
-                  translateX: markerPosition.interpolate({
-                    inputRange: [0, TAB_COUNT - 1],
-                    outputRange: [0, slotWidth * (TAB_COUNT - 1)]
-                  })
-                }]
-              }
-            ]}
-          />
-        ) : null}
-        {navItems.map((item) => {
-          const selected = item.key === active;
-          return (
-            <MotionPressable
-              accessibilityLabel={item.accessibilityLabel}
-              accessibilityHint={selected ? `${item.accessibilityLabel} tab, currently selected` : `Open ${item.accessibilityLabel}`}
-              accessibilityRole="tab"
-              accessibilityState={{ selected }}
-              key={item.key}
-              onFocus={() => setFocusedKey(item.key)}
-              onBlur={() => setFocusedKey((key) => key === item.key ? undefined : key)}
-              onPress={() => {
-                if (!selected) router.push(item.route as never);
-              }}
-              motionScale={motion.scale.subtlePressed}
-              style={({ hovered, pressed }) => [
-                styles.navItem,
-                (focusedKey === item.key || hovered) && styles.navItemInteractive,
-                focusedKey === item.key && styles.navItemFocused,
-                pressed && styles.pressed
-              ]}
-            >
-              <BottomNavIcon name={item.key} color={selected ? ACTIVE_COLOR : INACTIVE_COLOR} />
-              <Text style={[styles.navLabel, selected && styles.navLabelActive]}>{item.label}</Text>
-            </MotionPressable>
-          );
-        })}
-      </View>
+    <View
+      onLayout={handleLayout}
+      style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 10) }]}
+    >
+      {slotWidth > 0 ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.activeMarker,
+            {
+              left: NAV_HORIZONTAL_PADDING + MARKER_MARGIN,
+              width: Math.max(0, slotWidth - MARKER_MARGIN * 2),
+              transform: [{
+                translateX: markerPosition.interpolate({
+                  inputRange: [0, TAB_COUNT - 1],
+                  outputRange: [0, slotWidth * (TAB_COUNT - 1)]
+                })
+              }]
+            }
+          ]}
+        />
+      ) : null}
+      {navItems.map((item) => {
+        const selected = item.key === active;
+        const route = item.key === "home"
+          ? role === "client" ? "/client-dashboard" : "/worker-dashboard"
+          : item.key === "jobs"
+            ? role === "client" ? "/post-task" : "/jobs"
+            : item.route;
+        return (
+          <Pressable
+            accessibilityLabel={item.label}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            key={item.key}
+            onPress={() => {
+              if (!selected) router.push(route as never);
+            }}
+            style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
+          >
+            <BottomNavIcon name={item.key} color={selected ? ACTIVE_COLOR : INACTIVE_COLOR} />
+            <Text style={[styles.navLabel, selected && styles.navLabelActive]}>{item.label}</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
 
-function getNavItems(role?: string): Array<{ key: BottomNavKey; label: string; accessibilityLabel: string; route: string }> {
-  const isClient = role === "client";
-
-  return [
-    { key: "home", label: "Home", accessibilityLabel: "Home", route: isClient ? "/client-dashboard" : "/worker-dashboard" },
-    { key: "jobs", label: isClient ? "Post" : "Jobs", accessibilityLabel: isClient ? "Post task" : "Jobs", route: isClient ? "/post-task" : "/jobs" },
-    { key: "chat", label: "Chat", accessibilityLabel: "Chat", route: "/chat" },
-    { key: "profile", label: "Profile", accessibilityLabel: "Profile", route: "/profile" }
-  ];
-}
+const navItems: Array<{ key: BottomNavKey; label: string; route: string }> = [
+  { key: "home", label: "Home", route: "/worker-dashboard" },
+  { key: "jobs", label: "Jobs", route: "/jobs" },
+  { key: "chat", label: "Chat", route: "/chat" },
+  { key: "profile", label: "Profile", route: "/profile" }
+];
 
 const styles = StyleSheet.create({
-  bottomNavFrame: {
+  bottomNav: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
-    alignItems: "center",
-    paddingHorizontal: 12
-  },
-  bottomNav: {
-    width: "100%",
-    maxWidth: 680,
-    minHeight: 70,
-    marginBottom: 8,
+    minHeight: 72,
     paddingHorizontal: NAV_HORIZONTAL_PADDING,
     paddingTop: 8,
-    borderRadius: 24,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
     borderTopWidth: 1,
-    borderWidth: 1,
-    borderColor: colors.borderHighlight,
-    // A near-opaque elevated material keeps scrolling content from competing
-    // with the tab labels on small Android screens.
-    backgroundColor: glass.solid,
+    borderColor: "#BDC9C6",
+    backgroundColor: "#FFFFFF",
     flexDirection: "row",
-    overflow: "hidden",
-    ...shadows.floating
+    elevation: 10,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8
   },
   activeMarker: {
     position: "absolute",
-    top: 6,
+    top: 8,
+    height: 48,
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "rgba(181, 255, 249, 0.70)",
-    backgroundColor: colors.primary,
-    shadowColor: colors.accent,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.38,
-    shadowRadius: 16,
-    elevation: 8
+    backgroundColor: "#FEA619"
   },
   navItem: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
-    minWidth: 0,
-    minHeight: 52,
+    flex: 1,
+    minHeight: 48,
     zIndex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    borderRadius: 22
+    paddingVertical: 4
   },
-  navItemInteractive: { backgroundColor: colors.infoLight },
-  navItemFocused: { borderWidth: 1, borderColor: colors.focus },
-  navLabel: { ...typography.bottomNav, minWidth: 0, color: INACTIVE_COLOR, textAlign: "center" },
-  navLabelActive: { ...typography.bottomNav, color: ACTIVE_COLOR },
-  pressed: { opacity: 0.82 }
+  navLabel: { color: INACTIVE_COLOR, fontSize: 12, lineHeight: 16, fontWeight: "600" },
+  navLabelActive: { color: ACTIVE_COLOR, fontWeight: "800" },
+  pressed: { opacity: 0.72 }
 });

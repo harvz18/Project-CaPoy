@@ -13,7 +13,7 @@ import {
   ViolationReport
 } from "../types";
 import { db, functions, storage } from "./firebase";
-import { getFirestoreFileDownloadUrl, getPaymentProofDownloadUrl } from "./fileUploadService";
+import { getPaymentProofDownloadUrl } from "./fileUploadService";
 import { parseFirestorePaymentProofPath } from "../utils/paymentProof";
 
 function requireAdminServices() {
@@ -137,9 +137,6 @@ export function confirmCashPayment(taskId: string) {
 export function getPrivateFileUrl(path: string) {
   const firestoreProof = parseFirestorePaymentProofPath(path);
   if (firestoreProof) return getPaymentProofDownloadUrl(firestoreProof.taskId, path);
-  return getFirestoreFileDownloadUrl(path).then((url) => {
-    if (url) return url;
-    if (!storage) throw new Error("Firebase Storage is not configured.");
-    return getDownloadURL(ref(storage, path));
-  });
+  if (!storage) throw new Error("Firebase Storage is not configured.");
+  return getDownloadURL(ref(storage, path));
 }

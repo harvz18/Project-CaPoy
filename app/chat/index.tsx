@@ -1,16 +1,28 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
-import { MotionPressable as Pressable } from "../../src/components/MotionPressable";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../../src/components/AnimatedBottomNav";
 import { useApp } from "../../src/context/AppContext";
-import { screenPalette } from "../../src/theme";
 import { ChatMessage, Task } from "../../src/types";
-import { typography } from "../../src/typography";
-import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
 
-const palette = screenPalette;
+const palette = {
+  background: "#F7FAF8",
+  surface: "#FFFFFF",
+  surfaceLow: "#F1F4F3",
+  surfaceContainer: "#EBEFED",
+  surfaceHigh: "#E0E3E1",
+  primary: "#005C55",
+  primaryFixed: "#9CF2E8",
+  secondaryContainer: "#FEA619",
+  text: "#181C1C",
+  textStrong: "#111827",
+  muted: "#3E4947",
+  outline: "#6E7977",
+  outlineVariant: "#BDC9C6",
+  success: "#10B981",
+  white: "#FFFFFF"
+};
 
 type Conversation = {
   id: string;
@@ -211,11 +223,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: palette.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(207, 249, 255, 0.20)"
+    borderBottomColor: "#EDF1EF"
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  menuText: { ...typography.bodyMedium, color: palette.primary },
-  brand: { ...typography.screenTitle, color: palette.primary },
+  menuText: { color: palette.primary, fontSize: 24, fontWeight: "800" },
+  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   avatar: {
     width: 36,
     height: 36,
@@ -226,12 +238,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.outlineVariant
   },
-  avatarText: { ...typography.bodyMedium, color: "#F4C95D" },
+  avatarText: { color: "#684000", fontWeight: "900" },
   content: { padding: 16, gap: 14 },
   heroPanel: { borderRadius: 12, padding: 20, backgroundColor: palette.primary, gap: 6 },
-  heroKicker: { ...typography.overline, color: palette.primaryFixed },
-  heroTitle: { ...typography.screenTitle, color: palette.white },
-  heroText: { ...typography.body, color: palette.primaryFixed },
+  heroKicker: { color: palette.primaryFixed, fontSize: 12, lineHeight: 16, fontWeight: "900", textTransform: "uppercase" },
+  heroTitle: { color: palette.white, fontSize: 24, lineHeight: 32, fontWeight: "900" },
+  heroText: { color: "#DDF8F4", fontSize: 14, lineHeight: 20 },
   searchWrap: {
     minHeight: 50,
     borderRadius: 12,
@@ -243,15 +255,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     gap: 10
   },
-  searchIcon: { ...typography.badge, color: palette.primary },
-  searchInput: { ...typography.inputText, flex: 1, color: palette.text },
+  searchIcon: { color: palette.primary, fontSize: 12, fontWeight: "900" },
+  searchInput: { flex: 1, color: palette.text, fontSize: 16 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  sectionTitle: { ...typography.sectionTitle, color: palette.textStrong },
-  sectionMeta: { ...typography.metadata, color: palette.muted },
+  sectionTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  sectionMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   conversationList: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(207,249,255,0.28)",
+    borderColor: "rgba(189,201,198,0.35)",
     backgroundColor: palette.surface,
     overflow: "hidden"
   },
@@ -260,7 +272,7 @@ const styles = StyleSheet.create({
     minHeight: 86,
     padding: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(207,249,255,0.28)",
+    borderBottomColor: "rgba(189,201,198,0.35)",
     flexDirection: "row",
     alignItems: "center",
     gap: 12
@@ -273,7 +285,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: palette.surfaceHigh
   },
-  contactAvatarText: { ...typography.cardTitleStrong, color: palette.primary },
+  contactAvatarText: { color: palette.primary, fontSize: 16, fontWeight: "900" },
   onlineDot: {
     position: "absolute",
     right: 1,
@@ -287,10 +299,10 @@ const styles = StyleSheet.create({
   },
   conversationCopy: { flex: 1, gap: 2 },
   rowBetween: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
-  contactName: { ...typography.cardTitleStrong, color: palette.textStrong, flex: 1 },
-  timeText: { ...typography.metadata, color: palette.outline, marginTop: 1 },
-  taskTitle: { ...typography.cardTitleStrong, color: palette.primary },
-  previewText: { ...typography.body, color: palette.muted },
+  contactName: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900", flex: 1 },
+  timeText: { color: palette.outline, fontSize: 11, lineHeight: 14, fontWeight: "700", marginTop: 1 },
+  taskTitle: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  previewText: { color: palette.muted, fontSize: 14, lineHeight: 20 },
   unreadDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.secondaryContainer },
-  pressed: { opacity: 0.78 }
+  pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
 });

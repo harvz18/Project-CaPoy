@@ -1,18 +1,29 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { FlatList, ScrollView, StyleSheet, View } from "react-native";
-import { MotionPressable as Pressable } from "../../src/components/MotionPressable";
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../../src/components/AnimatedBottomNav";
 import { useApp } from "../../src/context/AppContext";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
-import { screenPalette } from "../../src/theme";
 import { ChatMessage } from "../../src/types";
-import { typography } from "../../src/typography";
-import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
 
-const palette = screenPalette;
+const palette = {
+  background: "#F7FAF8",
+  surface: "#FFFFFF",
+  surfaceLow: "#F1F4F3",
+  surfaceContainer: "#EBEFED",
+  surfaceHigh: "#E0E3E1",
+  primary: "#005C55",
+  secondaryContainer: "#FEA619",
+  text: "#181C1C",
+  textStrong: "#111827",
+  muted: "#3E4947",
+  outline: "#6E7977",
+  outlineVariant: "#BDC9C6",
+  success: "#10B981",
+  white: "#FFFFFF"
+};
 
 const quickReplies = ["I'm on my way", "I've arrived", "Stuck in traffic"];
 
@@ -24,7 +35,6 @@ export default function ChatScreen() {
   const { currentUser, getTaskMessages, getUserById, loadOlderChatMessages, markMessagesRead, sendMessage, tasks } = useApp();
   const [message, setMessage] = useState("");
   const [sendError, setSendError] = useState("");
-  const [sending, setSending] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [allMessagesLoaded, setAllMessagesLoaded] = useState(false);
   const task = tasks.find((item) => item.id === id);
@@ -58,16 +68,12 @@ export default function ChatScreen() {
       setSendError("Choose a tasker from the Chat inbox before sending a message.");
       return;
     }
-    if (sending) return;
-    setSending(true);
     try {
       await sendMessage(id, text.trim(), participantId);
       setMessage("");
       setSendError("");
     } catch (error) {
       setSendError(error instanceof Error ? error.message : "Unable to send this message.");
-    } finally {
-      setSending(false);
     }
   }
 
@@ -118,7 +124,7 @@ export default function ChatScreen() {
           <View>
             {!allMessagesLoaded && messages.length ? (
               <Pressable accessibilityRole="button" disabled={loadingOlder} onPress={() => void handleLoadOlder()}>
-                <Text accessibilityLiveRegion="polite" style={styles.loadOlder}>{loadingOlder ? "Loading..." : "Load older messages"}</Text>
+                <Text style={styles.loadOlder}>{loadingOlder ? "Loading..." : "Load older messages"}</Text>
               </Pressable>
             ) : null}
             <Text style={styles.datePill}>Conversation</Text>
@@ -130,11 +136,11 @@ export default function ChatScreen() {
       />
 
       <View style={[styles.composerWrap, { bottom: 72 + insets.bottom, paddingBottom: 12 }]}>
-        {sendError ? <Text accessibilityLiveRegion="assertive" style={styles.sendError}>{sendError}</Text> : null}
-        {chatUnavailable ? <Text accessibilityLiveRegion="polite" style={styles.sendError}>Choose a tasker from the Chat inbox before sending a message.</Text> : null}
+        {sendError ? <Text style={styles.sendError}>{sendError}</Text> : null}
+        {chatUnavailable ? <Text style={styles.sendError}>Choose a tasker from the Chat inbox before sending a message.</Text> : null}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickReplyRow}>
           {quickReplies.map((reply) => (
-            <Pressable accessibilityLabel={`Send quick reply: ${reply}`} accessibilityRole="button" accessibilityState={{ busy: sending, disabled: chatUnavailable || sending }} disabled={chatUnavailable || sending} key={reply} onPress={() => handleSend(reply)} style={[styles.quickReply, (chatUnavailable || sending) && styles.disabled]}>
+            <Pressable disabled={chatUnavailable} key={reply} onPress={() => handleSend(reply)} style={[styles.quickReply, chatUnavailable && styles.disabled]}>
               <Text style={styles.quickReplyText}>{reply}</Text>
             </Pressable>
           ))}
@@ -142,16 +148,14 @@ export default function ChatScreen() {
         <View style={styles.inputRow}>
           <TextInput
             accessibilityLabel="Message"
-            accessibilityHint="Enter a message to the task participant."
-            editable={!sending && !chatUnavailable}
             onChangeText={setMessage}
             placeholder="Type a message..."
             placeholderTextColor={palette.outline}
             style={styles.input}
             value={message}
           />
-          <Pressable accessibilityLabel="Send message" accessibilityRole="button" accessibilityState={{ busy: sending, disabled: chatUnavailable || sending || !message.trim() }} disabled={chatUnavailable || sending || !message.trim()} onPress={() => handleSend()} style={({ pressed }) => [styles.sendButton, (chatUnavailable || sending || !message.trim()) && styles.sendButtonDisabled, pressed && !chatUnavailable && !sending && styles.pressed]}>
-            <Text style={styles.sendButtonText}>{sending ? "Sending..." : "Send"}</Text>
+          <Pressable accessibilityRole="button" disabled={chatUnavailable} onPress={() => handleSend()} style={({ pressed }) => [styles.sendButton, chatUnavailable && styles.sendButtonDisabled, pressed && !chatUnavailable && styles.pressed]}>
+            <Text style={styles.sendButtonText}>Send</Text>
           </Pressable>
         </View>
       </View>
@@ -187,50 +191,50 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: palette.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(207, 249, 255, 0.20)"
+    borderBottomColor: "#EDF1EF"
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   iconButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
-  menuText: { ...typography.bodyMedium, color: palette.primary },
-  brand: { ...typography.screenTitle, color: palette.primary },
+  menuText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   callButton: { paddingHorizontal: 10, minHeight: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  callText: { ...typography.bodyMedium, color: palette.muted },
+  callText: { color: palette.muted, fontWeight: "800" },
   smallAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.secondaryContainer, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: palette.outlineVariant },
-  avatarText: { ...typography.bodyMedium, color: "#F4C95D" },
-  contextBar: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surfaceLow, flexDirection: "row", alignItems: "center", gap: 12 },
+  avatarText: { color: "#684000", fontWeight: "900" },
+  contextBar: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surfaceLow, flexDirection: "row", alignItems: "center", gap: 12 },
   contactAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.surfaceHigh, alignItems: "center", justifyContent: "center" },
   onlineDot: { position: "absolute", right: 0, bottom: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: palette.success, borderWidth: 2, borderColor: palette.surfaceLow },
   contextCopy: { flex: 1 },
-  contactName: { ...typography.cardTitleStrong, color: palette.textStrong },
-  contactMeta: { ...typography.metadata, color: palette.muted },
+  contactName: { color: palette.textStrong, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  contactMeta: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   locationButton: { minHeight: 38, borderRadius: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceHigh },
-  locationButtonText: { ...typography.button, color: palette.primary },
+  locationButtonText: { color: palette.primary, fontWeight: "900" },
   messageList: { paddingHorizontal: 16, paddingTop: 16, gap: 12 },
-  datePill: { ...typography.badge, alignSelf: "center", overflow: "hidden", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, marginBottom: 12, backgroundColor: palette.surfaceContainer, color: palette.muted },
-  loadOlder: { ...typography.badge, alignSelf: "center", color: palette.primary, marginBottom: 10 },
+  datePill: { alignSelf: "center", overflow: "hidden", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, marginBottom: 12, backgroundColor: palette.surfaceContainer, color: palette.muted, fontSize: 12, lineHeight: 16 },
+  loadOlder: { alignSelf: "center", color: palette.primary, fontSize: 12, lineHeight: 18, fontWeight: "800", marginBottom: 10 },
   messageRow: { marginBottom: 12, flexDirection: "row", alignItems: "flex-end", gap: 8, maxWidth: "86%" },
   messageRowMine: { alignSelf: "flex-end" },
   messageRowOther: { alignSelf: "flex-start" },
-  messageBubble: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, shadowColor: "#001722", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  messageBubble: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
   messageMine: { backgroundColor: palette.primary, borderBottomRightRadius: 4 },
   messageOther: { backgroundColor: palette.surfaceHigh, borderBottomLeftRadius: 4 },
-  messageText: { ...typography.body, color: palette.text },
+  messageText: { color: palette.text, fontSize: 16, lineHeight: 24 },
   messageMineText: { color: palette.white },
-  messageTime: { ...typography.metadata, color: palette.muted, marginTop: 4, textAlign: "right" },
-  doneMark: { ...typography.overline, color: palette.primary },
+  messageTime: { color: palette.muted, fontSize: 10, lineHeight: 14, marginTop: 4, textAlign: "right" },
+  doneMark: { color: palette.primary, fontSize: 10, fontWeight: "900" },
   composerWrap: { position: "absolute", left: 0, right: 0, bottom: 72, backgroundColor: palette.background, paddingTop: 8 },
   quickReplyRow: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
   quickReply: { borderRadius: 999, borderWidth: 1, borderColor: palette.primary, backgroundColor: palette.surface, paddingHorizontal: 14, paddingVertical: 8 },
-  quickReplyText: { ...typography.bodyMedium, color: palette.primary },
+  quickReplyText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "800" },
   inputRow: { padding: 12, borderTopWidth: 1, borderTopColor: palette.outlineVariant, backgroundColor: palette.surface, flexDirection: "row", alignItems: "center", gap: 10 },
   addButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  addButtonText: { ...typography.button, color: palette.muted },
-  input: { ...typography.inputText, flex: 1, minHeight: 44, borderRadius: 22, backgroundColor: palette.surfaceLow, color: palette.text, paddingHorizontal: 16 },
+  addButtonText: { color: palette.muted, fontSize: 24, fontWeight: "700" },
+  input: { flex: 1, minHeight: 44, borderRadius: 22, backgroundColor: palette.surfaceLow, color: palette.text, paddingHorizontal: 16, fontSize: 16 },
   sendButton: { width: 52, height: 44, borderRadius: 22, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
   sendButtonDisabled: { backgroundColor: palette.outline },
-  sendButtonText: { ...typography.button, color: palette.white },
-  sendError: { ...typography.metadata, color: "#FF7D8C", paddingHorizontal: 16, paddingBottom: 8 },
-  pressed: { opacity: 0.78 },
+  sendButtonText: { color: palette.white, fontSize: 12, fontWeight: "900" },
+  sendError: { color: "#BA1A1A", fontSize: 12, lineHeight: 16, fontWeight: "700", paddingHorizontal: 16, paddingBottom: 8 },
+  pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
   disabled: { opacity: 0.5 }
 });

@@ -1,8 +1,4 @@
-import { StyleSheet, View } from "react-native";
-import { MotionPressable as Pressable } from "./MotionPressable";
-import { colors, glass, shadows } from "../theme";
-import { typography } from "../typography";
-import { AppText as Text } from "./AppText";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 export function NotificationShortcut({ onPress, unreadCount }: { onPress: () => void; unreadCount: number }) {
   const label = unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications";
@@ -29,10 +25,9 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: glass.standard,
+    backgroundColor: "#E7F3F0",
     borderWidth: 1,
-    borderColor: colors.borderHighlight,
-    ...shadows.resting
+    borderColor: "#BDC9C6"
   },
   bell: { width: 24, height: 24, alignItems: "center", justifyContent: "flex-start" },
   bellDome: {
@@ -41,7 +36,7 @@ const styles = StyleSheet.create({
     width: 15,
     height: 15,
     borderWidth: 2,
-    borderColor: colors.primary,
+    borderColor: "#005C55",
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
     borderBottomWidth: 0
@@ -52,7 +47,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 2,
     borderRadius: 1,
-    backgroundColor: colors.primary
+    backgroundColor: "#005C55"
   },
   bellClapper: {
     position: "absolute",
@@ -60,7 +55,7 @@ const styles = StyleSheet.create({
     width: 5,
     height: 3,
     borderRadius: 3,
-    backgroundColor: colors.primary
+    backgroundColor: "#005C55"
   },
   badge: {
     position: "absolute",
@@ -72,10 +67,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.danger,
+    backgroundColor: "#BA1A1A",
     borderWidth: 1,
     borderColor: "#FFFFFF"
   },
-  badgeText: { ...typography.badge, color: "#FFFFFF" },
-  pressed: { opacity: 0.82 }
+  badgeText: { color: "#FFFFFF", fontSize: 10, fontWeight: "900" },
+  pressed: { opacity: 0.72 }
 });

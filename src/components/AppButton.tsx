@@ -1,8 +1,5 @@
-import { ActivityIndicator, StyleProp, View, ViewStyle } from "react-native";
+import { Pressable, StyleProp, Text, ViewStyle } from "react-native";
 import { styles } from "../styles";
-import { colors } from "../theme";
-import { AppText as Text } from "./AppText";
-import { MotionPressable } from "./MotionPressable";
 
 type AppButtonVariant = "primary" | "secondary" | "outline" | "danger" | "ghost";
 
@@ -12,11 +9,6 @@ type AppButtonProps = {
   variant?: AppButtonVariant;
   compact?: boolean;
   disabled?: boolean;
-  selected?: boolean;
-  loading?: boolean;
-  loadingTitle?: string;
-  accessibilityLabel?: string;
-  accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -26,14 +18,8 @@ export function AppButton({
   variant = "primary",
   compact,
   disabled,
-  selected,
-  loading = false,
-  loadingTitle,
-  accessibilityLabel,
-  accessibilityHint,
   style
 }: AppButtonProps) {
-  const unavailable = Boolean(disabled || loading);
   const buttonStyle = [
     styles.appButton,
     compact && styles.appButtonCompact,
@@ -41,7 +27,7 @@ export function AppButton({
     variant === "outline" && styles.appButtonOutline,
     variant === "danger" && styles.appButtonDanger,
     variant === "ghost" && styles.appButtonGhost,
-    unavailable && styles.appButtonDisabled,
+    disabled && styles.appButtonDisabled,
     style
   ];
 
@@ -52,20 +38,14 @@ export function AppButton({
   ];
 
   return (
-    <MotionPressable
-      accessibilityHint={accessibilityHint}
-      accessibilityLabel={accessibilityLabel ?? title}
+    <Pressable
       accessibilityRole="button"
-      accessibilityState={{ busy: loading, disabled: unavailable, selected }}
-      disabled={unavailable}
+      accessibilityState={{ disabled: Boolean(disabled) }}
+      disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [buttonStyle, pressed && !unavailable && styles.pressedOpacity]}
+      style={({ pressed }) => [buttonStyle, pressed && !disabled && styles.pressed]}
     >
-      {variant === "primary" ? <View pointerEvents="none" style={styles.glassHighlight} /> : null}
-      <View style={styles.appButtonContent}>
-        {loading ? <ActivityIndicator color={colors.white} size="small" /> : null}
-        <Text style={textStyle}>{loading ? loadingTitle ?? title : title}</Text>
-      </View>
-    </MotionPressable>
+      <Text style={textStyle}>{title}</Text>
+    </Pressable>
   );
 }

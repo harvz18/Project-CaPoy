@@ -1,7 +1,6 @@
 import { useState } from "react";
 import Feather from "@expo/vector-icons/Feather";
-import { StyleSheet, View } from "react-native";
-import { MotionPressable as Pressable } from "../src/components/MotionPressable";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "../src/components/ScreenContainer";
 import { useApp } from "../src/context/AppContext";
@@ -9,8 +8,6 @@ import { useTasklinkBack } from "../src/hooks/useTasklinkBack";
 import { submitViolationReport } from "../src/services/adminService";
 import { colors } from "../src/theme";
 import { ViolationReport } from "../src/types";
-import { typography } from "../src/typography";
-import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 
 const categories: ViolationReport["category"][] = ["Safety", "Fraud", "Harassment", "Payment", "Other"];
 
@@ -30,10 +27,6 @@ export default function ReportUserScreen() {
   async function submit() {
     if (!currentUser || !targetUserId) {
       setError("A signed-in reporting account and target user are required.");
-      return;
-    }
-    if (reason.trim().length < 10) {
-      setError("Describe what happened using at least 10 characters.");
       return;
     }
     setSubmitting(true);
@@ -79,8 +72,6 @@ export default function ReportUserScreen() {
 
         <Text style={styles.label}>What happened?</Text>
         <TextInput
-          accessibilityLabel="What happened"
-          accessibilityHint="Required. Describe the incident using at least 10 characters."
           value={reason}
           onChangeText={setReason}
           placeholder="Describe the incident clearly (at least 10 characters)"
@@ -91,18 +82,16 @@ export default function ReportUserScreen() {
 
         <Text style={styles.label}>Evidence reference (optional)</Text>
         <TextInput
-          accessibilityLabel="Evidence reference, optional"
           value={evidenceReference}
           onChangeText={setEvidenceReference}
           placeholder="Receipt number, file path, or other reference"
           style={styles.input}
         />
         {taskId ? <Text style={styles.meta}>Related task: {taskId}</Text> : null}
-        <Text style={styles.meta}>{reason.trim().length} characters entered; minimum 10.</Text>
-        {error ? <Text accessibilityLiveRegion="assertive" style={styles.error}>{error}</Text> : null}
-        {confirmation ? <Text accessibilityLiveRegion="polite" style={styles.success}>{confirmation}</Text> : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {confirmation ? <Text style={styles.success}>{confirmation}</Text> : null}
 
-        <Pressable accessibilityLabel="Submit report" accessibilityRole="button" accessibilityState={{ busy: submitting, disabled: submitting || Boolean(confirmation) }} disabled={submitting || Boolean(confirmation)} onPress={submit} style={[styles.submit, (submitting || Boolean(confirmation)) && styles.disabled]}>
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: submitting || Boolean(confirmation) }} disabled={submitting || Boolean(confirmation)} onPress={submit} style={[styles.submit, (submitting || Boolean(confirmation)) && styles.disabled]}>
           <Text style={styles.submitText}>{submitting ? "Submitting..." : confirmation ? "Report submitted" : "Submit report"}</Text>
         </Pressable>
       </View>
@@ -113,23 +102,23 @@ export default function ReportUserScreen() {
 const styles = StyleSheet.create({
   header: { gap: 6 },
   back: { alignSelf: "flex-start", paddingVertical: 8, paddingRight: 16 },
-  backText: { ...typography.button, color: colors.primary },
-  eyebrow: { ...typography.overline, color: colors.primary, letterSpacing: 1.2 },
-  title: { ...typography.screenTitle, color: colors.text },
-  subtitle: { ...typography.body, color: colors.muted },
-  card: { marginTop: 18, padding: 18, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: "rgba(91, 169, 188, 0.18)", gap: 12 },
-  label: { ...typography.fieldLabel, color: colors.text },
+  backText: { color: colors.primary, fontWeight: "800" },
+  eyebrow: { color: colors.primary, fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
+  title: { color: colors.text, fontSize: 26, fontWeight: "900" },
+  subtitle: { color: colors.muted, lineHeight: 20 },
+  card: { marginTop: 18, padding: 18, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: "#FFFFFF", gap: 12 },
+  label: { color: colors.text, fontWeight: "800" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: colors.border },
   chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { ...typography.badge, color: colors.text },
+  chipText: { color: colors.text, fontSize: 12, fontWeight: "700" },
   chipTextSelected: { color: "#FFFFFF" },
   input: { minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, color: colors.text, backgroundColor: colors.background },
   details: { minHeight: 120 },
-  meta: { ...typography.metadata, color: colors.muted },
-  error: { ...typography.metadata, color: colors.danger },
-  success: { ...typography.bodyMedium, color: colors.success },
+  meta: { color: colors.muted, fontSize: 12 },
+  error: { color: colors.danger, fontWeight: "700" },
+  success: { color: colors.success, fontWeight: "800" },
   submit: { minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: colors.primary },
-  submitText: { ...typography.button, color: "#FFFFFF" },
+  submitText: { color: "#FFFFFF", fontWeight: "900" },
   disabled: { opacity: 0.55 }
 });

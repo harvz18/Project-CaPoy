@@ -1,13 +1,11 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
-import { MotionPressable as Pressable } from "../src/components/MotionPressable";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
-import { useMotionLayout } from "../src/hooks/useMotionLayout";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
 import { filterAndSortRankedJobs, getAvailableJobs, getJobCategories, JobSort } from "../src/domain/jobDiscovery";
 import { formatRequiredCapabilities, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../src/domain/taskMarketplace";
@@ -15,11 +13,21 @@ import { captureForegroundLocation } from "../src/services/locationService";
 import { Task } from "../src/types";
 import { formatDistance, getDiscoveryLocationIssue } from "../src/utils/location";
 import { formatRelativeTime } from "../src/utils/relativeTime";
-import { screenPalette } from "../src/theme";
-import { typography } from "../src/typography";
-import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 
-const palette = screenPalette;
+const palette = {
+  background: "#F7FAF8",
+  surface: "#FFFFFF",
+  surfaceHigh: "#E5E9E7",
+  primary: "#005C55",
+  secondary: "#855300",
+  secondaryContainer: "#FEA619",
+  text: "#181C1C",
+  textStrong: "#111827",
+  muted: "#3E4947",
+  outline: "#6E7977",
+  outlineVariant: "#BDC9C6",
+  white: "#FFFFFF"
+};
 
 const sortOptions: Array<{ label: string; value: JobSort }> = [
   { label: "Skill Match + Newest", value: "recommended" },
@@ -31,7 +39,6 @@ const JOB_PAGE_SIZE = 10;
 
 export default function JobsScreen() {
   const router = useRouter();
-  const prepareLayout = useMotionLayout();
   const insets = useSafeAreaInsets();
   const { tasks, acceptTask, currentUser, getUserById, updateProfile, actionLoading, error } = useApp();
   const [activeFilter, setActiveFilter] = useState("");
@@ -113,7 +120,7 @@ export default function JobsScreen() {
               <Text style={styles.locationText}>{discoveryLocationIssue ?? `${rankedJobs.filter(({ match }) => match.eligible).length} recommended jobs within your radius`}</Text>
             </View>
           </View>
-          <Pressable accessibilityLabel="Refresh location" accessibilityRole="button" accessibilityState={{ busy: actionLoading, disabled: actionLoading }} disabled={actionLoading} onPress={refreshLocation} style={styles.refreshButton}>
+          <Pressable accessibilityRole="button" disabled={actionLoading} onPress={refreshLocation} style={styles.refreshButton}>
             <Text style={styles.refreshButtonText}>{actionLoading ? "Refreshing..." : "Refresh my location"}</Text>
           </Pressable>
         </View>
@@ -150,7 +157,7 @@ export default function JobsScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ expanded: applicationsExpanded }}
-            onPress={() => { prepareLayout(); setApplicationsExpanded((expanded) => !expanded); }}
+            onPress={() => setApplicationsExpanded((expanded) => !expanded)}
             style={({ pressed }) => [styles.applicationHeader, pressed && styles.pressed]}
           >
             <View style={styles.applicationHeaderCopy}>
@@ -262,7 +269,7 @@ function JobCard({
         <Pressable accessibilityRole="button" onPress={onOpen} style={styles.detailsButton}>
           <Text style={styles.detailsButtonText}>Details</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityState={{ busy: applying, disabled: applying || hasApplied }} disabled={applying || hasApplied} onPress={onQuickAccept} style={[styles.quickButton, (applying || hasApplied) && styles.quickButtonDisabled]}>
+        <Pressable accessibilityRole="button" disabled={applying || hasApplied} onPress={onQuickAccept} style={[styles.quickButton, (applying || hasApplied) && styles.quickButtonDisabled]}>
           <Text style={styles.quickButtonText}>{hasApplied ? "Applied" : applying ? "Applying..." : task.pricingMode === "bidding" ? "Make Offer" : "Quick Apply"}</Text>
         </Pressable>
       </View>
@@ -303,88 +310,88 @@ function getApplicationMessage(status: Task["status"]) {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
-  header: { minHeight: 56, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: "rgba(207, 249, 255, 0.20)" },
+  header: { minHeight: 56, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: "#EDF1EF" },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  brand: { ...typography.screenTitle, color: palette.primary },
+  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer, borderWidth: 1, borderColor: palette.outlineVariant },
-  avatarText: { ...typography.bodyMedium, color: "#F4C95D" },
+  avatarText: { color: "#684000", fontWeight: "900" },
   content: { paddingBottom: 104 },
-  mapPanel: { minHeight: 250, overflow: "hidden", backgroundColor: "#07384A", elevation: 2 },
-  mapGrid: { flex: 1, backgroundColor: "#07384A" },
-  mapLineHorizontal: { position: "absolute", left: -20, right: -20, top: 92, height: 18, backgroundColor: "#17607A", transform: [{ rotate: "-10deg" }] },
-  mapLineVertical: { position: "absolute", top: -20, bottom: -20, left: "56%", width: 20, backgroundColor: "#14556D", transform: [{ rotate: "18deg" }] },
+  mapPanel: { minHeight: 250, overflow: "hidden", backgroundColor: "#DDEDEA", elevation: 2 },
+  mapGrid: { flex: 1, backgroundColor: "#E7F3F0" },
+  mapLineHorizontal: { position: "absolute", left: -20, right: -20, top: 92, height: 18, backgroundColor: "#C8DBD7", transform: [{ rotate: "-10deg" }] },
+  mapLineVertical: { position: "absolute", top: -20, bottom: -20, left: "56%", width: 20, backgroundColor: "#D6C29E", transform: [{ rotate: "18deg" }] },
   mapPin: { position: "absolute", width: 18, height: 18, borderRadius: 9, backgroundColor: palette.secondary, borderWidth: 3, borderColor: palette.white },
   mapPinOne: { left: "24%", top: 58 },
   mapPinTwo: { left: "62%", top: 84, backgroundColor: palette.primary },
   mapPinThree: { left: "46%", top: 138 },
-  locationBadge: { position: "absolute", left: 16, top: 16, maxWidth: "72%", borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "rgba(3,35,52,0.92)", paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8 },
+  locationBadge: { position: "absolute", left: 16, top: 16, maxWidth: "72%", borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8 },
   refreshButton: { position: "absolute", right: 16, bottom: 16, minHeight: 42, borderRadius: 10, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  refreshButtonText: { ...typography.button, color: palette.white },
-  locationMessage: { ...typography.metadata, color: palette.primary, paddingHorizontal: 16, paddingTop: 8 },
+  refreshButtonText: { color: palette.white, fontSize: 12, fontWeight: "900" },
+  locationMessage: { color: palette.primary, fontSize: 12, lineHeight: 17, fontWeight: "700", paddingHorizontal: 16, paddingTop: 8 },
   locationCopy: { gap: 1 },
-  locationTitle: { ...typography.bodyMedium, color: palette.text },
-  locationText: { ...typography.metadata, color: palette.muted },
+  locationTitle: { color: palette.text, fontSize: 14, fontWeight: "900" },
+  locationText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   searchSection: { paddingHorizontal: 16, paddingTop: 16 },
-  searchInput: { ...typography.inputText, minHeight: 48, borderWidth: 1, borderColor: palette.outlineVariant, borderRadius: 12, paddingHorizontal: 14, backgroundColor: palette.surface, color: palette.text },
+  searchInput: { minHeight: 48, borderWidth: 1, borderColor: palette.outlineVariant, borderRadius: 12, paddingHorizontal: 14, backgroundColor: palette.surface, color: palette.text, fontSize: 15 },
   filterRow: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
   filterChip: { minHeight: 40, borderRadius: 20, paddingHorizontal: 16, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceHigh },
   filterChipActive: { backgroundColor: palette.primary },
-  filterText: { ...typography.bodyMedium, color: palette.muted },
+  filterText: { color: palette.muted, fontSize: 14, fontWeight: "800" },
   filterTextActive: { color: palette.white },
   sortRow: { paddingHorizontal: 16, paddingBottom: 16, gap: 8 },
   sortButton: { minHeight: 38, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
-  sortButtonActive: { borderColor: palette.secondary, backgroundColor: "rgba(244, 201, 93, 0.16)" },
-  sortText: { ...typography.bodyMedium, color: palette.muted },
+  sortButtonActive: { borderColor: palette.secondary, backgroundColor: "#FFF8EE" },
+  sortText: { color: palette.muted, fontSize: 12, fontWeight: "800" },
   sortTextActive: { color: palette.secondary },
   boardHeader: { paddingHorizontal: 16, paddingBottom: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   applicationSection: { marginHorizontal: 16, marginBottom: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, overflow: "hidden" },
   applicationHeader: { minHeight: 58, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   applicationHeaderCopy: { flex: 1 },
-  applicationSectionTitle: { ...typography.sectionTitleSmall, color: palette.textStrong },
-  applicationSectionMeta: { ...typography.metadata, color: palette.muted },
-  applicationChevron: { ...typography.badge, color: palette.primary },
+  applicationSectionTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  applicationSectionMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  applicationChevron: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   applicationGrid: { padding: 10, paddingTop: 0, gap: 10 },
-  applicationCard: { padding: 16, borderRadius: 10, borderWidth: 1, borderColor: "rgba(207,249,255,0.32)", backgroundColor: palette.background, gap: 12 },
+  applicationCard: { padding: 16, borderRadius: 10, borderWidth: 1, borderColor: "rgba(189,201,198,0.45)", backgroundColor: palette.background, gap: 12 },
   applicationCopy: { gap: 4 },
-  applicationTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
-  applicationMeta: { ...typography.metadata, color: palette.muted },
-  applicationFooter: { paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(207,249,255,0.32)", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  applicationAction: { ...typography.button, color: palette.primary },
+  applicationTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  applicationMeta: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  applicationFooter: { paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(189,201,198,0.45)", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  applicationAction: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   emptyApplicationCard: { margin: 10, marginTop: 0, padding: 16, borderRadius: 10, backgroundColor: palette.background, alignItems: "center" },
-  emptyApplicationText: { ...typography.body, color: palette.muted, textAlign: "center" },
-  screenTitle: { ...typography.screenTitle, color: palette.textStrong },
-  screenSubtitle: { ...typography.body, color: palette.muted },
-  liveBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "rgba(38, 229, 178, 0.16)" },
-  liveBadgeText: { ...typography.badge, color: "#26E5B2" },
+  emptyApplicationText: { color: palette.muted, fontSize: 13, lineHeight: 18, textAlign: "center" },
+  screenTitle: { color: palette.textStrong, fontSize: 24, lineHeight: 32, fontWeight: "900" },
+  screenSubtitle: { color: palette.muted, fontSize: 14, lineHeight: 20 },
+  liveBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#EAF8F1" },
+  liveBadgeText: { color: "#0B7A52", fontSize: 12, fontWeight: "900" },
   jobGrid: { paddingHorizontal: 16, gap: 12 },
   loadMoreButton: { minHeight: 46, marginHorizontal: 16, marginTop: 14, borderRadius: 10, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
-  loadMoreText: { ...typography.button, color: palette.primary },
-  listCount: { ...typography.heroNumber, color: palette.muted, textAlign: "center", paddingTop: 14 },
+  loadMoreText: { color: palette.primary, fontSize: 14, fontWeight: "900" },
+  listCount: { color: palette.muted, fontSize: 12, fontWeight: "700", textAlign: "center", paddingTop: 14 },
   jobCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, elevation: 2, gap: 12 },
   urgentBadge: { position: "absolute", left: 16, top: 16, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: palette.secondaryContainer },
-  urgentText: { ...typography.badge, color: "#F4C95D" },
+  urgentText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "900" },
   priceRow: { alignItems: "flex-end" },
-  price: { ...typography.heroNumber, color: palette.primary },
-  jobTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
-  employerName: { ...typography.bodyMedium, color: palette.primary },
-  jobMeta: { ...typography.metadata, color: palette.muted },
-  jobDescription: { ...typography.body, color: palette.muted },
-  perksText: { ...typography.badge, color: palette.secondary },
+  price: { color: palette.primary, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  jobTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "800" },
+  employerName: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "800" },
+  jobMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  jobDescription: { color: palette.muted, fontSize: 14, lineHeight: 20 },
+  perksText: { color: palette.secondary, fontSize: 12, lineHeight: 17, fontWeight: "800" },
   matchRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  matchChip: { ...typography.badge, overflow: "hidden", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: palette.surfaceHigh, color: palette.muted },
-  matchChipGood: { backgroundColor: "rgba(38, 229, 178, 0.16)", color: "#26E5B2" },
-  matchChipWarn: { backgroundColor: "rgba(244, 201, 93, 0.16)", color: "#F4C95D" },
-  jobInfoRow: { paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(207,249,255,0.32)", flexDirection: "row", gap: 16 },
-  jobInfo: { ...typography.metadata, color: palette.outline },
+  matchChip: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: palette.surfaceHigh, color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: "900" },
+  matchChipGood: { backgroundColor: "#EAF8F1", color: "#0B7A52" },
+  matchChipWarn: { backgroundColor: "#FFF8EE", color: "#684000" },
+  jobInfoRow: { paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(189,201,198,0.45)", flexDirection: "row", gap: 16 },
+  jobInfo: { color: palette.outline, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   actionRow: { flexDirection: "row", gap: 10 },
   detailsButton: { flex: 1, minHeight: 48, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
-  detailsButtonText: { ...typography.button, color: palette.primary },
+  detailsButtonText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   quickButton: { flex: 1.3, minHeight: 48, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   quickButtonDisabled: { opacity: 0.45 },
-  quickButtonText: { ...typography.button, color: palette.white },
+  quickButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   emptyCard: { padding: 24, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, alignItems: "center", gap: 8 },
-  emptyTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
-  emptyText: { ...typography.body, color: palette.muted, textAlign: "center" },
-  errorMessage: { ...typography.metadata, color: "#FF7D8C", paddingHorizontal: 16, paddingTop: 10 },
-  pressed: { opacity: 0.78 }
+  emptyTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 26, fontWeight: "900" },
+  emptyText: { color: palette.muted, fontSize: 14, lineHeight: 20, textAlign: "center" },
+  errorMessage: { color: "#BA1A1A", fontSize: 13, lineHeight: 18, fontWeight: "700", paddingHorizontal: 16, paddingTop: 10 },
+  pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
 });

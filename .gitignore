@@ -8,8 +8,6 @@ build/
 *.p12
 *.key
 *.mobileprovision
-*-firebase-adminsdk-*.json
-service-account*.json
 *.orig.*
 web-build/
 .env

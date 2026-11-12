@@ -1,31 +1,38 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
-import { MotionModal as Modal } from "../src/components/MotionModal";
-import { MotionPressable as Pressable } from "../src/components/MotionPressable";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import { HelpShortcut } from "../src/components/HelpShortcut";
 import { NotificationShortcut } from "../src/components/NotificationShortcut";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
-import { useMotionLayout } from "../src/hooks/useMotionLayout";
 import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
 import { Task } from "../src/types";
 import { formatDistance, getDiscoveryLocationIssue } from "../src/utils/location";
 import { formatRelativeTime } from "../src/utils/relativeTime";
-import { screenPalette } from "../src/theme";
-import { typography } from "../src/typography";
-import { AppText as Text } from "../src/components/AppText";
 
-const palette = screenPalette;
+const palette = {
+  background: "#F7FAF8",
+  surface: "#FFFFFF",
+  surfaceLow: "#F1F4F3",
+  surfaceContainer: "#EBEFED",
+  primary: "#005C55",
+  secondary: "#855300",
+  secondaryContainer: "#FEA619",
+  text: "#181C1C",
+  textStrong: "#111827",
+  muted: "#3E4947",
+  outline: "#6E7977",
+  outlineVariant: "#BDC9C6",
+  success: "#10B981",
+  white: "#FFFFFF"
+};
 
 export default function WorkerDashboardScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const prepareLayout = useMotionLayout();
   const [selectedTab, setSelectedTab] = useState<"active" | "finished">("active");
   const [applicationsExpanded, setApplicationsExpanded] = useState(false);
   const [mapFullscreen, setMapFullscreen] = useState(false);
@@ -71,7 +78,7 @@ export default function WorkerDashboardScreen() {
         onNotifications={() => router.push("/notifications")}
         unreadCount={notifications.filter((notification) => notification.userId === currentUser?.id && !notification.readStatus).length}
       />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 110 + insets.bottom }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.heroPanel}>
           <View style={styles.heroCopy}>
             <Text style={styles.heroKicker}>Worker Home</Text>
@@ -112,7 +119,7 @@ export default function WorkerDashboardScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ expanded: applicationsExpanded }}
-              onPress={() => { prepareLayout(); setApplicationsExpanded((expanded) => !expanded); }}
+              onPress={() => setApplicationsExpanded((expanded) => !expanded)}
               style={({ pressed }) => [styles.applicationHeader, pressed && styles.pressed]}
             >
               <View style={styles.sectionCopy}>
@@ -293,7 +300,7 @@ function WorkerJobCard({
         <Pressable accessibilityRole="button" onPress={onOpen} style={styles.detailsButton}>
           <Text style={styles.detailsButtonText}>Details</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityState={{ busy: applying, disabled: applying || hasApplied }} disabled={applying || hasApplied} onPress={onQuickAccept} style={({ pressed }) => [styles.quickButton, (applying || hasApplied) && styles.disabled, pressed && styles.pressed]}>
+        <Pressable accessibilityRole="button" disabled={applying || hasApplied} onPress={onQuickAccept} style={({ pressed }) => [styles.quickButton, (applying || hasApplied) && styles.disabled, pressed && styles.pressed]}>
           <Text style={styles.quickButtonText}>{hasApplied ? "Applied" : applying ? "Applying..." : task.pricingMode === "bidding" ? "Make Offer" : "Quick Apply"}</Text>
         </Pressable>
       </View>
@@ -429,81 +436,81 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: palette.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(207, 249, 255, 0.20)"
+    borderBottomColor: "#EDF1EF"
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
-  menuText: { ...typography.bodyMedium, color: palette.primary },
-  brand: { ...typography.screenTitle, color: palette.primary },
+  menuText: { color: palette.primary, fontSize: 24, fontWeight: "800" },
+  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "800" },
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer, borderWidth: 1, borderColor: palette.outlineVariant },
-  avatarText: { ...typography.bodyMedium, color: "#F4C95D" },
-  content: { padding: 16, gap: 14 },
-  heroPanel: { minHeight: 172, borderRadius: 24, padding: 22, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, justifyContent: "space-between", overflow: "hidden", elevation: 5 },
+  avatarText: { color: "#684000", fontWeight: "900" },
+  content: { padding: 16, paddingBottom: 110, gap: 14 },
+  heroPanel: { minHeight: 172, borderRadius: 12, padding: 20, backgroundColor: palette.primary, justifyContent: "space-between", overflow: "hidden" },
   heroCopy: { gap: 6 },
-  heroKicker: { ...typography.overline, color: "#7FF6E6" },
-  heroTitle: { ...typography.screenTitle, color: palette.white },
-  heroText: { ...typography.body, color: palette.muted },
-  availabilityPill: { alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primaryFixed },
-  availabilityText: { ...typography.badge, color: palette.white },
+  heroKicker: { color: "#A3FAEF", fontSize: 12, lineHeight: 16, fontWeight: "900", textTransform: "uppercase" },
+  heroTitle: { color: palette.white, fontSize: 24, lineHeight: 32, fontWeight: "900" },
+  heroText: { color: "#DDF8F4", fontSize: 14, lineHeight: 20 },
+  availabilityPill: { alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: "#A3FAEF" },
+  availabilityText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
   statsGrid: { flexDirection: "row", gap: 12 },
-  statCard: { flex: 1, minHeight: 108, borderRadius: 20, padding: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, justifyContent: "center" },
-  statValue: { ...typography.heroNumber, color: palette.primary },
-  statLabel: { ...typography.fieldLabel, color: palette.muted, marginTop: 4 },
-  mapPanel: { height: 132, borderRadius: 12, overflow: "hidden", backgroundColor: "#07384A", elevation: 2 },
+  statCard: { flex: 1, borderRadius: 12, padding: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant },
+  statValue: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
+  statLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 4 },
+  mapPanel: { height: 132, borderRadius: 12, overflow: "hidden", backgroundColor: "#DDEDEA", elevation: 2 },
   fullscreenMap: { flex: 1, backgroundColor: palette.background, padding: 12 },
-  mapGrid: { flex: 1, backgroundColor: "#07384A" },
-  mapLineHorizontal: { position: "absolute", left: -20, right: -20, top: 58, height: 14, backgroundColor: "#17607A", transform: [{ rotate: "-10deg" }] },
-  mapLineVertical: { position: "absolute", top: -20, bottom: -20, left: "56%", width: 16, backgroundColor: "#14556D", transform: [{ rotate: "18deg" }] },
+  mapGrid: { flex: 1, backgroundColor: "#E7F3F0" },
+  mapLineHorizontal: { position: "absolute", left: -20, right: -20, top: 58, height: 14, backgroundColor: "#C8DBD7", transform: [{ rotate: "-10deg" }] },
+  mapLineVertical: { position: "absolute", top: -20, bottom: -20, left: "56%", width: 16, backgroundColor: "#D6C29E", transform: [{ rotate: "18deg" }] },
   mapPin: { position: "absolute", width: 16, height: 16, borderRadius: 8, backgroundColor: palette.secondary, borderWidth: 3, borderColor: palette.white },
   mapPinOne: { left: "24%", top: 42 },
   mapPinTwo: { left: "62%", top: 72, backgroundColor: palette.primary },
-  locationBadge: { position: "absolute", left: 12, bottom: 12, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "rgba(3,35,52,0.92)", paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8 },
-  locationIcon: { ...typography.sectionTitleSmall, color: palette.primary },
-  locationText: { ...typography.badge, color: palette.text },
-  expandMapButton: { position: "absolute", right: 12, top: 12, borderRadius: 999, backgroundColor: "rgba(3,35,52,0.94)", borderWidth: 1, borderColor: palette.outlineVariant, minHeight: 34, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
-  expandMapButtonText: { ...typography.button, color: palette.primary },
-  closeMapButton: { position: "absolute", right: 22, top: 22, width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(3,35,52,0.96)", borderWidth: 1, borderColor: palette.outlineVariant },
-  closeMapButtonText: { ...typography.button, color: palette.textStrong },
+  locationBadge: { position: "absolute", left: 12, bottom: 12, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8 },
+  locationIcon: { color: palette.primary, fontSize: 18, fontWeight: "900" },
+  locationText: { color: palette.text, fontSize: 12, fontWeight: "800" },
+  expandMapButton: { position: "absolute", right: 12, top: 12, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.94)", borderWidth: 1, borderColor: palette.outlineVariant, minHeight: 34, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
+  expandMapButtonText: { color: palette.primary, fontSize: 11, fontWeight: "900" },
+  closeMapButton: { position: "absolute", right: 22, top: 22, width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.96)", borderWidth: 1, borderColor: palette.outlineVariant },
+  closeMapButtonText: { color: palette.textStrong, fontSize: 29, lineHeight: 32, fontWeight: "500" },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   sectionCopy: { flex: 1 },
-  sectionTitle: { ...typography.sectionTitle, color: palette.textStrong },
-  sectionSubtitle: { ...typography.metadata, color: palette.muted },
+  sectionTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  sectionSubtitle: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   tabRow: { flexDirection: "row", gap: 8, padding: 4, borderRadius: 12, backgroundColor: palette.surfaceLow },
   tabButton: { flex: 1, minHeight: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   tabButtonActive: { backgroundColor: palette.primary },
-  tabButtonText: { ...typography.button, color: palette.muted },
+  tabButtonText: { color: palette.muted, fontSize: 13, lineHeight: 18, fontWeight: "900" },
   tabButtonTextActive: { color: palette.white },
   viewAllButton: { minHeight: 38, borderRadius: 19, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceContainer },
-  viewAllText: { ...typography.button, color: palette.primary },
+  viewAllText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
   jobGrid: { gap: 12 },
   applicationSection: { borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, overflow: "hidden" },
   applicationHeader: { minHeight: 68, paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  applicationToggle: { ...typography.badge, color: palette.primary },
+  applicationToggle: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   applicationGrid: { gap: 10, paddingHorizontal: 12, paddingBottom: 12 },
   applicationCard: {
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(207,249,255,0.32)",
+    borderColor: "rgba(189,201,198,0.45)",
     backgroundColor: palette.surface,
     gap: 14,
     elevation: 2
   },
   applicationTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   applicationCopy: { flex: 1, gap: 4 },
-  applicationTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
-  applicationMeta: { ...typography.metadata, color: palette.muted },
-  applicationPrice: { ...typography.price, color: palette.primary },
+  applicationTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  applicationMeta: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  applicationPrice: { color: palette.primary, fontSize: 18, lineHeight: 24, fontWeight: "900" },
   applicationFooter: {
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(207,249,255,0.32)",
+    borderTopColor: "rgba(189,201,198,0.45)",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12
   },
-  applicationAction: { ...typography.button, color: palette.primary },
+  applicationAction: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   emptyApplicationCard: {
     padding: 16,
     borderRadius: 12,
@@ -512,25 +519,25 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surfaceLow,
     gap: 4
   },
-  emptyApplicationTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
-  emptyApplicationText: { ...typography.metadata, color: palette.muted },
-  jobCard: { padding: 18, borderRadius: 20, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, elevation: 2, gap: 12 },
+  emptyApplicationTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  emptyApplicationText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  jobCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, elevation: 2, gap: 12 },
   urgentBadge: { position: "absolute", left: 16, top: 16, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: palette.secondaryContainer },
-  urgentText: { ...typography.badge, color: "#F4C95D" },
+  urgentText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "900" },
   priceRow: { alignItems: "flex-end" },
-  price: { ...typography.heroNumber, color: palette.primary },
-  jobTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
-  jobMeta: { ...typography.metadata, color: palette.muted },
-  jobInfoRow: { paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(207,249,255,0.32)", flexDirection: "row", gap: 16 },
-  jobInfo: { ...typography.metadata, color: palette.outline },
+  price: { color: palette.primary, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  jobTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "800" },
+  jobMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  jobInfoRow: { paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(189,201,198,0.45)", flexDirection: "row", gap: 16 },
+  jobInfo: { color: palette.outline, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   cardActions: { flexDirection: "row", gap: 10 },
   detailsButton: { flex: 1, minHeight: 46, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
-  detailsButtonText: { ...typography.button, color: palette.primary },
+  detailsButtonText: { color: palette.primary, fontSize: 14, fontWeight: "900" },
   quickButton: { flex: 1.3, minHeight: 46, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  quickButtonText: { ...typography.button, color: palette.white },
-  fullBoardButton: { minHeight: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primaryFixed },
-  fullBoardText: { ...typography.bodyMedium, color: palette.white },
-  actionMessage: { ...typography.button, color: "#FF7D8C" },
+  quickButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  fullBoardButton: { minHeight: 48, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer },
+  fullBoardText: { color: "#684000", fontSize: 14, fontWeight: "900" },
+  actionMessage: { color: "#BA1A1A", fontSize: 13, lineHeight: 18, fontWeight: "700" },
   historyPanel: { padding: 16, borderRadius: 12, backgroundColor: palette.surfaceLow, gap: 12 },
   historyHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   historyList: { gap: 10 },
@@ -542,8 +549,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.outlineVariant
   },
-  historyTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
-  historyMeta: { ...typography.metadata, color: palette.muted },
+  historyTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 26, fontWeight: "900" },
+  historyMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   historyRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -555,22 +562,22 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(38, 229, 178, 0.16)"
+    backgroundColor: "#EAF8F1"
   },
-  historyIconText: { ...typography.overline, color: palette.success },
+  historyIconText: { color: palette.success, fontSize: 10, fontWeight: "900" },
   historyCopy: { flex: 1 },
-  historyJobTitle: { ...typography.cardTitleStrong, color: palette.text },
-  historyJobMeta: { ...typography.metadata, color: palette.muted },
-  historyAmount: { ...typography.price, color: palette.primary },
-  historyDivider: { height: 1, backgroundColor: "rgba(207,249,255,0.38)" },
+  historyJobTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  historyJobMeta: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  historyAmount: { color: palette.primary, fontSize: 14, fontWeight: "900" },
+  historyDivider: { height: 1, backgroundColor: "rgba(189,201,198,0.65)" },
   historyActions: { flexDirection: "row", gap: 10 },
   historyActionButton: { flex: 1, minHeight: 40, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceLow, borderWidth: 1, borderColor: palette.outlineVariant },
-  historyActionButtonText: { ...typography.button, color: palette.primary },
+  historyActionButtonText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   historyActionButtonPrimary: { flex: 1, minHeight: 40, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  historyActionButtonPrimaryText: { ...typography.button, color: palette.white },
+  historyActionButtonPrimaryText: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   historyActionButtonPrimaryTextDisabled: { color: palette.textStrong },
   historyActionButtonDisabled: { backgroundColor: palette.surfaceContainer, borderWidth: 1, borderColor: palette.outlineVariant },
   emptyHistoryRow: { padding: 12, borderRadius: 8, backgroundColor: palette.surface },
   disabled: { opacity: 0.5 },
-  pressed: { opacity: 0.78 }
+  pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
 });
