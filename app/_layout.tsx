@@ -67,7 +67,7 @@ function ProtectedNavigator() {
   const route = segments[0] as string | undefined;
   const activeBottomTab = getActiveBottomTab(route);
   const authRoutes = ["index", "login", "register"];
-  const publicRoutes = [...authRoutes, "help"];
+  const publicRoutes = [...authRoutes, "help", "recover-account"];
   const clientOnlyRoutes = ["client-dashboard", "post-task"];
   const workerOnlyRoutes = ["worker-dashboard", "jobs"];
   const staffRoutes = ["admin", "superadmin"];
@@ -198,6 +198,8 @@ function ProtectedNavigator() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ title: "Login" }} />
         <Stack.Screen name="register" options={{ title: "Registration" }} />
+        <Stack.Screen name="verify-email" options={{ title: "Email verification" }} />
+        <Stack.Screen name="recover-account" options={{ title: "Recover account" }} />
         <Stack.Screen name="help" options={{ title: "TaskLink Beta Information" }} />
         <Stack.Screen name="role-selection" options={{ title: "Role Selection" }} />
         <Stack.Screen name="worker-dashboard" options={{ title: "Worker Dashboard" }} />

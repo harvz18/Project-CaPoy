@@ -146,7 +146,7 @@ export default function LoginScreen() {
         <View style={screenStyles.card}>
           <Text style={screenStyles.authTitle}>Password Login</Text>
           <Text style={screenStyles.authNotice}>
-            SMS OTP is not enabled yet. Use the password created with your account.
+            SMS OTP is not enabled. Use the password created with your account; TaskLink never displays a simulated verification code.
           </Text>
           <Text style={screenStyles.authNotice}>Employers and taskers use this same login. Your saved account type opens the correct dashboard.</Text>
 
@@ -174,6 +174,9 @@ export default function LoginScreen() {
               style={({ pressed }) => [screenStyles.secondaryButton, pressed && screenStyles.pressed]}
             >
               <Text style={screenStyles.secondaryButtonText}>{actionLoading ? "Logging in..." : "Login"}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => router.push("/recover-account" as Href)} style={screenStyles.resendButton}>
+              <Text style={screenStyles.resendText}>Forgot password? Use an email reset link</Text>
             </Pressable>
           </View>
 

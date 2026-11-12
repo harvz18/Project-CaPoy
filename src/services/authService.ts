@@ -3,6 +3,9 @@ import {
   createUserWithEmailAndPassword,
   deleteUser,
   onAuthStateChanged,
+  reload,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   User
@@ -15,6 +18,26 @@ export type AuthSession = {
   localId: string;
   email: string;
 };
+
+export type EmailVerificationState = {
+  available: boolean;
+  email?: string;
+  verified: boolean;
+  reason?: "signed-out" | "mobile-alias" | "no-email";
+};
+
+const mobileAliasDomain = "@tasklink.local";
+
+export function isTasklinkMobileAlias(email: string | null | undefined) {
+  return Boolean(email?.toLowerCase().endsWith(mobileAliasDomain));
+}
+
+export function getEmailVerificationState(user: User | null | undefined = auth?.currentUser): EmailVerificationState {
+  if (!user) return { available: false, verified: false, reason: "signed-out" };
+  if (!user.email) return { available: false, verified: false, reason: "no-email" };
+  if (isTasklinkMobileAlias(user.email)) return { available: false, verified: false, reason: "mobile-alias" };
+  return { available: true, email: user.email, verified: user.emailVerified };
+}
 
 export function normalizeMobileNumber(mobileNumber: string) {
   const digits = mobileNumber.replace(/\D/g, "");
@@ -100,6 +123,65 @@ export async function deleteCurrentAuthUser() {
   }
 }
 
+/** Sends Firebase's signed email-action link. This never creates or validates a client OTP. */
+export async function sendCurrentEmailVerification() {
+  const firebaseAuth = requireAuth();
+  const state = getEmailVerificationState(firebaseAuth.currentUser);
+  if (!state.available) {
+    throw new Error(state.reason === "mobile-alias"
+      ? "Email verification is unavailable for mobile-password accounts because they do not have a deliverable email address."
+      : "Sign in to an email-based account before requesting verification.");
+  }
+  if (state.verified) return state;
+
+  try {
+    await sendEmailVerification(firebaseAuth.currentUser as User);
+    return state;
+  } catch (error) {
+    throw new Error(getAuthErrorMessage(error));
+  }
+}
+
+/** Reloads the Firebase user record so emailVerified comes from Firebase, not local UI state. */
+export async function refreshCurrentEmailVerification() {
+  const firebaseAuth = requireAuth();
+  if (!firebaseAuth.currentUser) return getEmailVerificationState(null);
+
+  try {
+    await reload(firebaseAuth.currentUser);
+    await firebaseAuth.currentUser.getIdToken(true);
+    return getEmailVerificationState(firebaseAuth.currentUser);
+  } catch (error) {
+    throw new Error(getAuthErrorMessage(error));
+  }
+}
+
+/**
+ * Requests Firebase's password-reset email without revealing whether an email
+ * account exists. Mobile-password aliases are deliberately rejected because
+ * their generated @tasklink.local address cannot receive mail.
+ */
+export async function requestPasswordResetForEmail(email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!isDeliverableEmail(normalizedEmail)) {
+    throw new Error("Enter the real email address used to sign in. Mobile-password accounts cannot receive an email reset link.");
+  }
+
+  try {
+    await sendPasswordResetEmail(requireAuth(), normalizedEmail);
+  } catch (error) {
+    const code = (error as AuthError | undefined)?.code;
+    if (code !== "auth/user-not-found" && code !== "auth/invalid-email") {
+      throw new Error(getAuthErrorMessage(error));
+    }
+  }
+}
+
+export function isDeliverableEmail(email: string | null | undefined) {
+  const normalizedEmail = email?.trim().toLowerCase() ?? "";
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) && !isTasklinkMobileAlias(normalizedEmail);
+}
+
 function toAuthSession(user: User): AuthSession {
   return {
     localId: user.uid,
@@ -137,6 +219,13 @@ export function getAuthErrorMessage(error: unknown) {
       return "Network unavailable. Check your connection and try again.";
     case "auth/too-many-requests":
       return "Too many attempts. Please wait before trying again.";
+    case "auth/requires-recent-login":
+      return "Please sign in again before changing this security setting.";
+    case "auth/user-token-expired":
+      return "Your session expired. Please sign in again.";
+    case "auth/unauthorized-continue-uri":
+    case "auth/invalid-continue-uri":
+      return "Firebase email links are not configured for this app yet. Contact support.";
     default:
       return "Unable to continue. Please try again.";
   }
