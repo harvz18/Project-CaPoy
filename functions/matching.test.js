@@ -62,7 +62,7 @@ test("new unrated workers remain eligible and only miss optional history points"
   assert.match(result.reasons.join(" "), /no rating history/);
 });
 
-test("unverified workers remain eligible while missing the optional verification bonus", () => {
+test("unverified accounts remain eligible while missing the verification bonus", () => {
   const result = scoreWorkerForTask(
     task(), worker({ verificationStatus: "Pending Verification", identityStatus: "Pending Approval" }), Date.parse(now)
   );
@@ -70,7 +70,7 @@ test("unverified workers remain eligible while missing the optional verification
   assert.equal(result.eligible, true);
   assert.equal(result.score, 90);
   assert.equal(result.breakdown.verification, 0);
-  assert.match(result.reasons.join(" "), /beta access remains enabled/);
+  assert.match(result.reasons.join(" "), /Unverified account/);
 });
 
 test("trusted match snapshots persist policy, score, reasons, distance, and breakdown", () => {

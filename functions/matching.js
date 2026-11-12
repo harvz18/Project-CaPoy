@@ -52,10 +52,10 @@ function scoreWorkerForTask(task, worker, now = Date.now()) {
   const distance = distanceKm(worker.currentLatitude, worker.currentLongitude, task.latitude, task.longitude);
   const radius = worker.preferredRadiusKm || 0;
   const activeAccount = !["suspended", "deleted"].includes(worker.accountStatus);
+  reasons.push(approvedIdentity ? "Verified account." : "Unverified account.");
   if (worker.role !== "worker") reasons.push("Only tasker profiles can be matched.");
   if (!activeAccount) reasons.push("Account must be active before matching.");
   if (!capabilityMatch) reasons.push(`Missing required capability: ${missingCapabilities.join(", ")}.`);
-  if (!approvedIdentity) reasons.push("Identity verification is optional during beta testing.");
   if (!openTask) reasons.push("Task is not open for applications.");
   if (!unexpiredTask) reasons.push("Task has expired.");
   if (distance === undefined || radius <= 0) reasons.push("A valid worker location and preferred radius are required.");
@@ -93,7 +93,6 @@ function scoreWorkerForTask(task, worker, now = Date.now()) {
   reasons.push(`Matches ${required.join(", ") || task.category}.`);
   reasons.push(`${distance.toFixed(1)} km away within the ${radius} km preferred radius.`);
   reasons.push("Schedule conflicts will be checked before acceptance.");
-  reasons.push(approvedIdentity ? "Identity approved." : "Identity is not yet verified; beta access remains enabled.");
   if (hasExperience) reasons.push("Experience details provided.");
   if (hasRatingHistory) reasons.push(`Rating history: ${rating.toFixed(1)} out of 5.`);
   else reasons.push("New tasker with no rating history yet.");

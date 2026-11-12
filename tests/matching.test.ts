@@ -68,7 +68,7 @@ test("new unrated taskers remain eligible without receiving rating points", () =
   assert.ok(result.reasons.some((reason) => reason.includes("no rating history")));
 });
 
-test("identity approval is an optional score bonus during beta", () => {
+test("an unverified account remains eligible while missing the verification score bonus", () => {
   const result = scoreWorkerForTask(
     task(),
     worker({ verificationStatus: "Pending Verification", identityStatus: "Pending Approval" }),
@@ -78,7 +78,7 @@ test("identity approval is an optional score bonus during beta", () => {
   assert.equal(result.eligible, true);
   assert.equal(result.score, 90);
   assert.equal(result.breakdown?.verification, 0);
-  assert.ok(result.reasons.some((reason) => reason.includes("beta access remains enabled")));
+  assert.ok(result.reasons.some((reason) => reason.includes("Unverified account")));
 });
 
 test("missing capability and coordinates fail closed", () => {
