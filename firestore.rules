@@ -1677,7 +1677,46 @@ service cloud.firestore {
 
     match /violationReports/{reportId} {
       allow read: if isSuperadmin();
-      allow write: if false;
+      allow create: if hasEnabledAccount()
+        && request.resource.data.keys().hasOnly([
+          'reporterId', 'targetUserId', 'category', 'reason', 'evidenceReference', 'taskId',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.targetUserId is string
+        && request.resource.data.targetUserId != request.auth.uid
+        && currentUser().role in ['client', 'worker']
+        && get(/databases/$(database)/documents/users/$(request.resource.data.targetUserId)).data.role
+          in ['client', 'worker']
+        && request.resource.data.category in ['Safety', 'Fraud', 'Harassment', 'Payment', 'Other']
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() >= 10
+        && request.resource.data.reason.size() <= 1000
+        && (request.resource.data.evidenceReference == null
+          || (request.resource.data.evidenceReference is string
+            && request.resource.data.evidenceReference.size() >= 2
+            && request.resource.data.evidenceReference.size() <= 500))
+        && (request.resource.data.taskId == null
+          || (request.resource.data.taskId is string
+            && request.resource.data.taskId.size() >= 2
+            && request.resource.data.taskId.size() <= 500
+            && exists(/databases/$(database)/documents/tasks/$(request.resource.data.taskId))
+            && (
+              task(request.resource.data.taskId).clientId == request.auth.uid
+              || task(request.resource.data.taskId).get('workerId', '') == request.auth.uid
+              || (task(request.resource.data.taskId).get('applicantIds', []) is list
+                && request.auth.uid in task(request.resource.data.taskId).get('applicantIds', []))
+            )
+            && (
+              task(request.resource.data.taskId).clientId == request.resource.data.targetUserId
+              || task(request.resource.data.taskId).get('workerId', '') == request.resource.data.targetUserId
+              || (task(request.resource.data.taskId).get('applicantIds', []) is list
+                && request.resource.data.targetUserId in task(request.resource.data.taskId).get('applicantIds', []))
+            )))
+        && request.resource.data.status == 'Open'
+        && request.resource.data.createdAt is string
+        && request.resource.data.updatedAt == request.resource.data.createdAt;
+      allow update, delete: if false;
     }
 
     match /chats/{chatId} {

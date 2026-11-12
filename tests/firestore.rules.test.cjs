@@ -684,6 +684,7 @@ test("only custom-claim administrators can read trusted analytics snapshots", as
 
 test("violation reports are validated, staff-readable, and immutable to clients", async () => {
   const clientDb = dbFor(CLIENT_ID);
+  await seedWorkflowTask();
   const reportRef = doc(clientDb, "violationReports", "report-1");
   const report = {
     reporterId: CLIENT_ID,
@@ -696,10 +697,7 @@ test("violation reports are validated, staff-readable, and immutable to clients"
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z"
   };
-  await assertFails(setDoc(reportRef, report));
-  await testEnvironment.withSecurityRulesDisabled(async (context) => {
-    await setDoc(doc(context.firestore(), "violationReports", "report-1"), report);
-  });
+  await assertSucceeds(setDoc(reportRef, report));
   await assertFails(getDoc(reportRef));
   await assertFails(getDoc(doc(dbFor(ADMIN_ID, { admin: true }), "violationReports", "report-1")));
   await assertSucceeds(getDoc(doc(dbFor(SUPERADMIN_ID, { superadmin: true }), "violationReports", "report-1")));
@@ -711,6 +709,11 @@ test("violation reports are validated, staff-readable, and immutable to clients"
   await assertFails(setDoc(doc(dbFor(SUSPENDED_ID), "violationReports", "blocked-report"), {
     ...report,
     reporterId: SUSPENDED_ID
+  }));
+  await assertFails(setDoc(doc(dbFor(OUTSIDER_ID), "violationReports", "unrelated-task-report"), {
+    ...report,
+    reporterId: OUTSIDER_ID,
+    targetUserId: SUSPENDED_ID
   }));
 });
 

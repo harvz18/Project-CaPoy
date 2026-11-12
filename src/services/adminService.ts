@@ -1,4 +1,4 @@
-import { collection, onSnapshot } from "firebase/firestore";
+import { addDoc, collection, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { getDownloadURL, ref } from "firebase/storage";
 import {
@@ -12,7 +12,7 @@ import {
   VerificationRequest,
   ViolationReport
 } from "../types";
-import { db, functions, storage } from "./firebase";
+import { auth, db, functions, storage } from "./firebase";
 import { getPaymentProofDownloadUrl } from "./fileUploadService";
 import { parseFirestorePaymentProofPath } from "../utils/paymentProof";
 
@@ -119,14 +119,28 @@ export function correctLockedFullName(userId: string, fullName: string, reason: 
   return callAdminFunction("correctLockedFullName", { userId, fullName, reason, evidenceReference });
 }
 
-export function submitViolationReport(input: {
+export async function submitViolationReport(input: {
   targetUserId: string;
   category: ViolationReport["category"];
   reason: string;
   evidenceReference?: string;
   taskId?: string;
 }) {
-  return callAdminFunction("submitViolationReport", input);
+  const reporterId = auth?.currentUser?.uid;
+  if (!db || !reporterId) throw new Error("Sign in to submit a report.");
+  const now = new Date().toISOString();
+  const report = await addDoc(collection(db, "violationReports"), {
+    reporterId,
+    targetUserId: input.targetUserId,
+    category: input.category,
+    reason: input.reason.trim(),
+    evidenceReference: input.evidenceReference?.trim() || null,
+    taskId: input.taskId?.trim() || null,
+    status: "Open",
+    createdAt: now,
+    updatedAt: now
+  });
+  return { ok: true, reportId: report.id };
 }
 
 export function confirmCashPayment(taskId: string) {
