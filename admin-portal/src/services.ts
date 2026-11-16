@@ -53,11 +53,10 @@ export async function loadSubmittedPlatformFees() {
   return records<PlatformFee>(await getDocs(query(collection(store, "platformFees"), where("status", "==", "submitted_for_review"), limit(100))));
 }
 export async function reviewPlatformFee(taskId: string, decision: "verified" | "rejected", reason: string) {
-  await httpsCallable(requireServices().functions, "reviewPlatformFeePayment")({ taskId, decision, reason });
+  await postAdminApi("/api/revenue/fees/review", { taskId, decision, reason });
 }
 export async function getPlatformRevenueOverview() {
-  const response = await httpsCallable<Record<string, never>, PlatformRevenueOverview>(requireServices().functions, "getPlatformRevenueOverview")({});
-  return response.data;
+  return getAdminApi<PlatformRevenueOverview>("/api/revenue/overview");
 }
 export async function getPlatformFeeReceiptUrl(taskId: string, path: string): Promise<VerificationDocumentPreview> {
   const [prefix, pathTaskId, party, ...extra] = path.split("/");

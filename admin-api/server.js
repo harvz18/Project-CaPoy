@@ -4,6 +4,7 @@ const { getAuth } = require("firebase-admin/auth");
 const { getFirestore } = require("firebase-admin/firestore");
 const { authorityFromClaims, buildAccountStatusChange, hasSuperadminAuthority, toModerationUser } = require("../functions/authority");
 const { buildIdentityReview } = require("../functions/identity");
+const { DEFAULT_RATE_BASIS_POINTS, buildFeeSnapshot } = require("../functions/revenue");
 
 class ApiError extends Error {
   constructor(status, message) {
@@ -33,7 +34,11 @@ function withIds(snapshot) {
 }
 
 function allowedOrigins() {
-  return new Set((process.env.ADMIN_PORTAL_ORIGINS || "").split(",").map((origin) => origin.trim()).filter(Boolean));
+  return new Set([
+    "https://tasklink-fb027.web.app",
+    "https://tasklink-web-ixue.onrender.com",
+    ...(process.env.ADMIN_PORTAL_ORIGINS || "").split(",")
+  ].map((origin) => origin.trim()).filter(Boolean));
 }
 
 async function authenticate(request, requiredAuthority = "admin") {
@@ -46,10 +51,19 @@ async function authenticate(request, requiredAuthority = "admin") {
     throw new ApiError(401, "Your sign-in session is invalid or expired. Sign in again.");
   }
   const authority = authorityFromClaims(claims);
+  if (requiredAuthority === "user") return claims;
   if (requiredAuthority === "superadmin" ? !hasSuperadminAuthority(claims) : authority === "user") {
     throw new ApiError(403, "This administrator action is not permitted for this account.");
   }
   return claims;
+}
+
+function nowIso() { return new Date().toISOString(); }
+
+function writeAudit(transaction, db, { actorId, action, targetType, targetId, reason = "", metadata = {} }) {
+  transaction.set(db.collection("auditLogs").doc(), {
+    actorId, action, targetType, targetId, reason, metadata, createdAt: nowIso()
+  });
 }
 
 function route(requiredAuthority, action) {
@@ -126,6 +140,148 @@ async function hasStoredVerificationDocument(transaction, db, userId, path, kind
     && chunkLengths.reduce((total, length) => total + length, 0) === file.encodedSize;
 }
 
+async function hasStoredPlatformFeeReceipt(transaction, db, employerId, taskId, path) {
+  if (typeof path !== "string") return false;
+  // Legacy Storage receipts remain readable for existing records. New web/mobile
+  // uploads are verified against their private Firestore-backed chunks.
+  if (path.startsWith(`paymentProofs/${taskId}/`)) return true;
+  if (path !== `firestorePaymentProofs/${taskId}/platform-fee`) return false;
+  const fileRef = db.collection("paymentProofFiles").doc(taskId).collection("uploads").doc("platform-fee");
+  const snapshot = await transaction.get(fileRef);
+  if (!snapshot.exists) return false;
+  const file = snapshot.data();
+  const validMetadata = file.taskId === taskId
+    && file.party === "platform-fee"
+    && file.uploaderId === employerId
+    && file.status === "ready"
+    && typeof file.fileName === "string"
+    && typeof file.mimeType === "string"
+    && typeof file.version === "string"
+    && Number.isInteger(file.chunkCount)
+    && file.chunkCount > 0
+    && file.chunkCount <= 16
+    && Number.isInteger(file.encodedSize)
+    && file.encodedSize > 0;
+  if (!validMetadata) return false;
+  const chunks = await Promise.all(Array.from({ length: file.chunkCount }, async (_, index) => {
+    const chunk = await transaction.get(fileRef.collection("chunks").doc(index.toString().padStart(3, "0")));
+    const data = chunk.data();
+    return chunk.exists
+      && data.taskId === taskId
+      && data.party === "platform-fee"
+      && data.uploaderId === employerId
+      && data.version === file.version
+      && data.index === index
+      && typeof data.data === "string"
+      && data.data.length > 0
+      ? data.data.length
+      : -1;
+  }));
+  return chunks.every((length) => length > 0)
+    && chunks.reduce((total, length) => total + length, 0) === file.encodedSize;
+}
+
+async function ensurePlatformFee({ request, db, claims }) {
+  const taskId = requiredBodyString(request, "taskId");
+  const feeRef = db.collection("platformFees").doc(taskId);
+  const taskRef = db.collection("tasks").doc(taskId);
+  const configRef = db.collection("platformRevenue").doc("config");
+  const now = nowIso();
+  let created = false;
+  await db.runTransaction(async (transaction) => {
+    const [existing, taskSnapshot, configSnapshot] = await Promise.all([
+      transaction.get(feeRef), transaction.get(taskRef), transaction.get(configRef)
+    ]);
+    if (existing.exists) return;
+    if (!taskSnapshot.exists) throw new ApiError(404, "Task not found.");
+    const task = taskSnapshot.data();
+    if (task.clientId !== claims.uid) throw new ApiError(403, "Only the employer can prepare this service fee.");
+    if (!['Finished', 'Archived'].includes(task.status) || task.paymentStatus !== "Verified" || !task.agreedAmount) {
+      throw new ApiError(409, "A service fee is available after a paid task is finished.");
+    }
+    const config = configSnapshot.data();
+    if (!config?.enabled || !config.gcashAccountName || !config.gcashNumber || !config.activatedAt || String(task.createdAt || "") < String(config.activatedAt)) {
+      throw new ApiError(409, "Service-fee payment is not configured for this task.");
+    }
+    let fee;
+    try {
+      fee = buildFeeSnapshot({ task: { ...task, id: taskId }, config, now });
+    } catch (error) {
+      throw new ApiError(409, error instanceof Error ? error.message : "The task wage is invalid.");
+    }
+    transaction.create(feeRef, fee);
+    transaction.set(db.collection("notifications").doc(`${taskId}_platform-fee-due`), {
+      userId: task.clientId, taskId, createdBy: "system", notificationType: "TASKLINK service fee due",
+      message: `Your TASKLINK service fee of ₱${fee.feeAmount} for ${fee.taskTitle} is now payable.`,
+      route: "task", readStatus: false, createdAt: now
+    });
+    created = true;
+  });
+  return { ok: true, created };
+}
+
+async function submitPlatformFee({ request, db, claims }) {
+  const taskId = requiredBodyString(request, "taskId");
+  const receiptPath = requiredBodyString(request, "receiptPath");
+  const transactionReference = requiredBodyString(request, "transactionReference");
+  if (!/^[-A-Za-z0-9 ]{4,100}$/.test(transactionReference)) throw new ApiError(400, "Enter a valid GCash transaction reference.");
+  const now = nowIso();
+  await db.runTransaction(async (transaction) => {
+    const feeRef = db.collection("platformFees").doc(taskId);
+    const snapshot = await transaction.get(feeRef);
+    if (!snapshot.exists) throw new ApiError(404, "No TASKLINK service fee is due for this task.");
+    const fee = snapshot.data();
+    if (fee.employerId !== claims.uid) throw new ApiError(403, "Only the employer can submit this service-fee payment.");
+    if (!['pending_payment', 'rejected', 'overdue'].includes(fee.status)) throw new ApiError(409, "This service-fee payment cannot be submitted again.");
+    if (!(await hasStoredPlatformFeeReceipt(transaction, db, claims.uid, taskId, receiptPath))) {
+      throw new ApiError(409, "Upload a complete private receipt before submitting.");
+    }
+    transaction.update(feeRef, { status: "submitted_for_review", receiptPath, transactionReference, submittedAt: now, updatedAt: now, rejectionReason: null });
+    transaction.set(db.collection("notifications").doc(), { userId: claims.uid, taskId, createdBy: claims.uid, notificationType: "TASKLINK fee submitted", message: `Your TASKLINK service-fee payment for ${fee.taskTitle} was submitted for administrator review.`, readStatus: false, createdAt: now });
+    writeAudit(transaction, db, { actorId: claims.uid, action: "submit_platform_fee_payment", targetType: "payment", targetId: taskId, metadata: { feeCentavos: fee.feeCentavos } });
+  });
+  return { ok: true, status: "submitted_for_review" };
+}
+
+async function reviewPlatformFee({ request, db, claims }) {
+  const taskId = requiredBodyString(request, "taskId");
+  const decision = requiredBodyString(request, "decision");
+  const reason = optionalBodyString(request, "reason");
+  if (!['verified', 'rejected'].includes(decision)) throw new ApiError(400, "Unsupported service-fee decision.");
+  if (decision === "rejected" && !reason) throw new ApiError(400, "A rejection reason is required.");
+  const now = nowIso();
+  await db.runTransaction(async (transaction) => {
+    const feeRef = db.collection("platformFees").doc(taskId);
+    const snapshot = await transaction.get(feeRef);
+    if (!snapshot.exists) throw new ApiError(404, "Service-fee record not found.");
+    const fee = snapshot.data();
+    if (fee.status !== "submitted_for_review") throw new ApiError(409, "Only a submitted service fee can be reviewed.");
+    const update = decision === "verified"
+      ? { status: "verified", verifiedAt: now, reviewedAt: now, reviewedBy: claims.uid, verifiedCollectedCentavos: fee.feeCentavos, updatedAt: now }
+      : { status: "rejected", reviewedAt: now, reviewedBy: claims.uid, rejectionReason: reason, updatedAt: now };
+    transaction.update(feeRef, update);
+    transaction.set(db.collection("notifications").doc(), { userId: fee.employerId, taskId, createdBy: claims.uid, notificationType: "TASKLINK fee review", message: decision === "verified" ? `Your TASKLINK service fee for ${fee.taskTitle} was verified.` : `Your TASKLINK service fee was rejected: ${reason}`, readStatus: false, createdAt: now });
+    writeAudit(transaction, db, { actorId: claims.uid, action: decision === "verified" ? "verify_platform_fee_payment" : "reject_platform_fee_payment", targetType: "payment", targetId: taskId, reason, metadata: { feeCentavos: fee.feeCentavos } });
+  });
+  return { ok: true, status: decision };
+}
+
+async function platformRevenueOverview({ db }) {
+  const fees = await db.collection("platformFees").get();
+  const summary = { revenueGeneratingCompletedTasks: fees.size, totalCollectedCentavos: 0, pendingPaymentCentavos: 0, submittedForReviewCentavos: 0, overdueCentavos: 0, rejectedCentavos: 0, byCategory: {}, monthlyCollected: {} };
+  for (const document of fees.docs) {
+    const fee = document.data(); const amount = Number.isSafeInteger(fee.feeCentavos) && fee.feeCentavos >= 0 ? fee.feeCentavos : 0;
+    if (fee.status === "verified") { summary.totalCollectedCentavos += amount; const month = typeof fee.verifiedAt === "string" && /^\d{4}-\d{2}/.test(fee.verifiedAt) ? fee.verifiedAt.slice(0, 7) : "Unknown"; summary.monthlyCollected[month] = (summary.monthlyCollected[month] || 0) + amount; }
+    else if (fee.status === "pending_payment") summary.pendingPaymentCentavos += amount;
+    else if (fee.status === "submitted_for_review") summary.submittedForReviewCentavos += amount;
+    else if (fee.status === "overdue") summary.overdueCentavos += amount;
+    else if (fee.status === "rejected") summary.rejectedCentavos += amount;
+    const category = typeof fee.taskCategory === "string" && fee.taskCategory.trim() ? fee.taskCategory.trim() : "Uncategorized";
+    summary.byCategory[category] = (summary.byCategory[category] || 0) + amount;
+  }
+  return { ...summary, byCategory: Object.entries(summary.byCategory).map(([category, feeCentavos]) => ({ category, feeCentavos })), monthlyCollected: Object.entries(summary.monthlyCollected).map(([month, feeCentavos]) => ({ month, feeCentavos })).sort((left, right) => right.month.localeCompare(left.month)), generatedAt: nowIso() };
+}
+
 async function reviewVerification({ request, db, claims }) {
   const userId = requiredBodyString(request, "userId");
   const decision = requiredBodyString(request, "decision");
@@ -163,7 +319,7 @@ async function reviewVerification({ request, db, claims }) {
       hasStoredVerificationDocument(transaction, db, userId, verification.policeClearancePath, "police-clearance")
     ])).every(Boolean);
     if (decision === "Verified" && !hasAllRequiredDocuments) {
-      throw new ApiError(409, "A valid ID, medical certificate, and police clearance are required before approval.");
+      throw new ApiError(409, "A valid ID, selfie with ID, medical certificate, and police clearance are required before approval.");
     }
 
     const identityReview = buildIdentityReview(decision, reviewedAt, claims.uid);
@@ -288,6 +444,29 @@ function createServer() {
   });
   app.use(express.json({ limit: "64kb" }));
   app.get("/health", (_request, response) => response.json({ ok: true }));
+  app.get("/api/revenue/config", route("user", async ({ db }) => {
+    const snapshot = await db.collection("platformRevenue").doc("config").get();
+    return { config: snapshot.exists ? snapshot.data() : null };
+  }));
+  app.post("/api/revenue/config", route("superadmin", async ({ request, db, claims }) => {
+    const gcashAccountName = requiredBodyString(request, "gcashAccountName");
+    const gcashNumber = requiredBodyString(request, "gcashNumber");
+    const value = request.body?.rateBasisPoints === undefined ? DEFAULT_RATE_BASIS_POINTS : Number(request.body.rateBasisPoints);
+    if (!Number.isInteger(value) || value < 0 || value > 10_000) throw new ApiError(400, "Service fee rate must be between 0% and 100%.");
+    const instructions = optionalBodyString(request, "instructions").slice(0, 1000);
+    const now = nowIso();
+    await db.runTransaction(async (transaction) => {
+      const ref = db.collection("platformRevenue").doc("config");
+      const existing = await transaction.get(ref);
+      transaction.set(ref, { enabled: true, gcashAccountName, gcashNumber, rateBasisPoints: value, instructions, activatedAt: existing.data()?.activatedAt || now, updatedAt: now, updatedBy: claims.uid }, { merge: true });
+      writeAudit(transaction, db, { actorId: claims.uid, action: "update_platform_revenue_config", targetType: "payment", targetId: "platformRevenue/config", metadata: { rateBasisPoints: value } });
+    });
+    return { ok: true, rateBasisPoints: value };
+  }));
+  app.post("/api/revenue/fees/ensure", route("user", ensurePlatformFee));
+  app.post("/api/revenue/fees/submit", route("user", submitPlatformFee));
+  app.post("/api/revenue/fees/review", route("admin", reviewPlatformFee));
+  app.get("/api/revenue/overview", route("superadmin", platformRevenueOverview));
   app.post("/api/admin/profiles/lookup", route("admin", profileLookup));
   app.get("/api/admin/verifications/pending", route("admin", async ({ db }) => {
     const snapshot = await db.collection("verificationRequests").where("status", "==", "Pending Verification").limit(100).get();

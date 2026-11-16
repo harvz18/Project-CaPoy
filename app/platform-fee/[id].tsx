@@ -5,13 +5,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
 import { useApp } from "../../src/context/AppContext";
 import { pickAndUploadPlatformFeeProof } from "../../src/services/fileUploadService";
-import { submitPlatformFeePayment, subscribeToPlatformFee } from "../../src/services/platformRevenueService";
+import { ensurePlatformFee, submitPlatformFeePayment, subscribeToPlatformFee } from "../../src/services/platformRevenueService";
 import { PlatformFee } from "../../src/types";
 
 export default function PlatformFeeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(); const router = useRouter(); const { currentUser } = useApp();
   const [fee, setFee] = useState<PlatformFee>(); const [reference, setReference] = useState(""); const [receiptPath, setReceiptPath] = useState(""); const [message, setMessage] = useState(""); const [busy, setBusy] = useState(false);
-  useEffect(() => subscribeToPlatformFee(id, setFee, (error) => setMessage(error.message)), [id]);
+  useEffect(() => {
+    if (!id) return () => undefined;
+    void ensurePlatformFee(id).catch((error) => setMessage(error instanceof Error ? error.message : "Unable to prepare the service fee."));
+    return subscribeToPlatformFee(id, setFee, (error) => setMessage(error.message));
+  }, [id]);
   async function upload() { if (!id) return; setBusy(true); setMessage(""); try { const uploaded = await pickAndUploadPlatformFeeProof(id); if (uploaded) { setReceiptPath(uploaded.path); setMessage("Receipt uploaded privately. Enter the GCash reference and submit it for review."); } } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to upload receipt."); } finally { setBusy(false); } }
   async function submit() { if (!receiptPath) { setMessage("Upload the GCash receipt first."); return; } setBusy(true); try { await submitPlatformFeePayment(id, receiptPath, reference); setMessage("Service-fee payment submitted for administrator review."); } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to submit service-fee payment."); } finally { setBusy(false); } }
   if (currentUser?.role !== "client") return <SafeAreaView style={styles.safe}><Text style={styles.message}>Only the employer can view this payment.</Text></SafeAreaView>;
