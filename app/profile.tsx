@@ -430,7 +430,7 @@ export default function ProfileScreen() {
             <View style={styles.flex}><Field label="House / Building" value={addressDetails.houseNumber ?? ""} onChangeText={(value) => updateAddressDetail("houseNumber", value)} placeholder="Optional" /></View>
             <View style={styles.flex}><Field label="Street" value={addressDetails.street ?? ""} onChangeText={(value) => updateAddressDetail("street", value)} placeholder="Optional" /></View>
           </View>
-          <PhilippineAddressPicker value={addressDetails} onChange={setAddressDetails} disabled={fullNameLocked} />
+          <PhilippineAddressPicker value={addressDetails} onChange={setAddressDetails} />
           <View style={styles.flex}><Field label="Postal Code" value={addressDetails.postalCode ?? ""} onChangeText={(value) => updateAddressDetail("postalCode", value.replace(/\D/g, ""))} placeholder="Optional" /></View>
           <Pressable accessibilityRole="button" onPress={() => setAddressMapOpen(true)} style={styles.selectMapButton}>
             <Feather accessibilityElementsHidden color={palette.primary} name="map-pin" size={18} />
