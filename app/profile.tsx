@@ -16,6 +16,7 @@ import { AddressSearchResult, reverseGeocodeSelectedPin, searchAddressOnMap } fr
 import { submitVerificationRequest } from "../src/services/verificationService";
 import { parseCoordinate } from "../src/utils/location";
 import { AddressDetails, formatAddressDetails } from "../src/utils/address";
+import { PhilippineAddressPicker } from "../src/components/PhilippineAddressPicker";
 import type { MapCoordinate } from "../src/components/LocationMap.types";
 
 const palette = {
@@ -68,10 +69,14 @@ export default function ProfileScreen() {
   const [fullName, setFullName] = useState(currentUser?.fullName ?? "");
   const [mobileNumber, setMobileNumber] = useState(currentUser?.mobileNumber ?? "");
   const [addressDetails, setAddressDetails] = useState<AddressDetails>(() => ({
-    // Registration currently collects one Barangay value. Keep that value in the
-    // single Barangay field instead of showing a duplicate generic address box.
-    barangay: currentUser?.address ?? "",
-    city: "Bacolod City"
+    region: currentUser?.region,
+    regionCode: currentUser?.regionCode,
+    province: currentUser?.province,
+    provinceCode: currentUser?.provinceCode,
+    cityMunicipality: currentUser?.cityMunicipality,
+    cityMunicipalityCode: currentUser?.cityMunicipalityCode,
+    barangay: currentUser?.barangay,
+    barangayCode: currentUser?.barangayCode
   }));
   const [addressMapOpen, setAddressMapOpen] = useState(false);
   const [addressMapCoordinate, setAddressMapCoordinate] = useState<MapCoordinate>();
@@ -107,9 +112,10 @@ export default function ProfileScreen() {
   const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
   const [skillDraft, setSkillDraft] = useState<string[]>([]);
   const [validIdTypePickerOpen, setValidIdTypePickerOpen] = useState(false);
-  const [uploadSourceTarget, setUploadSourceTarget] = useState<"profile-photo" | "valid-id" | "medical-certificate" | "police-clearance">();
+  const [uploadSourceTarget, setUploadSourceTarget] = useState<"profile-photo" | "valid-id" | "selfie-with-id" | "medical-certificate" | "police-clearance">();
   const [editProfileExpanded, setEditProfileExpanded] = useState(false);
-  const hasVerificationDocuments = Boolean(validIdUrl && medicalCertificateUrl && policeClearanceUrl);
+  const [selfieWithIdUrl, setSelfieWithIdUrl] = useState(currentUser?.selfieWithIdUrl ?? "");
+  const hasVerificationDocuments = Boolean(validIdUrl && selfieWithIdUrl && medicalCertificateUrl && policeClearanceUrl);
   const displayedVerificationStatus = currentUser?.verificationStatus === "Pending Verification" && !hasVerificationDocuments
     ? "Not Submitted"
     : currentUser?.verificationStatus ?? "Not Submitted";
@@ -142,6 +148,8 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (registrationBarangayLoaded.current || !currentUser?.address) return;
     registrationBarangayLoaded.current = true;
+    // Old accounts keep their original free-form address until they choose a
+    // structured replacement. Never guess its PSGC hierarchy.
     setAddressDetails((current) => current.barangay ? current : { ...current, barangay: currentUser.address });
   }, [currentUser?.address]);
 
@@ -160,6 +168,14 @@ export default function ProfileScreen() {
       await updateProfile({
         fullName: fullNameLocked ? undefined : fullName,
         address: detailedAddress || currentUser?.address || "",
+        region: addressDetails.region,
+        regionCode: addressDetails.regionCode,
+        province: addressDetails.province,
+        provinceCode: addressDetails.provinceCode,
+        cityMunicipality: addressDetails.cityMunicipality,
+        cityMunicipalityCode: addressDetails.cityMunicipalityCode,
+        barangay: addressDetails.barangay,
+        barangayCode: addressDetails.barangayCode,
         skills: currentUser?.role === "worker" ? skills : undefined,
         capabilities: currentUser?.role === "worker" ? skills : undefined,
         profilePhotoUrl,
@@ -179,6 +195,7 @@ export default function ProfileScreen() {
           role: currentUser.role === "client" ? "client" : "worker",
           validIdType,
           validIdPath: validIdUrl,
+          selfieWithIdPath: selfieWithIdUrl,
           medicalCertificatePath: medicalCertificateUrl,
           policeClearancePath: policeClearanceUrl
         });
@@ -208,7 +225,7 @@ export default function ProfileScreen() {
     }
   }
 
-  async function uploadVerificationDocument(kind: "valid-id" | "medical-certificate" | "police-clearance", source: UploadSource = "library") {
+  async function uploadVerificationDocument(kind: "valid-id" | "selfie-with-id" | "medical-certificate" | "police-clearance", source: UploadSource = "library") {
     if (!currentUser) return;
     setUploadingField(kind);
     setUploadMessage("");
@@ -216,6 +233,7 @@ export default function ProfileScreen() {
       const uploaded = await pickAndUploadPrivateDocument(currentUser.id, kind, source);
       if (uploaded) {
         if (kind === "valid-id") setValidIdUrl(uploaded.path);
+        else if (kind === "selfie-with-id") setSelfieWithIdUrl(uploaded.path);
         else if (kind === "medical-certificate") setMedicalCertificateUrl(uploaded.path);
         else setPoliceClearanceUrl(uploaded.path);
         setDocumentsChanged(true);
@@ -412,19 +430,13 @@ export default function ProfileScreen() {
             <View style={styles.flex}><Field label="House / Building" value={addressDetails.houseNumber ?? ""} onChangeText={(value) => updateAddressDetail("houseNumber", value)} placeholder="Optional" /></View>
             <View style={styles.flex}><Field label="Street" value={addressDetails.street ?? ""} onChangeText={(value) => updateAddressDetail("street", value)} placeholder="Optional" /></View>
           </View>
-          <View style={styles.twoColumn}>
-            <View style={styles.flex}><Field label="Barangay" value={addressDetails.barangay ?? ""} onChangeText={(value) => updateAddressDetail("barangay", value)} placeholder="Barangay" /></View>
-            <View style={styles.flex}><Field editable={false} label="City / Municipality" value="Bacolod City" onChangeText={() => undefined} placeholder="Bacolod City" /></View>
-          </View>
-          <View style={styles.twoColumn}>
-            <View style={styles.flex}><Field label="Province" value={addressDetails.province ?? ""} onChangeText={(value) => updateAddressDetail("province", value)} placeholder="Province" /></View>
-            <View style={styles.flex}><Field label="Postal Code" value={addressDetails.postalCode ?? ""} onChangeText={(value) => updateAddressDetail("postalCode", value.replace(/\D/g, ""))} placeholder="Optional" /></View>
-          </View>
+          <PhilippineAddressPicker value={addressDetails} onChange={setAddressDetails} disabled={fullNameLocked} />
+          <View style={styles.flex}><Field label="Postal Code" value={addressDetails.postalCode ?? ""} onChangeText={(value) => updateAddressDetail("postalCode", value.replace(/\D/g, ""))} placeholder="Optional" /></View>
           <Pressable accessibilityRole="button" onPress={() => setAddressMapOpen(true)} style={styles.selectMapButton}>
             <Feather accessibilityElementsHidden color={palette.primary} name="map-pin" size={18} />
             <Text style={styles.selectMapButtonText}>Select on map</Text>
           </Pressable>
-          <Text style={styles.helperText}>Choose a map pin or search an address to fill these fields. House/building and postal code are optional.</Text>
+          <Text style={styles.helperText}>Choose Region, Province, City/Municipality, then Barangay. Map search can suggest details but never changes your task service-area restriction. House/building and postal code are optional.</Text>
           {addressLookupMessage ? <Text style={styles.locationMessage}>{addressLookupMessage}</Text> : null}
           <Field label={currentUser?.role === "client" ? "Business Bio" : "Worker Bio"} value={bio} onChangeText={setBio} placeholder="Tell people about yourself" multiline />
         </CollapsibleSettingsCard>
@@ -506,6 +518,14 @@ export default function ProfileScreen() {
                 onSelect={() => setUploadSourceTarget("valid-id")}
               />
               <UploadField
+                disabled={fullNameLocked || uploadingField === "selfie-with-id"}
+                label="Selfie Holding the Same ID"
+                uploading={uploadingField === "selfie-with-id"}
+                value={selfieWithIdUrl}
+                placeholder="Tap to upload a clear selfie with your ID"
+                onSelect={() => setUploadSourceTarget("selfie-with-id")}
+              />
+              <UploadField
                 disabled={fullNameLocked || uploadingField === "medical-certificate"}
                 label="Medical Certificate"
                 uploading={uploadingField === "medical-certificate"}
@@ -523,7 +543,7 @@ export default function ProfileScreen() {
               />
               <Text style={styles.helperText}>{fullNameLocked
                 ? "Your approved identity details are locked. Contact support if a correction is needed."
-                : "Upload a valid ID, medical certificate, and police clearance (images or PDFs up to 5 MB). Files are private; save changes after all three are ready to submit them for review."}</Text>
+                : "Upload a valid ID, a clear selfie holding that same ID, a medical certificate, and police clearance (images or PDFs up to 5 MB; selfie must be an image). Files are private; save changes after all four are ready to submit them for review."}</Text>
               {uploadMessage ? <Text style={styles.locationMessage}>{uploadMessage}</Text> : null}
             </SettingsCard>
 

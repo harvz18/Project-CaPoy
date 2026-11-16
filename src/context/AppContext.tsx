@@ -80,12 +80,15 @@ import {
 import { CapturedLocation, captureForegroundLocation } from "../services/locationService";
 import { getGeofenceCheck, hasValidCoordinates } from "../utils/location";
 import { toUserFacingError } from "../utils/userFacingError";
+import { AddressDetails } from "../utils/address";
+import { isMarketplaceVerified, verificationRequiredMessage } from "../domain/verificationPolicy";
 
 type RegisterInput = {
   fullName: string;
   mobileNumber: string;
   role: PublicRole;
   address: string;
+  addressDetails?: AddressDetails;
   password?: string;
   skills?: string[];
   capabilities?: string[];
@@ -402,6 +405,14 @@ export function AppProvider({ children }: PropsWithChildren) {
           fullName: input.fullName.trim(),
           mobileNumber: input.mobileNumber.trim(),
           address: input.address.trim(),
+          region: input.addressDetails?.region,
+          regionCode: input.addressDetails?.regionCode,
+          province: input.addressDetails?.province,
+          provinceCode: input.addressDetails?.provinceCode,
+          cityMunicipality: input.addressDetails?.cityMunicipality,
+          cityMunicipalityCode: input.addressDetails?.cityMunicipalityCode,
+          barangay: input.addressDetails?.barangay,
+          barangayCode: input.addressDetails?.barangayCode,
           skills: input.skills,
           capabilities: input.capabilities ?? input.skills,
           businessName: input.businessName
@@ -463,6 +474,14 @@ export function AppProvider({ children }: PropsWithChildren) {
       const safeUpdates: Partial<UserProfile> = {
         fullName: updates.fullName,
         address: updates.address,
+        region: updates.region,
+        regionCode: updates.regionCode,
+        province: updates.province,
+        provinceCode: updates.provinceCode,
+        cityMunicipality: updates.cityMunicipality,
+        cityMunicipalityCode: updates.cityMunicipalityCode,
+        barangay: updates.barangay,
+        barangayCode: updates.barangayCode,
         skills: updates.skills,
         capabilities: updates.capabilities,
         availabilityStatus: updates.availabilityStatus,
@@ -501,6 +520,9 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       if (currentUser.role !== "client") {
         throw new Error("Only clients can post tasks.");
+      }
+      if (!isMarketplaceVerified(currentUser)) {
+        throw new Error(verificationRequiredMessage(currentUser, "post tasks"));
       }
 
       validateTask(input);
@@ -568,6 +590,9 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       if (currentUser.role !== "worker") {
         throw new Error("Only workers can apply to tasks.");
+      }
+      if (!isMarketplaceVerified(currentUser)) {
+        throw new Error(verificationRequiredMessage(currentUser, "apply to tasks"));
       }
 
       const task = tasks.find((item) => item.id === taskId);

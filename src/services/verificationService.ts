@@ -11,12 +11,13 @@ export async function submitVerificationRequest(input: {
   role?: "worker" | "client";
   validIdType: string;
   validIdPath: string;
+  selfieWithIdPath: string;
   medicalCertificatePath: string;
   policeClearancePath: string;
 }) {
   if (!input.validIdType.trim()) throw new Error("Choose or enter the valid ID type.");
-  if (!input.validIdPath || !input.medicalCertificatePath || !input.policeClearancePath) {
-    throw new Error("Upload a valid ID, medical certificate, and police clearance before submitting.");
+  if (!input.validIdPath || !input.selfieWithIdPath || !input.medicalCertificatePath || !input.policeClearancePath) {
+    throw new Error("Upload a valid ID, a selfie holding that ID, a medical certificate, and police clearance before submitting.");
   }
 
   const firestore = requireDb();
@@ -25,6 +26,7 @@ export async function submitVerificationRequest(input: {
   const verificationUpdates = {
     validIdType: input.validIdType.trim(),
     validIdUrl: input.validIdPath,
+    selfieWithIdUrl: input.selfieWithIdPath,
     medicalCertificateUrl: input.medicalCertificatePath,
     policeClearanceUrl: input.policeClearancePath,
     verificationStatus: "Pending Verification" as const,
@@ -43,6 +45,7 @@ export async function submitVerificationRequest(input: {
     userId: input.userId,
     validIdType: input.validIdType.trim(),
     validIdPath: input.validIdPath,
+    selfieWithIdPath: input.selfieWithIdPath,
     medicalCertificatePath: input.medicalCertificatePath,
     policeClearancePath: input.policeClearancePath,
     status: "Pending Verification",

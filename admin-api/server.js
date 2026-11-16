@@ -158,6 +158,7 @@ async function reviewVerification({ request, db, claims }) {
     const verification = verificationSnapshot.data();
     const hasAllRequiredDocuments = (await Promise.all([
       hasStoredVerificationDocument(transaction, db, userId, verification.validIdPath, "valid-id"),
+      hasStoredVerificationDocument(transaction, db, userId, verification.selfieWithIdPath, "selfie-with-id"),
       hasStoredVerificationDocument(transaction, db, userId, verification.medicalCertificatePath, "medical-certificate"),
       hasStoredVerificationDocument(transaction, db, userId, verification.policeClearancePath, "police-clearance")
     ])).every(Boolean);

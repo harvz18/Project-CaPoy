@@ -143,18 +143,18 @@ async function seedBaseData() {
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
     await Promise.all([
-      setDoc(doc(db, "users", CLIENT_ID), user(CLIENT_ID, "client")),
-      setDoc(doc(db, "users", WORKER_ID), user(WORKER_ID, "worker")),
-      setDoc(doc(db, "users", OUTSIDER_ID), user(OUTSIDER_ID, "worker")),
+      setDoc(doc(db, "users", CLIENT_ID), { ...user(CLIENT_ID, "client"), verificationStatus: "Verified" }),
+      setDoc(doc(db, "users", WORKER_ID), { ...user(WORKER_ID, "worker"), verificationStatus: "Verified" }),
+      setDoc(doc(db, "users", OUTSIDER_ID), { ...user(OUTSIDER_ID, "worker"), verificationStatus: "Verified" }),
       setDoc(doc(db, "users", SUSPENDED_ID), {
         ...user(SUSPENDED_ID, "worker"),
         accountStatus: "suspended"
       }),
       setDoc(doc(db, "users", ADMIN_ID), user(ADMIN_ID, "admin")),
       setDoc(doc(db, "users", SUPERADMIN_ID), user(SUPERADMIN_ID, "admin")),
-      setDoc(doc(db, "publicProfiles", CLIENT_ID), publicProfile(CLIENT_ID, "client")),
-      setDoc(doc(db, "publicProfiles", WORKER_ID), publicProfile(WORKER_ID, "worker")),
-      setDoc(doc(db, "publicProfiles", OUTSIDER_ID), publicProfile(OUTSIDER_ID, "worker")),
+      setDoc(doc(db, "publicProfiles", CLIENT_ID), { ...publicProfile(CLIENT_ID, "client"), verificationStatus: "Verified" }),
+      setDoc(doc(db, "publicProfiles", WORKER_ID), { ...publicProfile(WORKER_ID, "worker"), verificationStatus: "Verified" }),
+      setDoc(doc(db, "publicProfiles", OUTSIDER_ID), { ...publicProfile(OUTSIDER_ID, "worker"), verificationStatus: "Verified" }),
       setDoc(doc(db, "workerProfiles", WORKER_ID), {
         userId: WORKER_ID,
         availabilityStatus: "Available",
@@ -226,6 +226,16 @@ async function seedWorkflowTask(overrides = {}) {
         createdAt: now,
         updatedAt: now
       })
+    ]);
+  });
+}
+
+async function makeUnverifiedForReview(userId) {
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      updateDoc(doc(db, "users", userId), { verificationStatus: "Pending Verification" }),
+      updateDoc(doc(db, "publicProfiles", userId), { verificationStatus: "Pending Verification" })
     ]);
   });
 }
@@ -359,7 +369,7 @@ test("users cannot forge ratings, verification, or private fields in public prof
 
   await assertFails(updateDoc(doc(workerDb, "users", WORKER_ID), { rating: 5 }));
   await assertFails(
-    updateDoc(doc(workerDb, "users", WORKER_ID), { verificationStatus: "Verified" })
+    updateDoc(doc(workerDb, "users", WORKER_ID), { verificationStatus: "Rejected" })
   );
   await assertFails(
     updateDoc(doc(workerDb, "publicProfiles", WORKER_ID), { address: "Private address" })
@@ -373,6 +383,7 @@ test("unapproved names update atomically while approved and legacy verified name
   const clientDb = dbFor(CLIENT_ID);
   const workerDb = dbFor(WORKER_ID);
   const renamedAt = "2026-01-01T00:05:00.000Z";
+  await Promise.all([makeUnverifiedForReview(CLIENT_ID), makeUnverifiedForReview(WORKER_ID)]);
 
   const allowedRename = writeBatch(clientDb);
   allowedRename.update(doc(clientDb, "users", CLIENT_ID), {
@@ -438,10 +449,12 @@ test("unapproved names update atomically while approved and legacy verified name
 test("workers can submit private verification metadata atomically but cannot approve themselves", async () => {
   const workerDb = dbFor(WORKER_ID);
   const now = "2026-01-01T00:10:00.000Z";
+  await makeUnverifiedForReview(WORKER_ID);
   const verification = {
     userId: WORKER_ID,
     validIdType: "PhilSys ID",
     validIdPath: `verification/${WORKER_ID}/valid-id.pdf`,
+    selfieWithIdPath: `verification/${WORKER_ID}/selfie.jpg`,
     medicalCertificatePath: `verification/${WORKER_ID}/medical.pdf`,
     policeClearancePath: `verification/${WORKER_ID}/police.pdf`,
     status: "Pending Verification",
@@ -451,6 +464,7 @@ test("workers can submit private verification metadata atomically but cannot app
   const profileUpdate = {
     validIdType: verification.validIdType,
     validIdUrl: verification.validIdPath,
+    selfieWithIdUrl: verification.selfieWithIdPath,
     medicalCertificateUrl: verification.medicalCertificatePath,
     policeClearanceUrl: verification.policeClearancePath,
     verificationStatus: verification.status,
@@ -480,6 +494,7 @@ test("verification files stay private and can back a pending review without Fire
   const outsiderDb = dbFor(OUTSIDER_ID);
   const adminDb = dbFor(ADMIN_ID, { admin: true });
   const now = "2026-01-01T00:11:00.000Z";
+  await makeUnverifiedForReview(WORKER_ID);
   const kind = "valid-id";
   const fileRef = doc(workerDb, "verificationFiles", WORKER_ID, "uploads", kind);
   const file = {
@@ -515,6 +530,7 @@ test("verification files stay private and can back a pending review without Fire
     userId: WORKER_ID,
     validIdType: "PhilSys ID",
     validIdPath: `firestoreVerification/${WORKER_ID}/valid-id`,
+    selfieWithIdPath: `verification/${WORKER_ID}/selfie.jpg`,
     medicalCertificatePath: `verification/${WORKER_ID}/medical.pdf`,
     policeClearancePath: `verification/${WORKER_ID}/police.pdf`,
     status: "Pending Verification",
@@ -526,6 +542,7 @@ test("verification files stay private and can back a pending review without Fire
   batch.update(doc(workerDb, "users", WORKER_ID), {
     validIdType: verification.validIdType,
     validIdUrl: verification.validIdPath,
+    selfieWithIdUrl: verification.selfieWithIdPath,
     medicalCertificateUrl: verification.medicalCertificatePath,
     policeClearanceUrl: verification.policeClearancePath,
     verificationStatus: verification.status,
@@ -535,6 +552,7 @@ test("verification files stay private and can back a pending review without Fire
   batch.update(doc(workerDb, "workerProfiles", WORKER_ID), {
     validIdType: verification.validIdType,
     validIdUrl: verification.validIdPath,
+    selfieWithIdUrl: verification.selfieWithIdPath,
     medicalCertificateUrl: verification.medicalCertificatePath,
     policeClearanceUrl: verification.policeClearancePath,
     verificationStatus: verification.status,
@@ -550,10 +568,12 @@ test("verification files stay private and can back a pending review without Fire
 test("employers can submit all private verification documents atomically", async () => {
   const clientDb = dbFor(CLIENT_ID);
   const now = "2026-01-01T00:12:00.000Z";
+  await makeUnverifiedForReview(CLIENT_ID);
   const verification = {
     userId: CLIENT_ID,
     validIdType: "Driver's License",
     validIdPath: `verification/${CLIENT_ID}/valid-id.pdf`,
+    selfieWithIdPath: `verification/${CLIENT_ID}/selfie.jpg`,
     medicalCertificatePath: `verification/${CLIENT_ID}/medical.pdf`,
     policeClearancePath: `verification/${CLIENT_ID}/police.pdf`,
     status: "Pending Verification",
@@ -565,6 +585,7 @@ test("employers can submit all private verification documents atomically", async
   batch.update(doc(clientDb, "users", CLIENT_ID), {
     validIdType: verification.validIdType,
     validIdUrl: verification.validIdPath,
+    selfieWithIdUrl: verification.selfieWithIdPath,
     medicalCertificateUrl: verification.medicalCertificatePath,
     policeClearanceUrl: verification.policeClearancePath,
     verificationStatus: verification.status,
@@ -578,13 +599,15 @@ test("employers can submit all private verification documents atomically", async
   await assertSucceeds(batch.commit());
 });
 
-test("legacy two-document submissions remain reviewable for resubmission", async () => {
+test("complete verification submissions remain reviewable for resubmission", async () => {
   const workerDb = dbFor(OUTSIDER_ID);
   const now = "2026-01-01T00:13:00.000Z";
+  await makeUnverifiedForReview(OUTSIDER_ID);
   const verification = {
     userId: OUTSIDER_ID,
     validIdType: "PhilSys ID",
     validIdPath: `verification/${OUTSIDER_ID}/valid-id.pdf`,
+    selfieWithIdPath: `verification/${OUTSIDER_ID}/selfie.jpg`,
     medicalCertificatePath: `verification/${OUTSIDER_ID}/medical.pdf`,
     status: "Pending Verification",
     submittedAt: now,
@@ -595,6 +618,7 @@ test("legacy two-document submissions remain reviewable for resubmission", async
   batch.update(doc(workerDb, "users", OUTSIDER_ID), {
     validIdType: verification.validIdType,
     validIdUrl: verification.validIdPath,
+    selfieWithIdUrl: verification.selfieWithIdPath,
     medicalCertificateUrl: verification.medicalCertificatePath,
     verificationStatus: verification.status,
     identityStatus: "Pending Approval",
@@ -603,6 +627,7 @@ test("legacy two-document submissions remain reviewable for resubmission", async
   batch.update(doc(workerDb, "workerProfiles", OUTSIDER_ID), {
     validIdType: verification.validIdType,
     validIdUrl: verification.validIdPath,
+    selfieWithIdUrl: verification.selfieWithIdPath,
     medicalCertificateUrl: verification.medicalCertificatePath,
     verificationStatus: verification.status,
     updatedAt: now
@@ -767,6 +792,7 @@ test("an idle tasker can switch to employer mode atomically", async () => {
   const db = dbFor(WORKER_ID);
   const batch = writeBatch(db);
   const updatedAt = "2026-01-02T00:00:00.000Z";
+  await makeUnverifiedForReview(WORKER_ID);
 
   batch.update(doc(db, "users", WORKER_ID), { role: "client", updatedAt });
   batch.set(doc(db, "publicProfiles", WORKER_ID), {
@@ -787,6 +813,7 @@ test("an idle employer can switch to tasker mode atomically", async () => {
   const db = dbFor(CLIENT_ID);
   const batch = writeBatch(db);
   const updatedAt = "2026-01-02T00:00:00.000Z";
+  await makeUnverifiedForReview(CLIENT_ID);
 
   batch.update(doc(db, "users", CLIENT_ID), {
     role: "worker",
@@ -1065,7 +1092,7 @@ test("a tasker can apply to different tasks posted by the same employer", async 
   assert.deepEqual(secondTask.data().applicantIds, [WORKER_ID]);
 });
 
-test("a pending-verification worker can apply to a legacy open task with null workflow fields", async () => {
+test("a pending-verification worker cannot apply to a legacy open task", async () => {
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
     const legacyTask = taskData({ applicantIds: null, workerId: null });
     const db = context.firestore();
@@ -1074,6 +1101,7 @@ test("a pending-verification worker can apply to a legacy open task with null wo
       setDoc(doc(db, "users", WORKER_ID), {
         ...user(WORKER_ID, "worker"),
         accountStatus: "Pending",
+        verificationStatus: "Pending Verification",
         activeTaskId: null
       })
     ]);
@@ -1082,7 +1110,7 @@ test("a pending-verification worker can apply to a legacy open task with null wo
   const workerDb = dbFor(WORKER_ID);
   const matchId = `${TASK_ID}_${WORKER_ID}`;
   const now = "2026-01-01T00:01:00.000Z";
-  await assertSucceeds(runTransaction(workerDb, async (transaction) => {
+  await assertFails(runTransaction(workerDb, async (transaction) => {
     const taskRef = doc(workerDb, "tasks", TASK_ID);
     const workerRef = doc(workerDb, "users", WORKER_ID);
     const [taskSnapshot, workerSnapshot] = await Promise.all([

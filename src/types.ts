@@ -81,6 +81,15 @@ export type UserProfile = {
   fullName: string;
   mobileNumber: string;
   address: string;
+  /** Optional structured PSGC address fields. Legacy `address` remains the display fallback. */
+  region?: string;
+  regionCode?: string;
+  province?: string;
+  provinceCode?: string;
+  cityMunicipality?: string;
+  cityMunicipalityCode?: string;
+  barangay?: string;
+  barangayCode?: string;
   rating: number;
   accountStatus?: AccountStatus;
   restrictionReason?: string | null;
@@ -102,6 +111,7 @@ export type UserProfile = {
   yearsOfExperience?: string;
   validIdType?: string;
   validIdUrl?: string;
+  selfieWithIdUrl?: string;
   medicalCertificateUrl?: string;
   policeClearanceUrl?: string;
   verificationStatus?: VerificationStatus;
@@ -309,11 +319,22 @@ export type Payment = {
   updatedAt?: string;
 };
 
+export type PlatformFeeStatus = "not_due" | "pending_payment" | "submitted_for_review" | "verified" | "rejected" | "overdue" | "waived";
+export type PlatformFee = {
+  id: string; taskId: string; employerId: string; workerId?: string; taskTitle: string; taskCategory: string;
+  currency: "PHP"; workerWageCentavos: number; workerWage: string; rateBasisPoints: number; feeCentavos: number; feeAmount: string;
+  totalEmployerObligationCentavos: number; totalEmployerObligation: string; status: PlatformFeeStatus;
+  destination: { gcashAccountName: string; gcashNumber: string; instructions: string };
+  receiptPath?: string; transactionReference?: string; submittedAt?: string; reviewedAt?: string; reviewedBy?: string;
+  verifiedAt?: string; verifiedCollectedCentavos?: number; rejectionReason?: string | null; createdAt: string; updatedAt: string; dueAt?: string | null;
+};
+
 export type VerificationRequest = {
   id: string;
   userId: string;
   validIdType: string;
   validIdPath: string;
+  selfieWithIdPath: string;
   medicalCertificatePath: string;
   policeClearancePath: string;
   status: VerificationStatus;

@@ -13,6 +13,17 @@ test("address details produce a concise human-readable address without requiring
   }), "Rizal Street, Villamonte, Bacolod City");
 });
 
+test("structured addresses retain PSGC hierarchy values while rendering legacy-compatible text", () => {
+  const address = {
+    region: "Region VI (Western Visayas)", regionCode: "0600000000",
+    province: "Negros Occidental", provinceCode: "0645000000",
+    cityMunicipality: "City of Bacolod", cityMunicipalityCode: "0645010000",
+    barangay: "Barangay 12", barangayCode: "0645010012", street: "Rizal Street"
+  };
+  assert.equal(formatAddressDetails(address), "Rizal Street, Barangay 12, City of Bacolod, Negros Occidental, Region VI (Western Visayas)");
+  assert.equal(address.cityMunicipalityCode, "0645010000");
+});
+
 test("an explicit barangay from Nominatim takes priority over a nearby locality", () => {
   const result = parseNominatimReverseResponse({
     display_name: "Father Mauricio Ferrero Street, Barangay 12, Malipaypon, Bacolod, Negros Occidental, 6100, Philippines",

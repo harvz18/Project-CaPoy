@@ -10,6 +10,8 @@ import {
   SuperadminOverview
 } from "../src/services/adminService";
 import { colors } from "../src/theme";
+import { loadPlatformRevenueConfig, loadPlatformRevenueOverview, PlatformRevenueConfig, PlatformRevenueOverview, savePlatformRevenueConfig } from "../src/services/platformRevenueService";
+import { formatCentavos } from "../src/domain/platformRevenue";
 
 const emptyOverview: SuperadminOverview = { users: [], reports: [], auditLogs: [] };
 
@@ -20,11 +22,20 @@ export default function SuperadminScreen() {
   const [reason, setReason] = useState("");
   const [busyKey, setBusyKey] = useState("");
   const [error, setError] = useState("");
+  const [revenueConfig, setRevenueConfig] = useState<PlatformRevenueConfig>();
+  const [revenueOverview, setRevenueOverview] = useState<PlatformRevenueOverview>();
+  const [gcashAccountName, setGcashAccountName] = useState("");
+  const [gcashNumber, setGcashNumber] = useState("");
+  const [feePercent, setFeePercent] = useState("5");
+  const [feeInstructions, setFeeInstructions] = useState("");
 
   const refresh = useCallback(async () => {
     setError("");
     try {
-      setData(await loadSuperadminOverview());
+      const [overview, config, revenue] = await Promise.all([loadSuperadminOverview(), loadPlatformRevenueConfig(), loadPlatformRevenueOverview()]);
+      setData(overview); setRevenueConfig(config); setRevenueOverview(revenue);
+      setGcashAccountName(config?.gcashAccountName ?? ""); setGcashNumber(config?.gcashNumber ?? "");
+      setFeePercent(String((config?.rateBasisPoints ?? 500) / 100)); setFeeInstructions(config?.instructions ?? "");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to load account controls.");
     }
@@ -58,6 +69,9 @@ export default function SuperadminScreen() {
     await logout();
     router.replace("/login");
   }
+  async function saveRevenueConfig() {
+    await run("revenue-config", () => savePlatformRevenueConfig({ gcashAccountName: gcashAccountName.trim(), gcashNumber: gcashNumber.trim(), rateBasisPoints: Math.round(Number(feePercent) * 100), instructions: feeInstructions.trim() }));
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -85,6 +99,17 @@ export default function SuperadminScreen() {
         </View>
 
         <View style={styles.notice}>
+          <Text style={styles.cardTitle}>Service-fee revenue overview</Text>
+          <Text style={styles.help}>Collected fees are recorded only after an administrator verifies the employer’s submitted receipt.</Text>
+          <View style={styles.stats}>
+            <Stat label="Verified collected" value={formatCentavos(revenueOverview?.totalCollectedCentavos ?? 0)} />
+            <Stat label="Awaiting review" value={formatCentavos(revenueOverview?.submittedForReviewCentavos ?? 0)} />
+            <Stat label="Pending employer payment" value={formatCentavos(revenueOverview?.pendingPaymentCentavos ?? 0)} />
+          </View>
+          <Text style={styles.meta}>{revenueOverview?.revenueGeneratingCompletedTasks ?? 0} completed task{(revenueOverview?.revenueGeneratingCompletedTasks ?? 0) === 1 ? "" : "s"} with service-fee records</Text>
+        </View>
+
+        <View style={styles.notice}>
           <Text style={styles.cardTitle}>Moderation record</Text>
           <Text style={styles.help}>
             Give a clear reason before restricting or reactivating an account.
@@ -97,6 +122,16 @@ export default function SuperadminScreen() {
             style={[styles.input, styles.multiline]}
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
+        </View>
+
+        <View style={styles.notice}>
+          <Text style={styles.cardTitle}>TASKLINK service-fee destination</Text>
+          <Text style={styles.help}>Only Superadmins can set this. It creates future 5% employer-fee obligations after completed, worker-paid tasks; it never deducts worker wages.</Text>
+          <TextInput value={gcashAccountName} onChangeText={setGcashAccountName} placeholder="GCash account name" style={styles.input} />
+          <TextInput value={gcashNumber} onChangeText={setGcashNumber} placeholder="GCash number" keyboardType="phone-pad" style={styles.input} />
+          <TextInput value={feePercent} onChangeText={setFeePercent} placeholder="Service fee percent" keyboardType="decimal-pad" style={styles.input} />
+          <TextInput value={feeInstructions} onChangeText={setFeeInstructions} placeholder="Payment instructions (optional)" multiline style={[styles.input, styles.multiline]} />
+          <Action label={revenueConfig?.enabled ? "Update service-fee settings" : "Activate service-fee settings"} tone="positive" disabled={Boolean(busyKey)} onPress={() => void saveRevenueConfig()} />
         </View>
 
         <Section title="Open violation reports" empty="No open violation reports.">
@@ -174,7 +209,7 @@ function formatDate(value?: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value }: { label: string; value: string | number }) {
   return <View style={styles.stat}><Text style={styles.statValue}>{value}</Text><Text style={styles.meta}>{label}</Text></View>;
 }
 

@@ -15,6 +15,10 @@ test("Firestore verification document pointers are user- and document-specific",
   });
   assert.equal(parseFirestoreVerificationDocumentPath("firestoreVerification/user-123/unknown"), undefined);
   assert.equal(parseFirestoreVerificationDocumentPath(`${path}/unexpected`), undefined);
+  assert.deepEqual(
+    parseFirestoreVerificationDocumentPath(createFirestoreVerificationDocumentPath("user-123", "selfie-with-id")),
+    { userId: "user-123", kind: "selfie-with-id" }
+  );
 });
 
 test("verification payload chunks reassemble without changing the file contents", () => {

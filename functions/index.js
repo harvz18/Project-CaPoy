@@ -1,6 +1,6 @@
 const { initializeApp } = require("firebase-admin/app");
 const { FieldValue, getFirestore } = require("firebase-admin/firestore");
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
 const { buildAnalyticsReport } = require("./analytics");
@@ -14,6 +14,7 @@ const {
 const { buildExpoPushMessage, isExpoPushToken, isNotificationCategoryEnabled } = require("./push");
 const { buildIdentityReview } = require("./identity");
 const { findConflictingAssignment } = require("./marketplace");
+const { DEFAULT_RATE_BASIS_POINTS, buildFeeSnapshot } = require("./revenue");
 const {
   authorityFromClaims,
   buildAccountStatusChange,
@@ -296,11 +297,12 @@ exports.reviewWorkerVerification = onCall({ region: REGION }, async (request) =>
     const verification = verificationSnapshot.data();
     const hasAllRequiredDocuments = (await Promise.all([
       hasStoredVerificationDocument(transaction, db, userId, verification.validIdPath, "valid-id"),
+      hasStoredVerificationDocument(transaction, db, userId, verification.selfieWithIdPath, "selfie-with-id"),
       hasStoredVerificationDocument(transaction, db, userId, verification.medicalCertificatePath, "medical-certificate"),
       hasStoredVerificationDocument(transaction, db, userId, verification.policeClearancePath, "police-clearance")
     ])).every(Boolean);
     if (decision === "Verified" && !hasAllRequiredDocuments) {
-      throw new HttpsError("failed-precondition", "A valid ID, medical certificate, and police clearance are required before approval.");
+      throw new HttpsError("failed-precondition", "A valid ID, a selfie holding that ID, a medical certificate, and police clearance are required before approval.");
     }
 
     const review = {
@@ -667,6 +669,124 @@ exports.confirmCashPaymentReceived = onCall({ region: REGION }, async (request) 
     });
   });
   return { ok: true, status: "Verified" };
+});
+
+exports.updatePlatformRevenueConfig = onCall({ region: REGION }, async (request) => {
+  const actorId = requireSuperadmin(request);
+  const data = request.data || {};
+  const gcashAccountName = requiredString(data.gcashAccountName, "gcashAccountName");
+  const gcashNumber = requiredString(data.gcashNumber, "gcashNumber");
+  const rateBasisPoints = data.rateBasisPoints === undefined ? DEFAULT_RATE_BASIS_POINTS : Number(data.rateBasisPoints);
+  if (!Number.isInteger(rateBasisPoints) || rateBasisPoints < 0 || rateBasisPoints > 10_000) {
+    throw new HttpsError("invalid-argument", "Service fee rate must be between 0% and 100%.");
+  }
+  const instructions = typeof data.instructions === "string" ? data.instructions.trim().slice(0, 1000) : "";
+  const now = nowIso();
+  const db = getFirestore();
+  await db.runTransaction(async (transaction) => {
+    const ref = db.collection("platformRevenue").doc("config");
+    const existing = await transaction.get(ref);
+    const update = { enabled: true, gcashAccountName, gcashNumber, rateBasisPoints, instructions, activatedAt: existing.data()?.activatedAt || now, updatedAt: now, updatedBy: actorId };
+    transaction.set(ref, update, { merge: true });
+    writeAudit(transaction, db, { actorId, action: "update_platform_revenue_config", targetType: "payment", targetId: "platformRevenue/config", metadata: { rateBasisPoints } });
+  });
+  return { ok: true, rateBasisPoints };
+});
+
+exports.submitPlatformFeePayment = onCall({ region: REGION }, async (request) => {
+  const employerId = requireSignedIn(request);
+  const taskId = requiredString(request.data?.taskId, "taskId");
+  const receiptPath = requiredString(request.data?.receiptPath, "receiptPath");
+  const transactionReference = requiredString(request.data?.transactionReference, "transactionReference");
+  if (!/^[-A-Za-z0-9 ]{4,100}$/.test(transactionReference)) throw new HttpsError("invalid-argument", "Enter a valid GCash transaction reference.");
+  const db = getFirestore(); const feeRef = db.collection("platformFees").doc(taskId); const now = nowIso();
+  await db.runTransaction(async (transaction) => {
+    const feeSnapshot = await transaction.get(feeRef);
+    if (!feeSnapshot.exists) throw new HttpsError("not-found", "No TASKLINK service fee is due for this task.");
+    const fee = feeSnapshot.data();
+    if (fee.employerId !== employerId) throw new HttpsError("permission-denied", "Only the employer can submit this service-fee payment.");
+    if (!['pending_payment', 'rejected', 'overdue'].includes(fee.status)) throw new HttpsError("failed-precondition", "This service-fee payment cannot be submitted again.");
+    if (!receiptPath.startsWith(`paymentProofs/${taskId}/`) && receiptPath !== `firestorePaymentProofs/${taskId}/platform-fee`) {
+      throw new HttpsError("invalid-argument", "Upload a private receipt before submitting.");
+    }
+    transaction.update(feeRef, { status: 'submitted_for_review', receiptPath, transactionReference, submittedAt: now, updatedAt: now, rejectionReason: null });
+    transaction.set(db.collection("notifications").doc(), { userId: employerId, taskId, createdBy: employerId, notificationType: "TASKLINK fee submitted", message: `Your TASKLINK service-fee payment for ${fee.taskTitle} was submitted for administrator review.`, readStatus: false, createdAt: now });
+    writeAudit(transaction, db, { actorId: employerId, action: "submit_platform_fee_payment", targetType: "payment", targetId: taskId, metadata: { feeCentavos: fee.feeCentavos } });
+  });
+  return { ok: true, status: 'submitted_for_review' };
+});
+
+exports.reviewPlatformFeePayment = onCall({ region: REGION }, async (request) => {
+  const adminId = requireAdmin(request); const taskId = requiredString(request.data?.taskId, "taskId");
+  const decision = requiredString(request.data?.decision, "decision"); const reason = typeof request.data?.reason === 'string' ? request.data.reason.trim() : '';
+  if (!['verified', 'rejected'].includes(decision)) throw new HttpsError('invalid-argument', 'Unsupported service-fee decision.');
+  if (decision === 'rejected' && !reason) throw new HttpsError('invalid-argument', 'A rejection reason is required.');
+  const db = getFirestore(); const ref = db.collection('platformFees').doc(taskId); const now = nowIso();
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref); if (!snapshot.exists) throw new HttpsError('not-found', 'Service-fee record not found.');
+    const fee = snapshot.data(); if (fee.status !== 'submitted_for_review') throw new HttpsError('failed-precondition', 'Only a submitted service fee can be reviewed.');
+    const update = decision === 'verified'
+      ? { status: 'verified', verifiedAt: now, reviewedAt: now, reviewedBy: adminId, verifiedCollectedCentavos: fee.feeCentavos, updatedAt: now }
+      : { status: 'rejected', reviewedAt: now, reviewedBy: adminId, rejectionReason: reason, updatedAt: now };
+    transaction.update(ref, update);
+    transaction.set(db.collection('notifications').doc(), { userId: fee.employerId, taskId, createdBy: adminId, notificationType: 'TASKLINK fee review', message: decision === 'verified' ? `Your TASKLINK service fee for ${fee.taskTitle} was verified.` : `Your TASKLINK service fee was rejected: ${reason}`, readStatus: false, createdAt: now });
+    writeAudit(transaction, db, { actorId: adminId, action: decision === 'verified' ? 'verify_platform_fee_payment' : 'reject_platform_fee_payment', targetType: 'payment', targetId: taskId, reason, metadata: { feeCentavos: fee.feeCentavos } });
+  });
+  return { ok: true, status: decision };
+});
+
+exports.getPlatformRevenueOverview = onCall({ region: REGION }, async (request) => {
+  requireSuperadmin(request);
+  const fees = await getFirestore().collection('platformFees').get();
+  const summary = {
+    revenueGeneratingCompletedTasks: fees.size,
+    totalCollectedCentavos: 0,
+    pendingPaymentCentavos: 0,
+    submittedForReviewCentavos: 0,
+    overdueCentavos: 0,
+    rejectedCentavos: 0,
+    byCategory: {},
+    monthlyCollected: {}
+  };
+  for (const document of fees.docs) {
+    const fee = document.data();
+    const amount = Number.isSafeInteger(fee.feeCentavos) && fee.feeCentavos >= 0 ? fee.feeCentavos : 0;
+    if (fee.status === 'verified') {
+      summary.totalCollectedCentavos += amount;
+      const month = typeof fee.verifiedAt === 'string' && /^\d{4}-\d{2}/.test(fee.verifiedAt)
+        ? fee.verifiedAt.slice(0, 7) : 'Unknown';
+      summary.monthlyCollected[month] = (summary.monthlyCollected[month] || 0) + amount;
+    } else if (fee.status === 'pending_payment') summary.pendingPaymentCentavos += amount;
+    else if (fee.status === 'submitted_for_review') summary.submittedForReviewCentavos += amount;
+    else if (fee.status === 'overdue') summary.overdueCentavos += amount;
+    else if (fee.status === 'rejected') summary.rejectedCentavos += amount;
+    const category = typeof fee.taskCategory === 'string' && fee.taskCategory.trim() ? fee.taskCategory.trim() : 'Uncategorized';
+    summary.byCategory[category] = (summary.byCategory[category] || 0) + amount;
+  }
+  return {
+    ...summary,
+    byCategory: Object.entries(summary.byCategory).map(([category, feeCentavos]) => ({ category, feeCentavos })),
+    monthlyCollected: Object.entries(summary.monthlyCollected)
+      .map(([month, feeCentavos]) => ({ month, feeCentavos }))
+      .sort((left, right) => right.month.localeCompare(left.month)),
+    generatedAt: nowIso()
+  };
+});
+
+exports.createPlatformFeeOnCompletedTask = onDocumentUpdated({ document: 'tasks/{taskId}', region: REGION }, async (event) => {
+  const before = event.data?.before.data(); const task = event.data?.after.data();
+  if (!task || before?.status === 'Finished' || task.status !== 'Finished' || task.paymentStatus !== 'Verified' || !task.agreedAmount) return;
+  const db = getFirestore(); const configSnapshot = await db.collection('platformRevenue').doc('config').get(); const config = configSnapshot.data();
+  // No destination/no activation means no obligation: historical and unconfigured tasks remain untouched.
+  if (!config?.enabled || !config.gcashAccountName || !config.gcashNumber || !config.activatedAt || String(task.createdAt || '') < String(config.activatedAt)) return;
+  const feeRef = db.collection('platformFees').doc(event.params.taskId); const now = nowIso();
+  await db.runTransaction(async (transaction) => {
+    const existing = await transaction.get(feeRef); if (existing.exists) return;
+    let fee; try { fee = buildFeeSnapshot({ task: { ...task, id: event.params.taskId }, config, now }); }
+    catch (error) { logger.error('TASKLINK fee snapshot failed', { taskId: event.params.taskId, error: error instanceof Error ? error.message : 'invalid wage' }); return; }
+    transaction.create(feeRef, fee);
+    transaction.set(db.collection('notifications').doc(`${event.params.taskId}_platform-fee-due`), { userId: task.clientId, taskId: event.params.taskId, createdBy: 'system', notificationType: 'TASKLINK service fee due', message: `Your TASKLINK service fee of ₱${fee.feeAmount} for ${fee.taskTitle} is now payable.`, route: 'task', readStatus: false, createdAt: now });
+  });
 });
 
 exports.notifyEligibleWorkers = onDocumentCreated(

@@ -63,7 +63,7 @@ function scoreWorkerForTask(task, worker, now = Date.now()) {
   if (!accurateLocation) reasons.push(`Device location accuracy must be within ${DISCOVERY_MAX_DEVICE_ACCURACY_METERS} meters.`);
   if (distance !== undefined && radius > 0 && distance > radius) reasons.push(`Task is outside the worker's ${radius} km preferred radius.`);
   const eligible = worker.role === "worker" && activeAccount &&
-    capabilityMatch && openTask && unexpiredTask &&
+    approvedIdentity && capabilityMatch && openTask && unexpiredTask &&
     freshLocation && accurateLocation && distance !== undefined && radius > 0 && distance <= radius;
   if (!eligible) return { eligible: false, score: 0, distanceKm: distance, reasons };
   const proximityRatio = Math.max(0, Math.min(1, 1 - (distance / radius)));

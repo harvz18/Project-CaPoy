@@ -62,14 +62,13 @@ test("new unrated workers remain eligible and only miss optional history points"
   assert.match(result.reasons.join(" "), /no rating history/);
 });
 
-test("unverified accounts remain eligible while missing the verification bonus", () => {
+test("unverified accounts are excluded from marketplace recommendations", () => {
   const result = scoreWorkerForTask(
     task(), worker({ verificationStatus: "Pending Verification", identityStatus: "Pending Approval" }), Date.parse(now)
   );
 
-  assert.equal(result.eligible, true);
-  assert.equal(result.score, 90);
-  assert.equal(result.breakdown.verification, 0);
+  assert.equal(result.eligible, false);
+  assert.equal(result.score, 0);
   assert.match(result.reasons.join(" "), /Unverified account/);
 });
 

@@ -812,6 +812,16 @@ export default function TaskStatusScreen() {
               )}
             </View>
 
+            {currentUser?.role === "client" && task.status === "Finished" && task.paymentStatus === "Verified" ? (
+              <View style={styles.paymentPanel}>
+                <Text style={styles.sectionTitle}>TASKLINK Service Fee</Text>
+                <Text style={styles.geoHint}>Your worker's agreed wage remains separate. Review or submit the platform service fee after completion.</Text>
+                <Pressable accessibilityRole="button" onPress={() => router.push(`/platform-fee/${task.id}` as Href)} style={styles.paymentButton}>
+                  <Text style={styles.paymentButtonText}>Pay TASKLINK Service Fee</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
             <View style={styles.trustRow}>
               <TrustItem text="Evidence stored privately" />
               <TrustItem text="Participants only" />

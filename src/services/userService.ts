@@ -78,6 +78,14 @@ export type SaveUserInput = {
   fullName: string;
   mobileNumber: string;
   address: string;
+  region?: string;
+  regionCode?: string;
+  province?: string;
+  provinceCode?: string;
+  cityMunicipality?: string;
+  cityMunicipalityCode?: string;
+  barangay?: string;
+  barangayCode?: string;
   skills?: string[];
   capabilities?: string[];
   businessName?: string;
@@ -94,6 +102,14 @@ export async function saveUserProfile(input: SaveUserInput) {
     fullName,
     mobileNumber: input.mobileNumber,
     address,
+    region: input.region,
+    regionCode: input.regionCode,
+    province: input.province,
+    provinceCode: input.provinceCode,
+    cityMunicipality: input.cityMunicipality,
+    cityMunicipalityCode: input.cityMunicipalityCode,
+    barangay: input.barangay,
+    barangayCode: input.barangayCode,
     rating: 0,
     accountStatus: "active",
     skills: input.role === "worker" ? input.skills ?? input.capabilities ?? [] : undefined,
@@ -243,6 +259,7 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
     sanitizedUpdates.yearsOfExperience ||
     sanitizedUpdates.validIdType ||
     sanitizedUpdates.validIdUrl ||
+    sanitizedUpdates.selfieWithIdUrl ||
     sanitizedUpdates.medicalCertificateUrl ||
     sanitizedUpdates.policeClearanceUrl ||
     sanitizedUpdates.verificationStatus ||
@@ -267,6 +284,7 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
           yearsOfExperience: sanitizedUpdates.yearsOfExperience,
           validIdType: sanitizedUpdates.validIdType,
           validIdUrl: sanitizedUpdates.validIdUrl,
+          selfieWithIdUrl: sanitizedUpdates.selfieWithIdUrl,
           medicalCertificateUrl: sanitizedUpdates.medicalCertificateUrl,
           policeClearanceUrl: sanitizedUpdates.policeClearanceUrl,
           verificationStatus: sanitizedUpdates.verificationStatus,

@@ -149,7 +149,9 @@ export async function pickAndUploadPrivateDocument(
   kind: VerificationDocumentKind,
   source: UploadSource = "library"
 ) {
-  const file = await pickPrivateFile(source, true, `${kind}.jpg`);
+  // A selfie comparison is meaningful only when it is an image; the other
+  // review documents retain the project's image-or-PDF support.
+  const file = await pickPrivateFile(source, kind !== "selfie-with-id", `${kind}.jpg`);
   if (!file) return null;
   const { firestore, user } = requireFirestoreVerificationServices(ownerId);
   const base64 = await readFileAsBase64(file.uri, "verification document");
@@ -249,6 +251,11 @@ export function pickAndUploadPaymentProof(taskId: string, party: Exclude<Payment
 
 export function pickAndUploadGcashQr(taskId: string, source: UploadSource = "library") {
   return pickAndUploadPrivatePaymentFile(taskId, "worker-gcash-qr", false, "GCash QR image", source);
+}
+
+/** Private receipt for the employer's separate TASKLINK service-fee payment. */
+export function pickAndUploadPlatformFeeProof(taskId: string, source: UploadSource = "library") {
+  return pickAndUploadPrivatePaymentFile(taskId, "platform-fee", true, "TASKLINK service-fee receipt", source);
 }
 
 export async function getPaymentProofDownloadUrl(taskId: string, path: string) {

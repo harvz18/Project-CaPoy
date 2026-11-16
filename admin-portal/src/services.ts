@@ -3,7 +3,7 @@ import { httpsCallable } from "firebase/functions";
 import { getDownloadURL, ref } from "firebase/storage";
 import { db, functions, storage } from "./firebase";
 import { getAdminApi, postAdminApi } from "./adminApi";
-import { AuditLog, BasicDashboardCounts, ModerationUser, Payment, Profile, Rating, SuperadminOverview, Task, TaskMatch, VerificationRequest } from "./types";
+import { AuditLog, BasicDashboardCounts, ModerationUser, Payment, PlatformFee, PlatformRevenueOverview, Profile, Rating, SuperadminOverview, Task, TaskMatch, VerificationRequest } from "./types";
 
 function requireServices() { if (!db || !functions) throw new Error("Firebase is not configured."); return { db, functions }; }
 function records<T>(snapshot: { docs: QueryDocumentSnapshot<DocumentData>[] }) { return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as T); }
@@ -47,6 +47,40 @@ export async function loadTasksById(ids: string[]) {
 export async function loadSubmittedPayments() {
   const response = await getAdminApi<{ payments: Payment[] }>("/api/admin/payments/submitted");
   return response.payments;
+}
+export async function loadSubmittedPlatformFees() {
+  const { db: store } = requireServices();
+  return records<PlatformFee>(await getDocs(query(collection(store, "platformFees"), where("status", "==", "submitted_for_review"), limit(100))));
+}
+export async function reviewPlatformFee(taskId: string, decision: "verified" | "rejected", reason: string) {
+  await httpsCallable(requireServices().functions, "reviewPlatformFeePayment")({ taskId, decision, reason });
+}
+export async function getPlatformRevenueOverview() {
+  const response = await httpsCallable<Record<string, never>, PlatformRevenueOverview>(requireServices().functions, "getPlatformRevenueOverview")({});
+  return response.data;
+}
+export async function getPlatformFeeReceiptUrl(taskId: string, path: string): Promise<VerificationDocumentPreview> {
+  const [prefix, pathTaskId, party, ...extra] = path.split("/");
+  if (prefix === "firestorePaymentProofs") {
+    if (pathTaskId !== taskId || party !== "platform-fee" || extra.length) throw new Error("The service-fee receipt path is invalid.");
+    const { db: store } = requireServices();
+    const proofRef = doc(store, "paymentProofFiles", taskId, "uploads", party);
+    const snapshot = await getDoc(proofRef);
+    const proof = snapshot.data();
+    if (!proof || proof.taskId !== taskId || proof.party !== party || proof.status !== "ready" || typeof proof.mimeType !== "string" || typeof proof.fileName !== "string" || typeof proof.version !== "string" || !Number.isInteger(proof.chunkCount) || !Number.isInteger(proof.encodedSize)) throw new Error("The service-fee receipt is unavailable or incomplete.");
+    const chunkSnapshot = await getDocs(collection(proofRef, "chunks"));
+    const chunks = chunkSnapshot.docs
+      .map((item) => item.data())
+      .filter((item) => item.version === proof.version && Number.isInteger(item.index) && typeof item.data === "string")
+      .sort((left, right) => left.index - right.index);
+    if (chunks.length !== proof.chunkCount || chunks.some((item, index) => item.index !== index)) throw new Error("The service-fee receipt is incomplete. Ask the employer to upload it again.");
+    const base64 = chunks.map((item) => item.data).join("");
+    if (base64.length !== proof.encodedSize) throw new Error("The service-fee receipt is incomplete. Ask the employer to upload it again.");
+    return { url: materializeDocument(base64, proof.mimeType), mimeType: proof.mimeType, fileName: proof.fileName };
+  }
+  if (!path.startsWith(`paymentProofs/${taskId}/`)) throw new Error("The service-fee receipt path is invalid.");
+  if (!storage) throw new Error("Firebase Storage is not configured.");
+  return { url: await getDownloadURL(ref(storage, path)), mimeType: path.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/*", fileName: path.split("/").at(-1) || "service-fee receipt" };
 }
 export async function getBasicDashboardCounts(): Promise<BasicDashboardCounts> {
   const { db: store } = requireServices();
@@ -120,7 +154,7 @@ export async function getVerificationDocumentUrl(path: string): Promise<Verifica
 
 function parseFirestoreVerificationDocumentPath(path: string) {
   const [prefix, userId, kind, ...extra] = path.split("/");
-  if (prefix !== "firestoreVerification" || !userId || !["valid-id", "medical-certificate", "police-clearance"].includes(kind) || extra.length) return undefined;
+  if (prefix !== "firestoreVerification" || !userId || !["valid-id", "selfie-with-id", "medical-certificate", "police-clearance"].includes(kind) || extra.length) return undefined;
   return { userId, kind } as const;
 }
 

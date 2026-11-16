@@ -2,7 +2,7 @@ import { paymentProofChunkCharacters } from "./paymentProof";
 
 export const firestoreVerificationDocumentPrefix = "firestoreVerification";
 export const maxFirestoreVerificationDocumentBytes = 5 * 1024 * 1024;
-export type VerificationDocumentKind = "valid-id" | "medical-certificate" | "police-clearance";
+export type VerificationDocumentKind = "valid-id" | "selfie-with-id" | "medical-certificate" | "police-clearance";
 
 export function createFirestoreVerificationDocumentPath(userId: string, kind: VerificationDocumentKind) {
   return `${firestoreVerificationDocumentPrefix}/${userId}/${kind}`;
@@ -20,7 +20,7 @@ export function parseFirestoreVerificationDocumentPath(path: string) {
 }
 
 export function isVerificationDocumentKind(value: unknown): value is VerificationDocumentKind {
-  return value === "valid-id" || value === "medical-certificate" || value === "police-clearance";
+  return value === "valid-id" || value === "selfie-with-id" || value === "medical-certificate" || value === "police-clearance";
 }
 
 export function splitVerificationDocumentBase64(base64: string) {

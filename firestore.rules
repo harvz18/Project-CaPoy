@@ -21,6 +21,15 @@ service cloud.firestore {
       return hasEnabledAccount() && currentUser().role == role;
     }
 
+    // A client cannot write either of these approved states. They are set only
+    // by the privileged verification-review Function, with legacy Approved
+    // records retained for compatibility.
+    function hasMarketplaceVerification() {
+      return hasEnabledAccount()
+        && (currentUser().get('verificationStatus', '') == 'Verified'
+          || currentUser().get('identityStatus', '') == 'Approved');
+    }
+
     function isAdmin() {
       return hasEnabledAccount()
         && (
@@ -230,6 +239,14 @@ service cloud.firestore {
           'role',
           'fullName',
           'address',
+          'region',
+          'regionCode',
+          'province',
+          'provinceCode',
+          'cityMunicipality',
+          'cityMunicipalityCode',
+          'barangay',
+          'barangayCode',
           'skills',
           'capabilities',
           'businessName',
@@ -238,6 +255,7 @@ service cloud.firestore {
           'yearsOfExperience',
           'validIdType',
           'validIdUrl',
+          'selfieWithIdUrl',
           'medicalCertificateUrl',
           'policeClearanceUrl',
           'verificationStatus',
@@ -286,20 +304,22 @@ service cloud.firestore {
         )
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'validIdType', 'validIdUrl', 'medicalCertificateUrl', 'policeClearanceUrl'
+            'validIdType', 'validIdUrl', 'selfieWithIdUrl', 'medicalCertificateUrl', 'policeClearanceUrl'
           ])
           || (
             !identityLocked(resource.data)
             && request.resource.data.role in ['worker', 'client']
             && request.resource.data.verificationStatus == 'Pending Verification'
-            && validVerificationDocumentPath(request.auth.uid, request.resource.data.validIdUrl, 'valid-id')
-            && validVerificationDocumentPath(request.auth.uid, request.resource.data.medicalCertificateUrl, 'medical-certificate')
+            && validVerificationDocumentPath(request.auth.uid, request.resource.data.get('validIdUrl', ''), 'valid-id')
+            && validVerificationDocumentPath(request.auth.uid, request.resource.data.get('selfieWithIdUrl', ''), 'selfie-with-id')
+            && validVerificationDocumentPath(request.auth.uid, request.resource.data.get('medicalCertificateUrl', ''), 'medical-certificate')
             && (!('policeClearanceUrl' in request.resource.data)
               || validVerificationDocumentPath(request.auth.uid, request.resource.data.policeClearanceUrl, 'police-clearance'))
             && verificationAfter(request.auth.uid).status == 'Pending Verification'
-            && verificationAfter(request.auth.uid).validIdType == request.resource.data.validIdType
-            && verificationAfter(request.auth.uid).validIdPath == request.resource.data.validIdUrl
-            && verificationAfter(request.auth.uid).medicalCertificatePath == request.resource.data.medicalCertificateUrl
+            && verificationAfter(request.auth.uid).get('validIdType', '') == request.resource.data.get('validIdType', '')
+            && verificationAfter(request.auth.uid).get('validIdPath', '') == request.resource.data.get('validIdUrl', '')
+            && verificationAfter(request.auth.uid).get('selfieWithIdPath', '') == request.resource.data.get('selfieWithIdUrl', '')
+            && verificationAfter(request.auth.uid).get('medicalCertificatePath', '') == request.resource.data.get('medicalCertificateUrl', '')
             && (!('policeClearanceUrl' in request.resource.data)
               || verificationAfter(request.auth.uid).policeClearancePath == request.resource.data.policeClearanceUrl)
           )
@@ -516,6 +536,7 @@ service cloud.firestore {
           'yearsOfExperience',
           'validIdType',
           'validIdUrl',
+          'selfieWithIdUrl',
           'medicalCertificateUrl',
           'policeClearanceUrl',
           'verificationStatus',
@@ -536,19 +557,21 @@ service cloud.firestore {
         )
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'validIdType', 'validIdUrl', 'medicalCertificateUrl', 'policeClearanceUrl', 'verificationStatus'
+            'validIdType', 'validIdUrl', 'selfieWithIdUrl', 'medicalCertificateUrl', 'policeClearanceUrl', 'verificationStatus'
           ])
           || (
             !identityLocked(get(/databases/$(database)/documents/users/$(userId)).data)
             && request.resource.data.verificationStatus == 'Pending Verification'
-            && validVerificationDocumentPath(userId, request.resource.data.validIdUrl, 'valid-id')
-            && validVerificationDocumentPath(userId, request.resource.data.medicalCertificateUrl, 'medical-certificate')
+            && validVerificationDocumentPath(userId, request.resource.data.get('validIdUrl', ''), 'valid-id')
+            && validVerificationDocumentPath(userId, request.resource.data.get('selfieWithIdUrl', ''), 'selfie-with-id')
+            && validVerificationDocumentPath(userId, request.resource.data.get('medicalCertificateUrl', ''), 'medical-certificate')
             && (!('policeClearanceUrl' in request.resource.data)
               || validVerificationDocumentPath(userId, request.resource.data.policeClearanceUrl, 'police-clearance'))
             && verificationAfter(userId).status == 'Pending Verification'
-            && verificationAfter(userId).validIdType == request.resource.data.validIdType
-            && verificationAfter(userId).validIdPath == request.resource.data.validIdUrl
-            && verificationAfter(userId).medicalCertificatePath == request.resource.data.medicalCertificateUrl
+            && verificationAfter(userId).get('validIdType', '') == request.resource.data.get('validIdType', '')
+            && verificationAfter(userId).get('validIdPath', '') == request.resource.data.get('validIdUrl', '')
+            && verificationAfter(userId).get('selfieWithIdPath', '') == request.resource.data.get('selfieWithIdUrl', '')
+            && verificationAfter(userId).get('medicalCertificatePath', '') == request.resource.data.get('medicalCertificateUrl', '')
             && (!('policeClearanceUrl' in request.resource.data)
               || verificationAfter(userId).policeClearancePath == request.resource.data.policeClearanceUrl)
           )
@@ -1241,6 +1264,7 @@ service cloud.firestore {
       allow read: if hasEnabledAccount() && resource.data.workerId == request.auth.uid;
       allow read: if hasEnabledAccount() && request.auth.uid in resource.data.applicantIds;
       allow create: if hasRole('client')
+        && hasMarketplaceVerification()
         && request.resource.data.clientId == request.auth.uid
         && request.resource.data.status == 'Finding Workers'
         && validTaskTerms(request.resource.data)
@@ -1358,6 +1382,7 @@ service cloud.firestore {
       allow read: if isAdmin() || (hasEnabledAccount()
         && (resource.data.workerId == request.auth.uid || resource.data.clientId == request.auth.uid));
       allow create: if hasEnabledAccount()
+        && hasMarketplaceVerification()
         && request.resource.data.keys().hasOnly([
           'id', 'taskId', 'workerId', 'clientId', 'acceptanceStatus', 'proposedAmount', 'createdAt', 'updatedAt'
         ])
@@ -1445,24 +1470,31 @@ service cloud.firestore {
         ])
         && request.resource.data.taskId == taskId
         && request.resource.data.party == party
-        && party in ['client', 'worker', 'worker-gcash-qr']
+        && party in ['client', 'worker', 'worker-gcash-qr', 'platform-fee']
         && request.resource.data.uploaderId == request.auth.uid
         && isAssignedPaymentParticipant(task(taskId))
         && (task(taskId).status in ['Accepted', 'In Progress', 'Pending Approval']
+          || (party == 'platform-fee'
+            && task(taskId).status == 'Finished'
+            && task(taskId).paymentStatus == 'Verified')
           || (party == 'client'
             && task(taskId).paymentMethod == 'GCash link'
             && task(taskId).status == 'Finished'
-            && task(taskId).paymentStatus == 'Pending'))
+            && task(taskId).paymentStatus == 'Pending')
+          || (party == 'platform-fee' && task(taskId).clientId == request.auth.uid))
         && ((party == 'client' && task(taskId).paymentStatus == 'Pending')
           || (party == 'worker'
             && task(taskId).paymentStatus != 'Verified')
           || (party == 'worker-gcash-qr'
             && task(taskId).paymentMethod == 'GCash link'
             && task(taskId).status in ['In Progress', 'Pending Approval']
-            && task(taskId).paymentStatus == 'Pending'))
+            && task(taskId).paymentStatus == 'Pending')
+          || (party == 'platform-fee'
+            && task(taskId).clientId == request.auth.uid))
         && ((party == 'client' && task(taskId).clientId == request.auth.uid)
           || ((party == 'worker' || party == 'worker-gcash-qr')
-            && task(taskId).workerId == request.auth.uid))
+            && task(taskId).workerId == request.auth.uid)
+          || (party == 'platform-fee' && task(taskId).clientId == request.auth.uid))
         && request.resource.data.fileName is string
         && request.resource.data.fileName.size() > 0
         && request.resource.data.fileName.size() <= 100
@@ -1509,6 +1541,9 @@ service cloud.firestore {
           && request.resource.data.data.size() <= 450000
           && isAssignedPaymentParticipant(task(taskId))
           && (task(taskId).status in ['Accepted', 'In Progress', 'Pending Approval']
+            || (party == 'platform-fee'
+              && task(taskId).status == 'Finished'
+              && task(taskId).paymentStatus == 'Verified')
             || (party == 'client'
               && task(taskId).paymentMethod == 'GCash link'
               && task(taskId).status == 'Finished'
@@ -1519,7 +1554,8 @@ service cloud.firestore {
             || (party == 'worker-gcash-qr'
               && task(taskId).paymentMethod == 'GCash link'
               && task(taskId).status in ['In Progress', 'Pending Approval']
-              && task(taskId).paymentStatus == 'Pending'));
+              && task(taskId).paymentStatus == 'Pending')
+            || (party == 'platform-fee' && task(taskId).clientId == request.auth.uid));
         allow delete: if false;
       }
     }
@@ -1590,11 +1626,23 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Platform-fee records are created and decided only by trusted Functions.
+    // Employers may read their own record; administrators may review it.
+    match /platformFees/{taskId} {
+      allow read: if isAdmin() || (hasEnabledAccount() && resource.data.employerId == request.auth.uid);
+      allow write: if false;
+    }
+
+    match /platformRevenue/{documentId} {
+      allow read: if isAdmin() || hasRole('client');
+      allow write: if false;
+    }
+
     match /verificationFiles/{userId}/uploads/{kind} {
       allow read: if isAdmin() || (hasEnabledAccount() && request.auth.uid == userId);
       allow create, update: if hasEnabledAccount()
         && request.auth.uid == userId
-        && kind in ['valid-id', 'medical-certificate', 'police-clearance']
+        && kind in ['valid-id', 'selfie-with-id', 'medical-certificate', 'police-clearance']
         && request.resource.data.keys().hasOnly([
           'userId', 'kind', 'uploaderId', 'fileName', 'mimeType', 'byteSize',
           'encodedSize', 'chunkCount', 'version', 'status', 'createdAt'
@@ -1608,6 +1656,7 @@ service cloud.firestore {
         && request.resource.data.mimeType is string
         && (request.resource.data.mimeType.matches('image/.+')
           || request.resource.data.mimeType == 'application/pdf')
+        && (kind != 'selfie-with-id' || request.resource.data.mimeType.matches('image/.+'))
         && request.resource.data.byteSize is int
         && request.resource.data.byteSize > 0
         && request.resource.data.byteSize <= 5242880
@@ -1627,7 +1676,7 @@ service cloud.firestore {
         allow read: if isAdmin() || (hasEnabledAccount() && request.auth.uid == userId);
         allow create, update: if hasEnabledAccount()
           && request.auth.uid == userId
-          && kind in ['valid-id', 'medical-certificate', 'police-clearance']
+          && kind in ['valid-id', 'selfie-with-id', 'medical-certificate', 'police-clearance']
           && request.resource.data.keys().hasOnly([
             'id', 'userId', 'kind', 'uploaderId', 'index', 'version', 'data', 'createdAt'
           ])
@@ -1656,13 +1705,14 @@ service cloud.firestore {
       allow create, update: if (hasRole('worker') || hasRole('client'))
         && request.auth.uid == userId
         && request.resource.data.keys().hasOnly([
-          'userId', 'validIdType', 'validIdPath', 'medicalCertificatePath', 'policeClearancePath',
+          'userId', 'validIdType', 'validIdPath', 'selfieWithIdPath', 'medicalCertificatePath', 'policeClearancePath',
           'status', 'submittedAt', 'updatedAt'
         ])
         && request.resource.data.userId == userId
         && request.resource.data.validIdType is string
         && request.resource.data.validIdType.size() > 0
         && validVerificationDocumentPath(userId, request.resource.data.validIdPath, 'valid-id')
+        && validVerificationDocumentPath(userId, request.resource.data.selfieWithIdPath, 'selfie-with-id')
         && validVerificationDocumentPath(userId, request.resource.data.medicalCertificatePath, 'medical-certificate')
         && (!('policeClearancePath' in request.resource.data)
           || validVerificationDocumentPath(userId, request.resource.data.policeClearancePath, 'police-clearance'))

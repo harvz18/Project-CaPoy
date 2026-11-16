@@ -6,19 +6,20 @@ import { AppText as Text, AppTextInput as TextInput } from "../src/components/Ap
 import { AppButton } from "../src/components/AppButton";
 import { AppCard } from "../src/components/AppCard";
 import { AppInput } from "../src/components/AppInput";
-import { BacolodBarangayPicker } from "../src/components/BacolodBarangayPicker";
+import { PhilippineAddressPicker } from "../src/components/PhilippineAddressPicker";
 import { ScreenContainer } from "../src/components/ScreenContainer";
 import { useApp } from "../src/context/AppContext";
 import { styles } from "../src/styles";
 import { PublicRole } from "../src/types";
 import { sanitizePhoneNumberInput } from "../src/utils/numericInput";
+import { AddressDetails, formatAddressDetails } from "../src/utils/address";
 
 export default function RegistrationScreen() {
   const router = useRouter();
   const { actionLoading, error, register } = useApp();
   const [fullName, setFullName] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
-  const [address, setAddress] = useState("");
+  const [addressDetails, setAddressDetails] = useState<AddressDetails>({});
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [registrationError, setRegistrationError] = useState("");
@@ -36,7 +37,8 @@ export default function RegistrationScreen() {
         fullName,
         mobileNumber,
         password,
-        address
+        address: formatAddressDetails(addressDetails),
+        addressDetails
       });
       router.replace(role === "client" ? "/client-dashboard" : "/worker-dashboard");
     } catch {
@@ -63,7 +65,7 @@ export default function RegistrationScreen() {
           maxLength={24}
           placeholder="+63 917 000 0001"
         />
-        <BacolodBarangayPicker value={address} onChange={setAddress} />
+        <PhilippineAddressPicker value={addressDetails} onChange={setAddressDetails} />
         <PasswordInput label="Create password" value={password} onChangeText={setPassword} placeholder="Create password" />
         <PasswordInput label="Confirm password" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Re-enter password" />
         <Text style={styles.muted}>Your password must contain at least 6 characters.</Text>

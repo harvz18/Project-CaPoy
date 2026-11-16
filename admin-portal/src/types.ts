@@ -20,8 +20,10 @@ export type TaskMatch = {
   proposedAmount?: string; createdAt?: string; updatedAt?: string;
 };
 
-export type VerificationRequest = { id: string; userId: string; validIdType?: string; validIdPath?: string; medicalCertificatePath?: string; policeClearancePath?: string; status?: VerificationStatus; submittedAt?: string; reviewReason?: string };
+export type VerificationRequest = { id: string; userId: string; validIdType?: string; validIdPath?: string; selfieWithIdPath?: string; medicalCertificatePath?: string; policeClearancePath?: string; status?: VerificationStatus; submittedAt?: string; reviewReason?: string };
 export type Payment = { id: string; taskId?: string; paymentMethod?: string; paymentStatus?: string; agreedAmount?: string; updatedAt?: string; createdAt?: string };
+export type PlatformFee = { id: string; taskId?: string; employerId?: string; taskTitle?: string; taskCategory?: string; workerWage?: string; feeAmount?: string; feeCentavos?: number; status?: "pending_payment" | "submitted_for_review" | "verified" | "rejected" | "overdue"; receiptPath?: string; transactionReference?: string; submittedAt?: string; reviewedAt?: string; rejectionReason?: string; createdAt?: string; updatedAt?: string };
+export type PlatformRevenueOverview = { revenueGeneratingCompletedTasks: number; totalCollectedCentavos: number; pendingPaymentCentavos: number; submittedForReviewCentavos: number; overdueCentavos: number; rejectedCentavos: number; byCategory: Array<{ category: string; feeCentavos: number }>; monthlyCollected: Array<{ month: string; feeCentavos: number }>; generatedAt: string };
 export type Rating = { id: string; reviewerId?: string; targetUserId?: string; taskId?: string; score?: number; feedback?: string; createdAt?: string };
 export type AuditLog = { id: string; actorId?: string; action?: string; targetType?: string; targetId?: string; reason?: string; createdAt?: string };
 export type ViolationReport = { id: string; reporterId?: string; targetUserId?: string; category?: string; reason?: string; status?: string; createdAt?: string };

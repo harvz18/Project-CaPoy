@@ -1,15 +1,21 @@
 export type AddressDetails = {
+  region?: string;
+  regionCode?: string;
   houseNumber?: string;
   street?: string;
   barangay?: string;
   city?: string;
   province?: string;
+  provinceCode?: string;
+  cityMunicipality?: string;
+  cityMunicipalityCode?: string;
   postalCode?: string;
+  barangayCode?: string;
 };
 
 export function formatAddressDetails(details: AddressDetails) {
   const streetLine = [details.houseNumber, details.street].map(clean).filter(Boolean).join(" ");
-  return [streetLine, details.barangay, details.city, details.province, details.postalCode]
+  return [streetLine, details.barangay, details.cityMunicipality ?? details.city, details.province, details.region, details.postalCode]
     .map(clean)
     .filter(Boolean)
     .join(", ");
@@ -18,7 +24,7 @@ export function formatAddressDetails(details: AddressDetails) {
 /** Task locations only need the pin's building, street, barangay, and city. */
 export function formatTaskAddressDetails(details: AddressDetails) {
   const streetLine = [details.houseNumber, details.street].map(clean).filter(Boolean).join(" ");
-  return [streetLine, details.barangay, details.city]
+  return [streetLine, details.barangay, details.cityMunicipality ?? details.city]
     .map(clean)
     .filter(Boolean)
     .join(", ");

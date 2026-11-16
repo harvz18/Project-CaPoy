@@ -1,6 +1,6 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, ScrollViewInstance, StyleSheet, View } from "react-native";
 import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,6 +24,8 @@ import { sanitizeDurationInput, sanitizeMoneyInput } from "../src/utils/numericI
 import { AddressDetails, formatTaskAddressDetails } from "../src/utils/address";
 import { ReverseGeocodeResult, reverseGeocodeSelectedPin } from "../src/services/reverseGeocoding";
 import { getTaskPostingErrors, TaskPostingField } from "../src/domain/taskPosting";
+import { estimateServiceFee, formatCentavos } from "../src/domain/platformRevenue";
+import { loadPlatformRevenueConfig } from "../src/services/platformRevenueService";
 
 const palette = {
   background: "#F7FAF8",
@@ -81,6 +83,8 @@ export default function PostTaskScreen() {
   const [capabilityMessage, setCapabilityMessage] = useState("");
   const [wage, setWage] = useState("");
   const [pricingMode, setPricingMode] = useState<PricingMode>("fixed");
+  const [serviceFeeBasisPoints, setServiceFeeBasisPoints] = useState(500);
+  const estimatedServiceFee = pricingMode === "fixed" ? estimateServiceFee(wage, serviceFeeBasisPoints) : undefined;
   const [durationValue, setDurationValue] = useState("1");
   const [durationUnit, setDurationUnit] = useState<DurationUnit>("day");
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>("fixed");
@@ -100,6 +104,16 @@ export default function PostTaskScreen() {
   const mapCenter = parseCoordinate(latitude) !== undefined && parseCoordinate(longitude) !== undefined
     ? { latitude: parseCoordinate(latitude) as number, longitude: parseCoordinate(longitude) as number }
     : undefined;
+
+  useEffect(() => {
+    void loadPlatformRevenueConfig()
+      .then((config) => {
+        if (config?.enabled && typeof config.rateBasisPoints === "number") {
+          setServiceFeeBasisPoints(config.rateBasisPoints);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
 
   async function useDeviceLocation() {
     setLocating(true);
@@ -483,7 +497,14 @@ export default function PostTaskScreen() {
                 value={wage}
               />
               {formErrors.budget ? <Text accessibilityRole="alert" style={styles.fieldError}>{formErrors.budget}</Text> : null}
-            </Field> : <Text style={styles.helperText}>Taskers will submit an offer amount when they apply.</Text>}
+            </Field> : <Text style={styles.helperText}>Taskers will submit an offer amount when they apply. The final agreed wage determines the separate TASKLINK service fee.</Text>}
+          {estimatedServiceFee ? <View style={styles.serviceFeeCard}>
+            <Text style={styles.serviceFeeTitle}>Expected TASKLINK service fee ({(serviceFeeBasisPoints / 100).toFixed(2)}%)</Text>
+            <Text style={styles.serviceFeeText}>Worker pay: {formatCentavos(estimatedServiceFee.workerWageCentavos)}</Text>
+            <Text style={styles.serviceFeeText}>TASKLINK service fee: {formatCentavos(estimatedServiceFee.feeCentavos)}</Text>
+            <Text style={styles.serviceFeeTotal}>Total employer obligation: {formatCentavos(estimatedServiceFee.totalCentavos)}</Text>
+            <Text style={styles.helperText}>The worker still receives the full worker pay. The separate platform fee becomes payable only after completion and verified worker payment.</Text>
+          </View> : null}
 
           <View style={styles.twoColumn}>
             <Field label="Duration value *" style={styles.flex}>
@@ -1265,6 +1286,10 @@ const styles = StyleSheet.create({
   capabilityCancelText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   capabilitySaveButton: { minHeight: 44, paddingHorizontal: 20, borderRadius: 8, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
   capabilitySaveText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  serviceFeeCard: { backgroundColor: "#E5F1EE", borderColor: palette.primary, borderRadius: 12, borderWidth: 1, gap: 5, padding: 14 },
+  serviceFeeTitle: { color: palette.primary, fontSize: 14, fontWeight: "900" },
+  serviceFeeText: { color: palette.text, fontSize: 13, fontWeight: "700" },
+  serviceFeeTotal: { color: palette.textStrong, fontSize: 15, fontWeight: "900", marginTop: 2 },
   disabled: { opacity: 0.55 },
   pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
 });

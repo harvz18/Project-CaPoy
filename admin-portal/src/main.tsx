@@ -39,20 +39,26 @@ import {
   getAdminModerationUsers,
   getBasicDashboardCounts,
   getFeedbackCount,
+  getPlatformRevenueOverview,
   getSuperadminOverview,
   getVerificationDocumentUrl,
   loadPage,
   loadPendingVerifications,
   loadProfilesById,
   loadSubmittedPayments,
+  loadSubmittedPlatformFees,
+  getPlatformFeeReceiptUrl,
   loadTasksById,
   reviewPayment,
+  reviewPlatformFee,
   reviewVerification,
 } from "./services";
 import {
   AuditLog,
   BasicDashboardCounts,
   Payment,
+  PlatformFee,
+  PlatformRevenueOverview,
   Profile,
   Rating,
   Task,
@@ -290,6 +296,7 @@ const adminNavigation = [
 ] as const;
 const superNavigation = [
   ...adminNavigation,
+  ["revenue", "Revenue", FileText],
   ["reports", "Reports", Flag],
   ["audit", "Audit log", ShieldCheck],
 ] as const;
@@ -395,10 +402,45 @@ function Page({
   if (section === "verifications") return <VerificationPage notify={notify} />;
   if (section === "feedback") return <FeedbackPage />;
   if (section === "help") return <HelpPage />;
+  if (scope === "superadmin" && section === "revenue") return <RevenuePage />;
   if (scope === "superadmin" && section === "reports")
     return <ReportsPage notify={notify} />;
   if (scope === "superadmin" && section === "audit") return <AuditPage />;
   return <Navigate to={`/${scope}/dashboard`} replace />;
+}
+
+function php(centavos: number) {
+  return `₱${(centavos / 100).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function RevenuePage() {
+  const [overview, setOverview] = useState<PlatformRevenueOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    try { setOverview(await getPlatformRevenueOverview()); }
+    catch (failure) { setError(errorText(failure)); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  return <div className="page-stack">
+    <div className="page-heading"><div><h2>TASKLINK service-fee overview</h2><p>Only verified receipts are counted as collected revenue.</p></div><button className="button secondary" onClick={() => void load()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
+    {loading && !overview ? <SkeletonCards /> : null}
+    {error && !overview ? <ErrorState message={error} retry={() => void load()} /> : null}
+    {overview ? <>
+      <section className="metric-grid">
+        <Metric label="Verified collected" value={php(overview.totalCollectedCentavos)} icon={<CheckCircle2 />} />
+        <Metric label="Awaiting review" value={php(overview.submittedForReviewCentavos)} icon={<ClipboardCheck />} />
+        <Metric label="Pending employer payment" value={php(overview.pendingPaymentCentavos)} icon={<FileText />} />
+        <Metric label="Fee-bearing completed tasks" value={overview.revenueGeneratingCompletedTasks} icon={<ListChecks />} />
+      </section>
+      <section className="dashboard-grid">
+        <Panel title="Collected by month" description="Verified TASKLINK service fees."><Table headers={["Month", "Collected"]}>{overview.monthlyCollected.map((item) => <tr key={item.month}><td>{item.month}</td><td>{php(item.feeCentavos)}</td></tr>)}</Table>{!overview.monthlyCollected.length ? <EmptyState title="No verified service fees yet" /> : null}</Panel>
+        <Panel title="Fee amount by category" description="All created service-fee obligations."><Table headers={["Category", "Service-fee amount"]}>{overview.byCategory.map((item) => <tr key={item.category}><td>{item.category}</td><td>{php(item.feeCentavos)}</td></tr>)}</Table>{!overview.byCategory.length ? <EmptyState title="No service-fee records yet" /> : null}</Panel>
+      </section>
+    </> : null}
+  </div>;
 }
 
 function Dashboard({ scope }: { scope: Scope }) {
@@ -903,6 +945,7 @@ function ApplicationsPage() {
 function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
   const [requests, setRequests] = useState<VerificationRequest[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [platformFees, setPlatformFees] = useState<PlatformFee[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<
@@ -912,16 +955,19 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
         decision: "Verified" | "Rejected" | "Needs Resubmission";
       }
     | { kind: "payment"; item: Payment; decision: "Verified" | "Rejected" }
+    | { kind: "platform-fee"; item: PlatformFee; decision: "verified" | "rejected" }
     | null
   >(null);
   const [document, setDocument] = useState<{
     path: string;
     label: string;
+    taskId?: string;
+    platformFee?: boolean;
   } | null>(null);
   const [requestOrder, setRequestOrder] = useState<SortDirection>("desc");
   const [paymentOrder, setPaymentOrder] = useState<SortDirection>("desc");
   const profiles = useRecordLookup<Profile>(
-    requests.map((item) => item.userId),
+    [...requests.map((item) => item.userId), ...platformFees.map((item) => item.employerId || "")],
     loadProfilesById,
   );
   const paymentTasks = useRecordLookup<Task>(
@@ -931,12 +977,14 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
   const refreshReviewData = useCallback(async () => {
     setLoading(true);
     try {
-      const [nextRequests, nextPayments] = await Promise.all([
+      const [nextRequests, nextPayments, nextPlatformFees] = await Promise.all([
         loadPendingVerifications(),
-        loadSubmittedPayments()
+        loadSubmittedPayments(),
+        loadSubmittedPlatformFees()
       ]);
       setRequests(nextRequests);
       setPayments(nextPayments);
+      setPlatformFees(nextPlatformFees);
       setError("");
     } catch (failure) {
       setError(errorText(failure));
@@ -957,7 +1005,7 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
         <div>
           <h2>Verification requests</h2>
           <p>
-            Open the valid ID, medical certificate, and police clearance before
+            Open the valid ID, selfie with ID, medical certificate, and police clearance before
             deciding. Decisions update the user profile through a trusted
             Function.
           </p>
@@ -989,6 +1037,7 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
           {sortedRequests.map((item) => {
             const requirementsComplete = Boolean(
               item.validIdPath &&
+                item.selfieWithIdPath &&
                 item.medicalCertificatePath &&
                 item.policeClearancePath,
             );
@@ -1011,6 +1060,18 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
                       </button>
                     ) : (
                       <span className="missing-file">Valid ID unavailable</span>
+                    )}
+                    {item.selfieWithIdPath ? (
+                      <button
+                        className="text-button"
+                        onClick={() =>
+                          setDocument({ path: item.selfieWithIdPath || "", label: "Selfie holding valid ID" })
+                        }
+                      >
+                        View selfie with ID
+                      </button>
+                    ) : (
+                      <span className="missing-file">Selfie with ID unavailable</span>
                     )}
                     {item.medicalCertificatePath ? (
                       <button
@@ -1057,7 +1118,7 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
                       title={
                         requirementsComplete
                           ? undefined
-                          : "All three documents are required before approval."
+                          : "All four documents are required before approval."
                       }
                       onClick={() =>
                         setModal({
@@ -1149,6 +1210,16 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
           {!loading && !payments.length ? (
             <EmptyState title="No submitted payment evidence" />
           ) : null}
+        </Panel>
+        <Panel title={`TASKLINK service-fee review (${platformFees.length})`} description="Approve only after confirming the separate GCash fee arrived in TASKLINK's account.">
+          <Table headers={["Employer / task", "Worker wage", "Expected fee", "Reference", "Submitted", "Decision"]}>
+            {platformFees.map((fee) => <tr key={fee.id}>
+              <td><strong>{profiles[fee.employerId || ""]?.fullName || "Employer unavailable"}</strong><small>{fee.taskTitle || fee.taskId}</small></td>
+              <td>₱{fee.workerWage || "—"}</td><td>₱{fee.feeAmount || "—"}</td><td>{fee.transactionReference || "—"}{fee.receiptPath ? <button className="text-button" onClick={() => setDocument({ path: fee.receiptPath || "", label: "TASKLINK service-fee receipt", taskId: fee.taskId || fee.id, platformFee: true })}>Open receipt</button> : null}</td><td>{date(fee.submittedAt)}</td>
+              <td><div className="row-actions"><button className="text-button success-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "verified" })}>Verify fee</button><button className="text-button danger-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "rejected" })}>Reject</button></div></td>
+            </tr>)}
+          </Table>
+          {loading ? <TableLoading /> : null}{!loading && !platformFees.length ? <EmptyState title="No service-fee payments awaiting review" /> : null}
         </Panel>
       </section>
       {modal ? (
@@ -1492,7 +1563,8 @@ function ReviewModal({
         item: VerificationRequest;
         decision: "Verified" | "Rejected" | "Needs Resubmission";
       }
-    | { kind: "payment"; item: Payment; decision: "Verified" | "Rejected" };
+    | { kind: "payment"; item: Payment; decision: "Verified" | "Rejected" }
+    | { kind: "platform-fee"; item: PlatformFee; decision: "verified" | "rejected" };
   close: () => void;
   refreshPayments: () => Promise<void>;
   notify: (notice: Notice) => void;
@@ -1500,7 +1572,7 @@ function ReviewModal({
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const needsReason = modal.decision !== "Verified";
+  const needsReason = modal.decision !== "Verified" && modal.decision !== "verified";
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (needsReason && !reason.trim()) {
@@ -1511,14 +1583,15 @@ function ReviewModal({
     try {
       if (modal.kind === "verification")
         await reviewVerification(modal.item.userId, modal.decision, reason);
-      else
+      else if (modal.kind === "payment")
         await reviewPayment(
           modal.item.taskId || modal.item.id,
           modal.decision,
           reason,
         );
+      else await reviewPlatformFee(modal.item.taskId || modal.item.id, modal.decision, reason);
       notify({ tone: "success", message: `Review marked ${modal.decision}.` });
-      if (modal.kind === "payment") await refreshPayments();
+      await refreshPayments();
       close();
     } catch (failure) {
       setError(errorText(failure));
@@ -1528,7 +1601,7 @@ function ReviewModal({
   }
   return (
     <Modal
-      title={`${modal.decision} ${modal.kind === "verification" ? "verification" : "payment"}`}
+      title={`${modal.decision} ${modal.kind === "verification" ? "verification" : modal.kind === "platform-fee" ? "TASKLINK service fee" : "payment"}`}
       close={close}
     >
       <form onSubmit={submit}>
@@ -1560,7 +1633,7 @@ function VerificationDocumentModal({
   document,
   close,
 }: {
-  document: { path: string; label: string };
+  document: { path: string; label: string; taskId?: string; platformFee?: boolean };
   close: () => void;
 }) {
   const [preview, setPreview] = useState<{ url: string; mimeType: string; fileName: string }>();
@@ -1570,7 +1643,10 @@ function VerificationDocumentModal({
     let previewUrl = "";
     setPreview(undefined);
     setError("");
-    void getVerificationDocumentUrl(document.path)
+    const loadDocument = document.platformFee && document.taskId
+      ? getPlatformFeeReceiptUrl(document.taskId, document.path)
+      : getVerificationDocumentUrl(document.path);
+    void loadDocument
       .then((next) => {
         previewUrl = next.url;
         if (active) setPreview(next);
@@ -1583,7 +1659,7 @@ function VerificationDocumentModal({
       active = false;
       if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
     };
-  }, [document.path]);
+  }, [document.path, document.platformFee, document.taskId]);
   const isPdf = preview?.mimeType === "application/pdf";
   return (
     <Modal title={document.label} close={close}>
@@ -1764,14 +1840,14 @@ function Metric({
   onClick,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   icon: ReactNode;
   onClick?: () => void;
 }) {
   const contents = <>
       <span className="metric-icon">{icon}</span>
       <p>{label}</p>
-      <strong>{value.toLocaleString()}</strong>
+      <strong>{typeof value === "number" ? value.toLocaleString() : value}</strong>
     </>;
   return onClick ? (
     <button className="metric metric-link" onClick={onClick}>{contents}</button>
