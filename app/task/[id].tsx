@@ -1,6 +1,6 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,7 +8,9 @@ import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
 import { rankTaskMatches, summarizeScoreBreakdown } from "../../src/domain/matching";
+import { estimateServiceFee, formatCentavos } from "../../src/domain/platformRevenue";
 import { formatPaymentMethod, formatRequiredCapabilities, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
+import { loadPlatformRevenueConfig } from "../../src/services/platformRevenueService";
 import { TaskMatch } from "../../src/types";
 import { formatDistance } from "../../src/utils/location";
 import { sanitizeMoneyInput } from "../../src/utils/numericInput";
@@ -40,7 +42,18 @@ export default function TaskDetailsScreen() {
   const { actionLoading, currentUser, users, ratings, getUserById, tasks, taskMatches, acceptTask, rejectApplication, updateTaskStatus } = useApp();
   const [proposedAmount, setProposedAmount] = useState("");
   const [actionError, setActionError] = useState("");
+  const [serviceFeeBasisPoints, setServiceFeeBasisPoints] = useState(500);
   const task = tasks.find((item) => item.id === id);
+
+  useEffect(() => {
+    void loadPlatformRevenueConfig()
+      .then((config) => {
+        if (config?.enabled && typeof config.rateBasisPoints === "number") {
+          setServiceFeeBasisPoints(config.rateBasisPoints);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
 
   if (!task) {
     return (
@@ -227,7 +240,7 @@ export default function TaskDetailsScreen() {
                 <View key={applicant.id} style={styles.workerCard}>
                   {(() => {
                     const match = rankedMatches.find((item) => item.workerId === applicant.id);
-                    return match ? <ApplicantMatchSummary match={match} showBid={task.pricingMode === "bidding"} /> : null;
+                    return match ? <ApplicantMatchSummary match={match} showBid={task.pricingMode === "bidding"} serviceFeeBasisPoints={serviceFeeBasisPoints} /> : null;
                   })()}
                   <Pressable
                     accessibilityRole="button"
@@ -329,13 +342,18 @@ export default function TaskDetailsScreen() {
   );
 }
 
-function ApplicantMatchSummary({ match, showBid }: { match: TaskMatch; showBid?: boolean }) {
+function ApplicantMatchSummary({ match, showBid, serviceFeeBasisPoints = 500 }: { match: TaskMatch; showBid?: boolean; serviceFeeBasisPoints?: number }) {
   const evaluated = match.matchScore !== undefined && match.matchPolicyVersion !== undefined;
   const breakdown = summarizeScoreBreakdown(match.scoreBreakdown);
+  const serviceFee = showBid && match.proposedAmount
+    ? estimateServiceFee(match.proposedAmount, serviceFeeBasisPoints)
+    : undefined;
+  const offerFeeNotice = serviceFee ? <OfferFeeNotice serviceFee={serviceFee} /> : null;
 
   if (!evaluated) {
     return (
       <View style={styles.matchSummary}>
+        {offerFeeNotice}
         {showBid && match.proposedAmount ? <Text style={styles.bidChip}>Offer: ₱{match.proposedAmount}</Text> : null}
         <Text style={styles.skillChip}>Match evaluation pending</Text>
         <Text style={styles.workerNote}>Trusted score will appear after the matching service evaluates this application.</Text>
@@ -351,10 +369,20 @@ function ApplicantMatchSummary({ match, showBid }: { match: TaskMatch; showBid?:
         <Text style={styles.skillChip}>Policy v{match.matchPolicyVersion}</Text>
         {match.distanceKm === undefined ? null : <Text style={styles.skillChip}>{formatDistance(match.distanceKm)}</Text>}
       </View>
+      {offerFeeNotice}
       {breakdown ? <Text style={styles.breakdownText}>{breakdown}</Text> : null}
       {(match.matchReasons ?? []).slice(0, 3).map((reason, index) => (
         <Text key={`${index}-${reason}`} style={styles.workerNote}>{reason}</Text>
       ))}
+    </View>
+  );
+}
+
+function OfferFeeNotice({ serviceFee }: { serviceFee: NonNullable<ReturnType<typeof estimateServiceFee>> }) {
+  return (
+    <View style={styles.offerFeeNote}>
+      <Text style={styles.offerFeeTotal}>Employer total: {formatCentavos(serviceFee.totalCentavos)}</Text>
+      <Text style={styles.offerFeeText}>Includes the {(serviceFee.rateBasisPoints / 100).toFixed(2)}% TASKLINK service fee ({formatCentavos(serviceFee.feeCentavos)}).</Text>
     </View>
   );
 }
@@ -451,5 +479,8 @@ const styles = StyleSheet.create({
   applyBox: { gap: 10 },
   bidInput: { minHeight: 48, borderWidth: 1, borderColor: palette.outlineVariant, borderRadius: 10, paddingHorizontal: 14, backgroundColor: palette.surface, color: palette.text },
   bidChip: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "#FFF2DB", color: palette.secondary, fontSize: 13, fontWeight: "900" },
+  offerFeeNote: { padding: 10, borderRadius: 8, backgroundColor: "#E5F3F0", borderWidth: 1, borderColor: "#9CCBC4", gap: 2 },
+  offerFeeTotal: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  offerFeeText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   errorText: { color: "#B91C1C", fontSize: 13, lineHeight: 18, fontWeight: "700" },
 });
