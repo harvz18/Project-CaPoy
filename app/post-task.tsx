@@ -201,10 +201,28 @@ export default function PostTaskScreen() {
     setCategoryOpen(false);
   }
 
+  function toggleCategoryPicker() {
+    setCapabilityPickerOpen(false);
+    setDurationOpen(false);
+    setCategoryOpen((open) => !open);
+  }
+
   function openCapabilityPicker() {
+    if (capabilityPickerOpen) {
+      setCapabilityPickerOpen(false);
+      return;
+    }
+    setCategoryOpen(false);
+    setDurationOpen(false);
     setCapabilityDraft(requiredCapabilities);
     setCapabilityMessage("");
     setCapabilityPickerOpen(true);
+  }
+
+  function toggleDurationPicker() {
+    setCategoryOpen(false);
+    setCapabilityPickerOpen(false);
+    setDurationOpen((open) => !open);
   }
 
   function toggleCapability(capability: string) {
@@ -300,22 +318,33 @@ export default function PostTaskScreen() {
         </View>
       </View>
 
-      <ScrollView ref={formScrollRef} contentContainerStyle={[styles.content, { paddingBottom: 202 + insets.bottom }]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={formScrollRef}
+        contentContainerStyle={[styles.content, { paddingBottom: 202 + insets.bottom }]}
+        onScrollBeginDrag={() => { setCategoryOpen(false); setCapabilityPickerOpen(false); setDurationOpen(false); }}
+        showsVerticalScrollIndicator={false}
+      >
         <View>
           <Text style={styles.heroTitle}>Need a hand?</Text>
           <Text style={styles.heroText}>Describe what you need help with and find a neighbor to help you today.</Text>
         </View>
 
         <View style={styles.formCard}>
-          <Field label="Task Category *">
+          <Field label="Task Category *" style={categoryOpen ? styles.dropdownFieldOpen : undefined}>
             <Pressable
               accessibilityRole="button"
-              onPress={() => setCategoryOpen(true)}
+              accessibilityState={{ expanded: categoryOpen }}
+              onPress={toggleCategoryPicker}
               style={({ pressed }) => [styles.selectButton, formErrors.category && styles.inputError, pressed && styles.pressed]}
             >
               <Text style={[styles.selectValue, !category && styles.placeholderValue]}>{category || "Select a task category"}</Text>
               <Feather accessibilityElementsHidden color={palette.primary} name="chevron-down" size={20} />
             </Pressable>
+            {categoryOpen ? <InlineDropdown
+              options={categories.map((value) => ({ label: value, value }))}
+              selectedValue={category}
+              onSelect={selectCategory}
+            /> : null}
             {formErrors.category ? <Text accessibilityRole="alert" style={styles.fieldError}>{formErrors.category}</Text> : null}
           </Field>
 
@@ -454,16 +483,56 @@ export default function PostTaskScreen() {
             </View>
           </Field>
 
-          <Field label="Required Capabilities *">
+          <Field label="Required Capabilities *" style={capabilityPickerOpen ? styles.dropdownFieldOpen : undefined}>
             <Pressable
               accessibilityLabel="Select required capabilities"
               accessibilityRole="button"
+              accessibilityState={{ expanded: capabilityPickerOpen }}
               onPress={openCapabilityPicker}
               style={({ pressed }) => [styles.selectButton, formErrors.capabilities && styles.inputError, pressed && styles.pressed]}
             >
               <Text numberOfLines={1} style={styles.selectValue}>{requiredCapabilities.join(", ") || "Select capabilities"}</Text>
               <Feather accessibilityElementsHidden color={palette.primary} name="chevron-down" size={20} />
             </Pressable>
+            {capabilityPickerOpen ? <View style={styles.anchoredDropdown}>
+              <View style={styles.inlineMenuHeader}>
+                <View style={styles.flex}>
+                  <Text style={styles.inlineMenuTitle}>Select required capabilities</Text>
+                  <Text style={styles.capabilityCount}>{capabilityDraft.length}/3 selected</Text>
+                </View>
+                <Pressable accessibilityLabel="Close required capabilities" accessibilityRole="button" onPress={() => setCapabilityPickerOpen(false)} style={styles.pickerCloseButton}>
+                  <Text style={styles.pickerCloseText}>Close</Text>
+                </Pressable>
+              </View>
+              <ScrollView nestedScrollEnabled style={styles.inlineCapabilityList} contentContainerStyle={styles.capabilityList} showsVerticalScrollIndicator>
+                {workerCapabilities.map((capability) => {
+                  const selected = capabilityDraft.includes(capability);
+                  return (
+                    <Pressable
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: selected }}
+                      key={capability}
+                      onPress={() => toggleCapability(capability)}
+                      style={[styles.capabilityOption, selected && styles.capabilityOptionSelected]}
+                    >
+                      <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
+                        {selected ? <Feather accessibilityElementsHidden color={palette.white} name="check" size={16} /> : null}
+                      </View>
+                      <Text style={[styles.capabilityOptionText, selected && styles.capabilityOptionTextSelected]}>{capability}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              {capabilityMessage ? <Text accessibilityRole="alert" style={styles.capabilityValidation}>{capabilityMessage}</Text> : null}
+              <View style={styles.capabilityActions}>
+                <Pressable accessibilityRole="button" onPress={() => setCapabilityPickerOpen(false)} style={styles.capabilityCancelButton}>
+                  <Text style={styles.capabilityCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" onPress={saveCapabilities} style={styles.capabilitySaveButton}>
+                  <Text style={styles.capabilitySaveText}>Save</Text>
+                </Pressable>
+              </View>
+            </View> : null}
             <Text style={styles.helperText}>{requiredCapabilities.length}/3 selected. Taskers must have every selected capability.</Text>
             {formErrors.capabilities ? <Text accessibilityRole="alert" style={styles.fieldError}>{formErrors.capabilities}</Text> : null}
           </Field>
@@ -540,36 +609,21 @@ export default function PostTaskScreen() {
                 </Pressable>
               </View>
             </Field>
-            <Field label="Duration unit *" style={styles.flex}>
+            <Field label="Duration unit *" style={[styles.flex, durationOpen && styles.dropdownFieldOpen]}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ expanded: durationOpen }}
-                onPress={() => setDurationOpen((open) => !open)}
+                onPress={toggleDurationPicker}
                 style={({ pressed }) => [styles.selectButton, pressed && styles.pressed]}
               >
                 <Text style={styles.selectValue}>{durationUnits.find((item) => item.value === durationUnit)?.label}</Text>
                 <Feather accessibilityElementsHidden color={palette.primary} name="chevron-down" size={20} />
               </Pressable>
-              {durationOpen ? <View style={styles.durationDropdown}>
-                {durationUnits.map((item) => {
-                  const selected = item.value === durationUnit;
-                  return (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      key={item.value}
-                      onPress={() => {
-                        setDurationUnit(item.value);
-                        setDurationOpen(false);
-                      }}
-                      style={[styles.durationDropdownOption, selected && styles.durationDropdownOptionSelected]}
-                    >
-                      <Text style={[styles.durationDropdownText, selected && styles.durationDropdownTextSelected]}>{item.label}</Text>
-                      {selected ? <Feather accessibilityElementsHidden color={palette.primary} name="check" size={18} /> : null}
-                    </Pressable>
-                  );
-                })}
-              </View> : null}
+              {durationOpen ? <InlineDropdown
+                options={durationUnits}
+                selectedValue={durationUnit}
+                onSelect={(value) => { setDurationUnit(value as DurationUnit); setDurationOpen(false); }}
+              /> : null}
             </Field>
           </View>
           {formErrors.duration ? <Text accessibilityRole="alert" style={styles.fieldError}>{formErrors.duration}</Text> : null}
@@ -724,60 +778,6 @@ export default function PostTaskScreen() {
         </SafeAreaView>
       </Modal>
 
-      <PickerModal
-        options={categories}
-        selectedValue={category}
-        title="Task Category"
-        visible={categoryOpen}
-        onClose={() => setCategoryOpen(false)}
-        onSelect={selectCategory}
-      />
-
-      <Modal animationType="slide" transparent visible={capabilityPickerOpen} onRequestClose={() => setCapabilityPickerOpen(false)}>
-        <Pressable accessibilityLabel="Close required capabilities" accessibilityRole="button" onPress={() => setCapabilityPickerOpen(false)} style={styles.pickerBackdrop}>
-          <Pressable accessibilityRole="none" onPress={() => undefined} style={styles.capabilitySheet}>
-            <View style={styles.pickerHandle} />
-            <View style={styles.pickerHeader}>
-              <View style={styles.flex}>
-                <Text style={styles.pickerTitle}>Select Required Capabilities</Text>
-                <Text style={styles.capabilityCount}>{capabilityDraft.length}/3 selected</Text>
-              </View>
-              <Pressable accessibilityLabel="Cancel required capabilities" accessibilityRole="button" onPress={() => setCapabilityPickerOpen(false)} style={styles.pickerCloseButton}>
-                <Text style={styles.pickerCloseText}>Cancel</Text>
-              </Pressable>
-            </View>
-            <ScrollView contentContainerStyle={styles.capabilityList} showsVerticalScrollIndicator={false}>
-              {workerCapabilities.map((capability) => {
-                const selected = capabilityDraft.includes(capability);
-                return (
-                  <Pressable
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: selected }}
-                    key={capability}
-                    onPress={() => toggleCapability(capability)}
-                    style={[styles.capabilityOption, selected && styles.capabilityOptionSelected]}
-                  >
-                    <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
-                      {selected ? <Feather accessibilityElementsHidden color={palette.white} name="check" size={16} /> : null}
-                    </View>
-                    <Text style={[styles.capabilityOptionText, selected && styles.capabilityOptionTextSelected]}>{capability}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            {capabilityMessage ? <Text accessibilityRole="alert" style={styles.capabilityValidation}>{capabilityMessage}</Text> : null}
-            <View style={styles.capabilityActions}>
-              <Pressable accessibilityRole="button" onPress={() => setCapabilityPickerOpen(false)} style={styles.capabilityCancelButton}>
-                <Text style={styles.capabilityCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable accessibilityRole="button" onPress={saveCapabilities} style={styles.capabilitySaveButton}>
-                <Text style={styles.capabilitySaveText}>Save</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
       <Modal animationType="slide" visible={overviewOpen} onRequestClose={() => setOverviewOpen(false)}>
         <SafeAreaView style={styles.mapModalSafeArea} edges={["top", "left", "right"]}>
           <View style={styles.mapModalHeader}>
@@ -840,49 +840,35 @@ export default function PostTaskScreen() {
   );
 }
 
-function PickerModal({
+function InlineDropdown({
   options,
   selectedValue,
-  title,
-  visible,
-  onClose,
   onSelect
 }: {
-  options: string[];
+  options: Array<{ label: string; value: string }>;
   selectedValue: string;
-  title: string;
-  visible: boolean;
-  onClose: () => void;
   onSelect: (value: string) => void;
 }) {
   return (
-    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
-      <Pressable style={styles.pickerBackdrop} onPress={onClose}>
-        <Pressable onPress={() => undefined} style={styles.pickerSheet}>
-          <View style={styles.pickerHandle} />
-          <View style={styles.pickerHeader}>
-            <Text style={styles.pickerTitle}>{title}</Text>
-            <Pressable accessibilityLabel="Close picker" accessibilityRole="button" onPress={onClose} style={styles.pickerCloseButton}>
-              <Text style={styles.pickerCloseText}>Close</Text>
+    <View style={styles.anchoredDropdown}>
+      <ScrollView nestedScrollEnabled style={styles.inlineDropdownList} showsVerticalScrollIndicator>
+        {options.map((option) => {
+          const selected = selectedValue === option.value;
+          return (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              key={option.value}
+              onPress={() => onSelect(option.value)}
+              style={[styles.inlineDropdownOption, selected && styles.inlineDropdownOptionSelected]}
+            >
+              <Text style={[styles.inlineDropdownText, selected && styles.inlineDropdownTextSelected]}>{option.label}</Text>
+              {selected ? <Feather accessibilityElementsHidden color={palette.primary} name="check" size={18} /> : null}
             </Pressable>
-          </View>
-          {options.map((option) => {
-            const selected = selectedValue === option;
-            return (
-              <Pressable
-                accessibilityRole="button"
-                key={option}
-                onPress={() => onSelect(option)}
-                style={[styles.pickerOption, selected && styles.pickerOptionSelected]}
-              >
-                <Text style={[styles.pickerOptionText, selected && styles.pickerOptionTextSelected]}>{option}</Text>
-                {selected ? <Text style={styles.pickerCheck}>OK</Text> : null}
-              </Pressable>
-            );
-          })}
-        </Pressable>
-      </Pressable>
-    </Modal>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -939,6 +925,7 @@ const styles = StyleSheet.create({
     gap: 12
   },
   field: { gap: 6 },
+  dropdownFieldOpen: { zIndex: 20, elevation: 20 },
   fieldLabel: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "800" },
   input: {
     minHeight: 48,
@@ -996,11 +983,12 @@ const styles = StyleSheet.create({
   durationInput: { flex: 1, textAlign: "center", paddingHorizontal: 6 },
   durationStepButton: { width: 40, minHeight: 48, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, alignItems: "center", justifyContent: "center" },
   durationStepButtonDisabled: { opacity: 0.45 },
-  durationDropdown: { borderWidth: 1, borderColor: palette.outlineVariant, borderRadius: 8, backgroundColor: palette.surface, overflow: "hidden", marginTop: 2 },
-  durationDropdownOption: { minHeight: 42, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  durationDropdownOptionSelected: { backgroundColor: "#E5F1EE" },
-  durationDropdownText: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: "700" },
-  durationDropdownTextSelected: { color: palette.primary, fontWeight: "900" },
+  anchoredDropdown: { position: "absolute", top: 54, left: 0, right: 0, zIndex: 30, elevation: 24, maxHeight: 360, borderWidth: 1, borderColor: palette.outlineVariant, borderRadius: 8, backgroundColor: palette.surface, overflow: "hidden", shadowColor: "#000000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.16, shadowRadius: 10 },
+  inlineDropdownList: { maxHeight: 272 },
+  inlineDropdownOption: { minHeight: 46, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, borderBottomWidth: 1, borderBottomColor: "#EDF1EF" },
+  inlineDropdownOptionSelected: { backgroundColor: "#E5F1EE" },
+  inlineDropdownText: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: "700", flex: 1 },
+  inlineDropdownTextSelected: { color: palette.primary, fontWeight: "900" },
   paymentRow: { flexDirection: "row", gap: 8 },
   scheduleModeRow: { flexDirection: "row", gap: 8 },
   scheduleModeButton: { flex: 1, minHeight: 38, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, alignItems: "center", justifyContent: "center" },
@@ -1259,20 +1247,12 @@ const styles = StyleSheet.create({
   },
   largeMapMeta: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: "900", marginTop: 2 },
   modalPanel: { padding: 14, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 10 },
-  pickerBackdrop: { flex: 1, paddingHorizontal: 16, paddingTop: 24, backgroundColor: "rgba(24,28,28,0.42)", alignItems: "center", justifyContent: "flex-end" },
-  pickerSheet: { width: "100%", maxWidth: 520, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 12, paddingBottom: 20, backgroundColor: palette.surface, gap: 4 },
-  pickerHandle: { width: 42, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: palette.outlineVariant, marginBottom: 8 },
-  pickerHeader: { minHeight: 48, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  pickerTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 24, fontWeight: "900", flex: 1 },
+  inlineMenuHeader: { minHeight: 52, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottomWidth: 1, borderBottomColor: palette.outlineVariant },
+  inlineMenuTitle: { color: palette.textStrong, fontSize: 14, lineHeight: 20, fontWeight: "900", flex: 1 },
   pickerCloseButton: { minHeight: 40, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
   pickerCloseText: { color: palette.primary, fontSize: 13, fontWeight: "900" },
-  pickerOption: { minHeight: 48, borderRadius: 8, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  pickerOptionSelected: { backgroundColor: "#E5F1EE" },
-  pickerOptionText: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: "700", flex: 1 },
-  pickerOptionTextSelected: { color: palette.primary, fontWeight: "900" },
-  pickerCheck: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
-  capabilitySheet: { width: "100%", maxWidth: 520, maxHeight: "82%", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 12, paddingBottom: 20, backgroundColor: palette.surface, gap: 8 },
   capabilityCount: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800", marginTop: 2 },
+  inlineCapabilityList: { maxHeight: 230 },
   capabilityList: { gap: 6, paddingHorizontal: 4, paddingVertical: 4 },
   capabilityOption: { minHeight: 48, borderRadius: 8, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow },
   capabilityOptionSelected: { borderColor: palette.primary, backgroundColor: "#E5F1EE" },
