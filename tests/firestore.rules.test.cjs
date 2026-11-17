@@ -565,6 +565,34 @@ test("verification files stay private and can back a pending review without Fire
   await assertSucceeds(batch.commit());
 });
 
+test("approved identities can add an absent document but cannot replace approved evidence", async () => {
+  const workerDb = dbFor(WORKER_ID);
+  const now = "2026-01-01T00:11:30.000Z";
+  const selfieRef = doc(workerDb, "verificationFiles", WORKER_ID, "uploads", "selfie-with-id");
+  const selfie = {
+    userId: WORKER_ID,
+    kind: "selfie-with-id",
+    uploaderId: WORKER_ID,
+    fileName: "selfie.jpg",
+    mimeType: "image/jpeg",
+    byteSize: 12,
+    encodedSize: 16,
+    chunkCount: 1,
+    version: "selfie-v1",
+    status: "uploading",
+    createdAt: now
+  };
+  // The seeded approved worker has no selfie field yet, so this missing
+  // evidence can be uploaded before the trusted completion review begins.
+  await assertSucceeds(setDoc(selfieRef, selfie));
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), "users", WORKER_ID), {
+      selfieWithIdUrl: `firestoreVerification/${WORKER_ID}/selfie-with-id`
+    });
+  });
+  await assertFails(setDoc(selfieRef, { ...selfie, version: "selfie-v2" }));
+});
+
 test("employers can submit all private verification documents atomically", async () => {
   const clientDb = dbFor(CLIENT_ID);
   const now = "2026-01-01T00:12:00.000Z";

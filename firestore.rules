@@ -189,6 +189,21 @@ service cloud.firestore {
         || 'identityLockedAt' in profileData;
     }
 
+    // Once an identity has been approved, its existing evidence is immutable.
+    // A legacy-approved profile may still upload only a document that is absent
+    // from the approved profile, so it can complete newer document requirements.
+    function verificationDocumentMissing(profileData, kind) {
+      return (kind == 'valid-id' && profileData.get('validIdUrl', '') == '')
+        || (kind == 'selfie-with-id' && profileData.get('selfieWithIdUrl', '') == '')
+        || (kind == 'medical-certificate' && profileData.get('medicalCertificateUrl', '') == '')
+        || (kind == 'police-clearance' && profileData.get('policeClearanceUrl', '') == '');
+    }
+
+    function canWriteVerificationFile(userId, kind) {
+      return request.auth.uid == userId
+        && (!identityLocked(currentUser()) || verificationDocumentMissing(currentUser(), kind));
+    }
+
     function validInitialIdentityState(profileData) {
       return (
           !('identityStatus' in profileData)
@@ -1641,7 +1656,7 @@ service cloud.firestore {
     match /verificationFiles/{userId}/uploads/{kind} {
       allow read: if isAdmin() || (hasEnabledAccount() && request.auth.uid == userId);
       allow create, update: if hasEnabledAccount()
-        && request.auth.uid == userId
+        && canWriteVerificationFile(userId, kind)
         && kind in ['valid-id', 'selfie-with-id', 'medical-certificate', 'police-clearance']
         && request.resource.data.keys().hasOnly([
           'userId', 'kind', 'uploaderId', 'fileName', 'mimeType', 'byteSize',
@@ -1675,7 +1690,7 @@ service cloud.firestore {
       match /chunks/{chunkId} {
         allow read: if isAdmin() || (hasEnabledAccount() && request.auth.uid == userId);
         allow create, update: if hasEnabledAccount()
-          && request.auth.uid == userId
+          && canWriteVerificationFile(userId, kind)
           && kind in ['valid-id', 'selfie-with-id', 'medical-certificate', 'police-clearance']
           && request.resource.data.keys().hasOnly([
             'id', 'userId', 'kind', 'uploaderId', 'index', 'version', 'data', 'createdAt'

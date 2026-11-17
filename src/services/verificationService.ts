@@ -1,5 +1,6 @@
 import { doc, writeBatch } from "firebase/firestore";
 import { db } from "./firebase";
+import { postTrustedApi } from "./trustedApi";
 
 function requireDb() {
   if (!db) throw new Error("Firebase is not configured.");
@@ -53,4 +54,15 @@ export async function submitVerificationRequest(input: {
     updatedAt: now
   });
   await batch.commit();
+}
+
+/** Completes an approved legacy verification without allowing evidence replacement. */
+export async function submitMissingVerificationDocuments(input: {
+  validIdType: string;
+  validIdPath: string;
+  selfieWithIdPath: string;
+  medicalCertificatePath: string;
+  policeClearancePath: string;
+}) {
+  await postTrustedApi("/api/verification/complete-missing", input);
 }

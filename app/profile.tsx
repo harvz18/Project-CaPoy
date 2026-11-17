@@ -13,7 +13,7 @@ import { isIdentityLocked } from "../src/domain/profileIdentity";
 import { captureForegroundLocation } from "../src/services/locationService";
 import { pickAndUploadPrivateDocument, pickAndUploadProfilePhoto, UploadSource } from "../src/services/fileUploadService";
 import { AddressSearchResult, reverseGeocodeSelectedPin, searchAddressOnMap } from "../src/services/reverseGeocoding";
-import { submitVerificationRequest } from "../src/services/verificationService";
+import { submitMissingVerificationDocuments, submitVerificationRequest } from "../src/services/verificationService";
 import { parseCoordinate } from "../src/utils/location";
 import { AddressDetails, formatAddressDetails } from "../src/utils/address";
 import { PhilippineAddressPicker } from "../src/components/PhilippineAddressPicker";
@@ -120,6 +120,7 @@ export default function ProfileScreen() {
     ? "Not Submitted"
     : currentUser?.verificationStatus ?? "Not Submitted";
   const fullNameLocked = isIdentityLocked(currentUser);
+  const approvedDocumentLocked = (path: string) => fullNameLocked && Boolean(path);
   const profileRatings = ratings
     .filter((rating) => rating.targetUserId === currentUser?.id)
     .map((rating) => ({
@@ -190,7 +191,7 @@ export default function ProfileScreen() {
         businessName: currentUser?.role === "client" ? bio : undefined
       });
       if (currentUser && documentsChanged) {
-        await submitVerificationRequest({
+        const verificationInput: Parameters<typeof submitVerificationRequest>[0] = {
           userId: currentUser.id,
           role: currentUser.role === "client" ? "client" : "worker",
           validIdType,
@@ -198,7 +199,12 @@ export default function ProfileScreen() {
           selfieWithIdPath: selfieWithIdUrl,
           medicalCertificatePath: medicalCertificateUrl,
           policeClearancePath: policeClearanceUrl
-        });
+        };
+        if (fullNameLocked) {
+          await submitMissingVerificationDocuments(verificationInput);
+        } else {
+          await submitVerificationRequest(verificationInput);
+        }
         setDocumentsChanged(false);
         setUploadMessage("Verification documents submitted for administrator review.");
       }
@@ -483,7 +489,7 @@ export default function ProfileScreen() {
               </View>
               <Text style={styles.helperText}>{displayedVerificationStatus === "Pending Verification"
                 ? "Your verification is pending administrator review after all required documents are submitted."
-                : currentUser.verificationReviewReason || "Upload the three required documents, then save changes to submit them for review."}</Text>
+                : currentUser.verificationReviewReason || "Upload the four required documents, then save changes to submit them for review."}</Text>
               {currentUser.role === "worker" ? <>
                 <Field label="Years of Experience" value={yearsOfExperience} onChangeText={setYearsOfExperience} placeholder="e.g. 2 years" />
                 <Field
@@ -498,10 +504,10 @@ export default function ProfileScreen() {
                 <Text style={styles.fieldLabel}>Valid ID Type</Text>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: fullNameLocked }}
-                  disabled={fullNameLocked}
+                  accessibilityState={{ disabled: approvedDocumentLocked(validIdUrl) }}
+                  disabled={approvedDocumentLocked(validIdUrl)}
                   onPress={() => setValidIdTypePickerOpen(true)}
-                  style={[styles.idTypePicker, fullNameLocked && styles.uploadDisabled]}
+                  style={[styles.idTypePicker, approvedDocumentLocked(validIdUrl) && styles.uploadDisabled]}
                 >
                   <Text style={[styles.idTypePickerText, !validIdType && styles.uploadPlaceholder]} numberOfLines={2}>
                     {validIdType || "Choose a Philippine government-issued ID"}
@@ -510,7 +516,7 @@ export default function ProfileScreen() {
                 </Pressable>
               </View>
               <UploadField
-                disabled={fullNameLocked || uploadingField === "valid-id"}
+                disabled={approvedDocumentLocked(validIdUrl) || uploadingField === "valid-id"}
                 label="Valid ID"
                 uploading={uploadingField === "valid-id"}
                 value={validIdUrl}
@@ -518,7 +524,7 @@ export default function ProfileScreen() {
                 onSelect={() => setUploadSourceTarget("valid-id")}
               />
               <UploadField
-                disabled={fullNameLocked || uploadingField === "selfie-with-id"}
+                disabled={approvedDocumentLocked(selfieWithIdUrl) || uploadingField === "selfie-with-id"}
                 label="Selfie Holding the Same ID"
                 uploading={uploadingField === "selfie-with-id"}
                 value={selfieWithIdUrl}
@@ -526,7 +532,7 @@ export default function ProfileScreen() {
                 onSelect={() => setUploadSourceTarget("selfie-with-id")}
               />
               <UploadField
-                disabled={fullNameLocked || uploadingField === "medical-certificate"}
+                disabled={approvedDocumentLocked(medicalCertificateUrl) || uploadingField === "medical-certificate"}
                 label="Medical Certificate"
                 uploading={uploadingField === "medical-certificate"}
                 value={medicalCertificateUrl}
@@ -534,7 +540,7 @@ export default function ProfileScreen() {
                 onSelect={() => setUploadSourceTarget("medical-certificate")}
               />
               <UploadField
-                disabled={fullNameLocked || uploadingField === "police-clearance"}
+                disabled={approvedDocumentLocked(policeClearanceUrl) || uploadingField === "police-clearance"}
                 label="Police Clearance"
                 uploading={uploadingField === "police-clearance"}
                 value={policeClearanceUrl}
@@ -542,7 +548,7 @@ export default function ProfileScreen() {
                 onSelect={() => setUploadSourceTarget("police-clearance")}
               />
               <Text style={styles.helperText}>{fullNameLocked
-                ? "Your approved identity details are locked. Contact support if a correction is needed."
+                ? "Approved documents are locked. Any missing document remains available for upload and will be sent for another administrator review."
                 : "Upload a valid ID, a clear selfie holding that same ID, a medical certificate, and police clearance (images or PDFs up to 5 MB; selfie must be an image). Files are private; save changes after all four are ready to submit them for review."}</Text>
               {uploadMessage ? <Text style={styles.locationMessage}>{uploadMessage}</Text> : null}
             </SettingsCard>

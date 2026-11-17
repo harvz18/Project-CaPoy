@@ -18,6 +18,8 @@ test("health is public and protected API data requires a bearer token", async ()
     assert.equal(protectedVerificationReview.status, 401);
     const protectedRevenue = await fetch(`http://127.0.0.1:${port}/api/revenue/config`);
     assert.equal(protectedRevenue.status, 401);
+    const protectedVerificationCompletion = await fetch(`http://127.0.0.1:${port}/api/verification/complete-missing`, { method: "POST" });
+    assert.equal(protectedVerificationCompletion.status, 401);
     const preflight = await fetch(`http://127.0.0.1:${port}/api/revenue/config`, {
       method: "OPTIONS",
       headers: { Origin: "https://tasklink-fb027.web.app" }
