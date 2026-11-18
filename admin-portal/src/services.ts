@@ -3,7 +3,7 @@ import { httpsCallable } from "firebase/functions";
 import { getDownloadURL, ref } from "firebase/storage";
 import { db, functions, storage } from "./firebase";
 import { getAdminApi, postAdminApi } from "./adminApi";
-import { AuditLog, BasicDashboardCounts, ModerationUser, Payment, PlatformFee, PlatformRevenueOverview, Profile, Rating, SuperadminOverview, Task, TaskMatch, VerificationRequest } from "./types";
+import { AuditLog, BasicDashboardCounts, ModerationUser, Payment, PlatformFee, PlatformRevenueOverview, Profile, Rating, SuperadminOverview, Task, TaskMatch, VerificationDocumentKind, VerificationRequest } from "./types";
 
 function requireServices() { if (!db || !functions) throw new Error("Firebase is not configured."); return { db, functions }; }
 function records<T>(snapshot: { docs: QueryDocumentSnapshot<DocumentData>[] }) { return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as T); }
@@ -110,6 +110,9 @@ export async function getAdminModerationUsers() {
 }
 export async function reviewVerification(userId: string, decision: "Verified" | "Rejected" | "Needs Resubmission", reason: string) {
   await postAdminApi("/api/admin/verifications/review", { userId, decision, reason });
+}
+export async function reviewVerificationDocument(userId: string, kind: VerificationDocumentKind, decision: "Verified" | "Rejected" | "Needs Resubmission", reason: string) {
+  await postAdminApi("/api/admin/verifications/document-review", { userId, kind, decision, reason });
 }
 export async function reviewPayment(taskId: string, decision: "Verified" | "Rejected", reason: string) {
   await httpsCallable(requireServices().functions, "reviewPaymentEvidence")({ taskId, decision, reason });

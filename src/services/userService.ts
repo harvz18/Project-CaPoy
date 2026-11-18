@@ -32,6 +32,8 @@ function toPublicProfile(user: Partial<UserProfile> & Pick<UserProfile, "id" | "
     experienceDescription: user.experienceDescription,
     yearsOfExperience: user.yearsOfExperience,
     verificationStatus: user.verificationStatus,
+    verificationProgress: user.verificationProgress,
+    verificationProgressLevel: user.verificationProgressLevel,
     completedTasks: user.completedTasks,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
@@ -54,7 +56,9 @@ function hasPublicProfileChanges(updates: Partial<UserProfile>) {
     "profilePhotoUrl",
     "experienceDescription",
     "yearsOfExperience",
-    "verificationStatus"
+    "verificationStatus",
+    "verificationProgress",
+    "verificationProgressLevel"
   ];
   return publicFields.some((field) => updates[field] !== undefined);
 }

@@ -9,11 +9,13 @@ import { StatusBadge } from "../src/components/StatusBadge";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
 import { getScheduleBasedAvailability, getUserTaskHistory } from "../src/domain/taskMarketplace";
+import { calculateVerificationProgress } from "../src/domain/verificationProgress";
 import { isIdentityLocked } from "../src/domain/profileIdentity";
 import { captureForegroundLocation } from "../src/services/locationService";
 import { pickAndUploadPrivateDocument, pickAndUploadProfilePhoto, UploadSource } from "../src/services/fileUploadService";
 import { AddressSearchResult, reverseGeocodeSelectedPin, searchAddressOnMap } from "../src/services/reverseGeocoding";
-import { submitMissingVerificationDocuments, submitVerificationRequest } from "../src/services/verificationService";
+import { submitMissingVerificationDocuments, submitVerificationRequest, subscribeToVerificationRequest } from "../src/services/verificationService";
+import type { VerificationRequest } from "../src/types";
 import { parseCoordinate } from "../src/utils/location";
 import { AddressDetails, formatAddressDetails } from "../src/utils/address";
 import { PhilippineAddressPicker } from "../src/components/PhilippineAddressPicker";
@@ -115,12 +117,17 @@ export default function ProfileScreen() {
   const [uploadSourceTarget, setUploadSourceTarget] = useState<"profile-photo" | "valid-id" | "selfie-with-id" | "medical-certificate" | "police-clearance">();
   const [editProfileExpanded, setEditProfileExpanded] = useState(false);
   const [selfieWithIdUrl, setSelfieWithIdUrl] = useState(currentUser?.selfieWithIdUrl ?? "");
+  const [verificationRequest, setVerificationRequest] = useState<VerificationRequest>();
   const hasVerificationDocuments = Boolean(validIdUrl && selfieWithIdUrl && medicalCertificateUrl && policeClearanceUrl);
   const displayedVerificationStatus = currentUser?.verificationStatus === "Pending Verification" && !hasVerificationDocuments
     ? "Not Submitted"
     : currentUser?.verificationStatus ?? "Not Submitted";
   const fullNameLocked = isIdentityLocked(currentUser);
-  const approvedDocumentLocked = (path: string) => fullNameLocked && Boolean(path);
+  const approvedDocumentLocked = (path: string, kind: "valid-id" | "selfie-with-id" | "medical-certificate" | "police-clearance") => {
+    if (!path) return false;
+    const documentStatus = verificationRequest?.documentReviews?.[kind]?.status;
+    return documentStatus ? documentStatus === "Verified" : fullNameLocked;
+  };
   const profileRatings = ratings
     .filter((rating) => rating.targetUserId === currentUser?.id)
     .map((rating) => ({
@@ -145,6 +152,7 @@ export default function ProfileScreen() {
     ? { latitude: parseCoordinate(currentLatitude) as number, longitude: parseCoordinate(currentLongitude) as number }
     : undefined;
   const formattedAddress = formatAddressDetails(addressDetails) || currentUser?.address || "";
+  const verificationProgress = currentUser ? calculateVerificationProgress(currentUser, verificationRequest) : undefined;
 
   useEffect(() => {
     if (registrationBarangayLoaded.current || !currentUser?.address) return;
@@ -153,6 +161,14 @@ export default function ProfileScreen() {
     // structured replacement. Never guess its PSGC hierarchy.
     setAddressDetails((current) => current.barangay ? current : { ...current, barangay: currentUser.address });
   }, [currentUser?.address]);
+
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setVerificationRequest(undefined);
+      return;
+    }
+    return subscribeToVerificationRequest(currentUser.id, setVerificationRequest, () => setVerificationRequest(undefined));
+  }, [currentUser?.id]);
 
   async function handleLogout() {
     try {
@@ -490,6 +506,24 @@ export default function ProfileScreen() {
               <Text style={styles.helperText}>{displayedVerificationStatus === "Pending Verification"
                 ? "Your verification is pending administrator review after all required documents are submitted."
                 : currentUser.verificationReviewReason || "Upload the four required documents, then save changes to submit them for review."}</Text>
+              {verificationProgress ? <View style={styles.progressCard}>
+                <View style={styles.verificationStatusRow}>
+                  <Text style={styles.settingTitle}>Verification Progress</Text>
+                  <Text style={styles.progressValue}>{verificationProgress.percentage}%</Text>
+                </View>
+                <View accessibilityLabel={`Verification progress ${verificationProgress.percentage}%`} style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: `${verificationProgress.percentage}%` }]} />
+                </View>
+                <Text style={styles.helperText}>{verificationProgress.level}. Only an administrator’s final review can mark an account as Verified.</Text>
+                {verificationProgress.criteria.map((criterion) => <View key={criterion.label} style={styles.progressRow}>
+                  <Feather accessibilityElementsHidden color={criterion.complete ? palette.success : palette.outline} name={criterion.complete ? "check-circle" : "circle"} size={16} />
+                  <Text style={styles.progressLabel}>{criterion.label} ({criterion.percentage}%)</Text>
+                </View>)}
+                {(["valid-id", "selfie-with-id", "medical-certificate", "police-clearance"] as const).map((kind) => {
+                  const review = verificationRequest?.documentReviews?.[kind];
+                  return review?.reason && review.status !== "Verified" ? <Text key={kind} style={styles.progressReason}>{kind.replace(/-/g, " ")}: {review.reason}</Text> : null;
+                })}
+              </View> : null}
               {currentUser.role === "worker" ? <>
                 <Field label="Years of Experience" value={yearsOfExperience} onChangeText={setYearsOfExperience} placeholder="e.g. 2 years" />
                 <Field
@@ -504,10 +538,10 @@ export default function ProfileScreen() {
                 <Text style={styles.fieldLabel}>Valid ID Type</Text>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: approvedDocumentLocked(validIdUrl) }}
-                  disabled={approvedDocumentLocked(validIdUrl)}
+                  accessibilityState={{ disabled: approvedDocumentLocked(validIdUrl, "valid-id") }}
+                  disabled={approvedDocumentLocked(validIdUrl, "valid-id")}
                   onPress={() => setValidIdTypePickerOpen(true)}
-                  style={[styles.idTypePicker, approvedDocumentLocked(validIdUrl) && styles.uploadDisabled]}
+                  style={[styles.idTypePicker, approvedDocumentLocked(validIdUrl, "valid-id") && styles.uploadDisabled]}
                 >
                   <Text style={[styles.idTypePickerText, !validIdType && styles.uploadPlaceholder]} numberOfLines={2}>
                     {validIdType || "Choose a Philippine government-issued ID"}
@@ -516,7 +550,7 @@ export default function ProfileScreen() {
                 </Pressable>
               </View>
               <UploadField
-                disabled={approvedDocumentLocked(validIdUrl) || uploadingField === "valid-id"}
+                disabled={approvedDocumentLocked(validIdUrl, "valid-id") || uploadingField === "valid-id"}
                 label="Valid ID"
                 uploading={uploadingField === "valid-id"}
                 value={validIdUrl}
@@ -524,7 +558,7 @@ export default function ProfileScreen() {
                 onSelect={() => setUploadSourceTarget("valid-id")}
               />
               <UploadField
-                disabled={approvedDocumentLocked(selfieWithIdUrl) || uploadingField === "selfie-with-id"}
+                disabled={approvedDocumentLocked(selfieWithIdUrl, "selfie-with-id") || uploadingField === "selfie-with-id"}
                 label="Selfie Holding the Same ID"
                 uploading={uploadingField === "selfie-with-id"}
                 value={selfieWithIdUrl}
@@ -532,7 +566,7 @@ export default function ProfileScreen() {
                 onSelect={() => setUploadSourceTarget("selfie-with-id")}
               />
               <UploadField
-                disabled={approvedDocumentLocked(medicalCertificateUrl) || uploadingField === "medical-certificate"}
+                disabled={approvedDocumentLocked(medicalCertificateUrl, "medical-certificate") || uploadingField === "medical-certificate"}
                 label="Medical Certificate"
                 uploading={uploadingField === "medical-certificate"}
                 value={medicalCertificateUrl}
@@ -540,7 +574,7 @@ export default function ProfileScreen() {
                 onSelect={() => setUploadSourceTarget("medical-certificate")}
               />
               <UploadField
-                disabled={approvedDocumentLocked(policeClearanceUrl) || uploadingField === "police-clearance"}
+                disabled={approvedDocumentLocked(policeClearanceUrl, "police-clearance") || uploadingField === "police-clearance"}
                 label="Police Clearance"
                 uploading={uploadingField === "police-clearance"}
                 value={policeClearanceUrl}
@@ -998,6 +1032,13 @@ const styles = StyleSheet.create({
   verificationStatusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   verificationBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: "#EAF8F1" },
   verificationBadgeText: { color: palette.success, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  progressCard: { gap: 8, borderRadius: 10, padding: 12, backgroundColor: palette.surfaceLow, borderWidth: 1, borderColor: palette.outlineVariant },
+  progressValue: { color: palette.primary, fontSize: 18, lineHeight: 24, fontWeight: "900" },
+  progressTrack: { height: 8, borderRadius: 999, overflow: "hidden", backgroundColor: palette.surfaceHigh },
+  progressFill: { height: "100%", minWidth: 0, borderRadius: 999, backgroundColor: palette.primary },
+  progressRow: { alignItems: "center", flexDirection: "row", gap: 8 },
+  progressLabel: { flex: 1, color: palette.muted, fontSize: 12, lineHeight: 17 },
+  progressReason: { color: palette.danger, fontSize: 12, lineHeight: 16 },
   serviceHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   availabilityChip: { minHeight: 38, borderRadius: 19, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
   availabilityChipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },

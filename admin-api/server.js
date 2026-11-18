@@ -5,6 +5,7 @@ const { getFirestore } = require("firebase-admin/firestore");
 const { authorityFromClaims, buildAccountStatusChange, hasSuperadminAuthority, isIdentityLocked, toModerationUser } = require("../functions/authority");
 const { buildIdentityReview } = require("../functions/identity");
 const { DEFAULT_RATE_BASIS_POINTS, buildFeeSnapshot } = require("../functions/revenue");
+const { DOCUMENT_KINDS, calculateVerificationProgress, documentReviewsForSubmission, requestFieldByKind } = require("../functions/verificationProgress");
 
 class ApiError extends Error {
   constructor(status, message) {
@@ -140,6 +141,83 @@ async function hasStoredVerificationDocument(transaction, db, userId, path, kind
     && chunkLengths.reduce((total, length) => total + length, 0) === file.encodedSize;
 }
 
+function verificationProfileFields(progress) {
+  return { verificationProgress: progress.percentage, verificationProgressLevel: progress.level };
+}
+
+function submissionPaths(request) {
+  return {
+    "valid-id": requiredBodyString(request, "validIdPath"),
+    "selfie-with-id": requiredBodyString(request, "selfieWithIdPath"),
+    "medical-certificate": requiredBodyString(request, "medicalCertificatePath"),
+    "police-clearance": requiredBodyString(request, "policeClearancePath")
+  };
+}
+
+function requestDocumentFields(paths) {
+  return {
+    validIdPath: paths["valid-id"],
+    selfieWithIdPath: paths["selfie-with-id"],
+    medicalCertificatePath: paths["medical-certificate"],
+    policeClearancePath: paths["police-clearance"]
+  };
+}
+
+async function submitVerificationRequest({ request, db, claims }) {
+  const validIdType = requiredBodyString(request, "validIdType");
+  const submitted = submissionPaths(request);
+  const userRef = db.collection("users").doc(claims.uid);
+  const verificationRef = db.collection("verificationRequests").doc(claims.uid);
+  const now = nowIso();
+  await db.runTransaction(async (transaction) => {
+    const [userSnapshot, previousSnapshot] = await Promise.all([transaction.get(userRef), transaction.get(verificationRef)]);
+    if (!userSnapshot.exists) throw new ApiError(404, "User account was not found.");
+    const user = userSnapshot.data();
+    if (!new Set(["worker", "client"]).has(user.role)) throw new ApiError(409, "Only employer and tasker accounts can submit verification documents.");
+    if (isIdentityLocked(user)) throw new ApiError(409, "Approved accounts can only submit documents that were previously missing.");
+    const valid = (await Promise.all(DOCUMENT_KINDS.map((kind) => hasStoredVerificationDocument(transaction, db, claims.uid, submitted[kind], kind)))).every(Boolean);
+    if (!valid) throw new ApiError(409, "Upload complete private copies of all required documents before saving.");
+    const previous = previousSnapshot.exists ? previousSnapshot.data() : undefined;
+    const verification = {
+      userId: claims.uid,
+      validIdType,
+      ...requestDocumentFields(submitted),
+      documentReviews: documentReviewsForSubmission(previous, submitted, now),
+      status: "Pending Verification",
+      submittedAt: now,
+      updatedAt: now
+    };
+    const nextUser = {
+      ...user,
+      validIdType,
+      validIdUrl: submitted["valid-id"],
+      selfieWithIdUrl: submitted["selfie-with-id"],
+      medicalCertificateUrl: submitted["medical-certificate"],
+      policeClearanceUrl: submitted["police-clearance"],
+      verificationStatus: "Pending Verification",
+      identityStatus: "Pending Approval"
+    };
+    const progress = calculateVerificationProgress(nextUser, verification);
+    const profileUpdate = {
+      validIdType,
+      validIdUrl: submitted["valid-id"],
+      selfieWithIdUrl: submitted["selfie-with-id"],
+      medicalCertificateUrl: submitted["medical-certificate"],
+      policeClearanceUrl: submitted["police-clearance"],
+      verificationStatus: "Pending Verification",
+      identityStatus: "Pending Approval",
+      ...verificationProfileFields(progress),
+      updatedAt: now
+    };
+    transaction.update(userRef, profileUpdate);
+    transaction.set(db.collection(user.role === "client" ? "clientProfiles" : "workerProfiles").doc(claims.uid), { userId: claims.uid, ...profileUpdate }, { merge: true });
+    transaction.set(db.collection("publicProfiles").doc(claims.uid), { verificationStatus: "Pending Verification", ...verificationProfileFields(progress), updatedAt: now }, { merge: true });
+    transaction.set(verificationRef, verification);
+    writeAudit(transaction, db, { actorId: claims.uid, action: "submit_verification_documents", targetType: "verification", targetId: claims.uid, metadata: { verificationProgress: progress.percentage } });
+  });
+  return { ok: true, status: "Pending Verification" };
+}
+
 /** Completes a legacy approval without allowing any approved evidence to change. */
 async function submitMissingVerificationDocuments({ request, db, claims }) {
   const validIdType = requiredBodyString(request, "validIdType");
@@ -180,6 +258,12 @@ async function submitMissingVerificationDocuments({ request, db, claims }) {
       hasStoredVerificationDocument(transaction, db, claims.uid, submitted[kind], kind)
     )))).every(Boolean);
     if (!documentsValid) throw new ApiError(409, "Upload complete private copies of all required documents before saving.");
+    const previous = (await transaction.get(requestRef)).data();
+    const documentReviews = Object.fromEntries(DOCUMENT_KINDS.map((kind) => {
+      const previousReview = previous?.documentReviews?.[kind];
+      const alreadyApproved = Boolean(user[fieldByKind[kind]]);
+      return [kind, alreadyApproved ? (previousReview?.status === "Verified" ? previousReview : { status: "Verified", reviewedAt: now }) : { status: "Pending", reviewedAt: now }];
+    }));
     const verification = {
       userId: claims.uid,
       validIdType,
@@ -187,10 +271,13 @@ async function submitMissingVerificationDocuments({ request, db, claims }) {
       selfieWithIdPath: submitted["selfie-with-id"],
       medicalCertificatePath: submitted["medical-certificate"],
       policeClearancePath: submitted["police-clearance"],
+      documentReviews,
       status: "Pending Verification",
       submittedAt: now,
       updatedAt: now
     };
+    const nextUser = { ...user, validIdType, validIdUrl: submitted["valid-id"], selfieWithIdUrl: submitted["selfie-with-id"], medicalCertificateUrl: submitted["medical-certificate"], policeClearanceUrl: submitted["police-clearance"], verificationStatus: "Pending Verification", identityStatus: "Pending Approval" };
+    const progress = calculateVerificationProgress(nextUser, verification);
     const profileUpdate = {
       validIdType,
       validIdUrl: submitted["valid-id"],
@@ -199,17 +286,18 @@ async function submitMissingVerificationDocuments({ request, db, claims }) {
       policeClearanceUrl: submitted["police-clearance"],
       verificationStatus: "Pending Verification",
       identityStatus: "Pending Approval",
+      ...verificationProfileFields(progress),
       updatedAt: now
     };
     transaction.update(userRef, profileUpdate);
     transaction.set(db.collection(user.role === "client" ? "clientProfiles" : "workerProfiles").doc(claims.uid), { userId: claims.uid, ...profileUpdate }, { merge: true });
-    transaction.set(db.collection("publicProfiles").doc(claims.uid), { verificationStatus: "Pending Verification", updatedAt: now }, { merge: true });
+    transaction.set(db.collection("publicProfiles").doc(claims.uid), { verificationStatus: "Pending Verification", ...verificationProfileFields(progress), updatedAt: now }, { merge: true });
     transaction.set(requestRef, verification);
     transaction.set(db.collection("notifications").doc(), {
       userId: claims.uid, createdBy: claims.uid, notificationType: "Verification completion",
       message: "Your missing verification document was submitted for administrator review.", readStatus: false, createdAt: now
     });
-    writeAudit(transaction, db, { actorId: claims.uid, action: "submit_missing_verification_document", targetType: "verification", targetId: claims.uid, metadata: { missingKinds } });
+    writeAudit(transaction, db, { actorId: claims.uid, action: "submit_missing_verification_document", targetType: "verification", targetId: claims.uid, metadata: { missingKinds, verificationProgress: progress.percentage } });
   });
   return { ok: true, status: "Pending Verification" };
 }
@@ -396,11 +484,15 @@ async function reviewVerification({ request, db, claims }) {
       throw new ApiError(409, "A valid ID, selfie with ID, medical certificate, and police clearance are required before approval.");
     }
 
+    const documentReviews = Object.fromEntries(DOCUMENT_KINDS.map((kind) => [kind, { status: decision, reviewedAt, reviewedBy: claims.uid, reason: reason || null }]));
+    const reviewedVerification = { ...verification, documentReviews, status: decision };
+    const progress = calculateVerificationProgress({ ...user, verificationStatus: decision }, reviewedVerification);
     const identityReview = buildIdentityReview(decision, reviewedAt, claims.uid);
     const verificationReview = {
       verificationStatus: decision,
       verificationReviewReason: reason || null,
       ...identityReview,
+      ...verificationProfileFields(progress),
       updatedAt: reviewedAt
     };
     transaction.update(requestRef, {
@@ -408,11 +500,12 @@ async function reviewVerification({ request, db, claims }) {
       reviewedAt,
       reviewedBy: claims.uid,
       reviewReason: reason,
+      documentReviews,
       updatedAt: reviewedAt
     });
     transaction.update(userRef, verificationReview);
     transaction.set(db.collection(user.role === "worker" ? "workerProfiles" : "clientProfiles").doc(userId), verificationReview, { merge: true });
-    transaction.set(db.collection("publicProfiles").doc(userId), { verificationStatus: decision, updatedAt: reviewedAt }, { merge: true });
+    transaction.set(db.collection("publicProfiles").doc(userId), { verificationStatus: decision, ...verificationProfileFields(progress), updatedAt: reviewedAt }, { merge: true });
     transaction.set(db.collection("notifications").doc(), {
       userId,
       createdBy: claims.uid,
@@ -429,11 +522,50 @@ async function reviewVerification({ request, db, claims }) {
       targetType: "verification",
       targetId: userId,
       reason,
-      metadata: { decision },
+      metadata: { decision, verificationProgress: progress.percentage },
       createdAt: reviewedAt
     });
   });
   return { ok: true, status: decision };
+}
+
+async function reviewVerificationDocument({ request, db, claims }) {
+  const userId = requiredBodyString(request, "userId");
+  const kind = requiredBodyString(request, "kind");
+  const decision = requiredBodyString(request, "decision");
+  const reason = optionalBodyString(request, "reason");
+  if (!DOCUMENT_KINDS.includes(kind)) throw new ApiError(400, "Unsupported verification document.");
+  if (!new Set(["Verified", "Rejected", "Needs Resubmission"]).has(decision)) throw new ApiError(400, "Unsupported document decision.");
+  if (decision !== "Verified" && !reason) throw new ApiError(400, "A reason is required when a document is not verified.");
+  const requestRef = db.collection("verificationRequests").doc(userId);
+  const userRef = db.collection("users").doc(userId);
+  const reviewedAt = nowIso();
+  await db.runTransaction(async (transaction) => {
+    const [verificationSnapshot, userSnapshot] = await Promise.all([transaction.get(requestRef), transaction.get(userRef)]);
+    if (!verificationSnapshot.exists || !userSnapshot.exists) throw new ApiError(404, "Verification request or user account was not found.");
+    const verification = verificationSnapshot.data();
+    const user = userSnapshot.data();
+    if (!new Set(["worker", "client"]).has(user.role)) throw new ApiError(409, "Only employer and tasker accounts can be verified.");
+    if (verification.status !== "Pending Verification") throw new ApiError(409, "This verification request is not awaiting review.");
+    const path = verification[requestFieldByKind[kind]];
+    if (!await hasStoredVerificationDocument(transaction, db, userId, path, kind)) throw new ApiError(409, "This document is missing or its private upload is incomplete.");
+    const documentReviews = { ...(verification.documentReviews || {}), [kind]: { status: decision, reviewedAt, reviewedBy: claims.uid, reason: reason || null } };
+    const provisional = { ...verification, documentReviews };
+    const provisionalProgress = calculateVerificationProgress({ ...user, verificationStatus: "Pending Verification", identityStatus: "Pending Approval" }, provisional);
+    const complete = provisionalProgress.allDocumentsVerified;
+    const status = complete ? "Verified" : decision === "Rejected" ? "Rejected" : decision === "Needs Resubmission" ? "Needs Resubmission" : "Pending Verification";
+    const finalVerification = { ...provisional, status };
+    const identityReview = complete ? buildIdentityReview("Verified", reviewedAt, claims.uid) : status === "Rejected" ? buildIdentityReview("Rejected", reviewedAt, claims.uid) : status === "Needs Resubmission" ? buildIdentityReview("Needs Resubmission", reviewedAt, claims.uid) : { identityStatus: "Pending Approval" };
+    const progress = calculateVerificationProgress({ ...user, verificationStatus: status, ...identityReview }, finalVerification);
+    const profileUpdate = { verificationStatus: status, verificationReviewReason: decision === "Verified" ? null : reason, ...identityReview, ...verificationProfileFields(progress), updatedAt: reviewedAt };
+    transaction.update(requestRef, { documentReviews, status, reviewedAt, reviewedBy: claims.uid, reviewReason: decision === "Verified" ? null : reason, updatedAt: reviewedAt });
+    transaction.update(userRef, profileUpdate);
+    transaction.set(db.collection(user.role === "worker" ? "workerProfiles" : "clientProfiles").doc(userId), profileUpdate, { merge: true });
+    transaction.set(db.collection("publicProfiles").doc(userId), { verificationStatus: status, ...verificationProfileFields(progress), updatedAt: reviewedAt }, { merge: true });
+    transaction.set(db.collection("notifications").doc(), { userId, createdBy: claims.uid, notificationType: "Verification document review", message: decision === "Verified" ? `Your ${kind.replace(/-/g, " ")} was verified.` : `Your ${kind.replace(/-/g, " ")} needs attention: ${reason}`, readStatus: false, createdAt: reviewedAt });
+    writeAudit(transaction, db, { actorId: claims.uid, action: "review_verification_document", targetType: "verification", targetId: userId, reason, metadata: { kind, decision, verificationProgress: progress.percentage } });
+  });
+  return { ok: true };
 }
 
 async function changeAccountStatus({ request, db, claims }) {
@@ -497,7 +629,17 @@ async function profileLookup({ request, db }) {
     const fullName = typeof publicData.fullName === "string" && publicData.fullName.trim()
       ? publicData.fullName.trim()
       : typeof userData.fullName === "string" && userData.fullName.trim() ? userData.fullName.trim() : "";
-    if (fullName) profiles[id] = { id, fullName, role: publicData.role || userData.role };
+    if (fullName) {
+      const progress = calculateVerificationProgress(userData);
+      profiles[id] = {
+        id,
+        fullName,
+        role: publicData.role || userData.role,
+        verificationProgress: Number.isFinite(userData.verificationProgress) ? userData.verificationProgress : progress.percentage,
+        verificationProgressLevel: userData.verificationProgressLevel || progress.level,
+        verificationStatus: userData.verificationStatus || publicData.verificationStatus
+      };
+    }
   }));
   return { profiles };
 }
@@ -541,6 +683,7 @@ function createServer() {
   app.post("/api/revenue/fees/submit", route("user", submitPlatformFee));
   app.post("/api/revenue/fees/review", route("admin", reviewPlatformFee));
   app.get("/api/revenue/overview", route("superadmin", platformRevenueOverview));
+  app.post("/api/verification/submit", route("user", submitVerificationRequest));
   app.post("/api/verification/complete-missing", route("user", submitMissingVerificationDocuments));
   app.post("/api/admin/profiles/lookup", route("admin", profileLookup));
   app.get("/api/admin/verifications/pending", route("admin", async ({ db }) => {
@@ -548,6 +691,7 @@ function createServer() {
     return { requests: withIds(snapshot) };
   }));
   app.post("/api/admin/verifications/review", route("admin", reviewVerification));
+  app.post("/api/admin/verifications/document-review", route("admin", reviewVerificationDocument));
   app.get("/api/admin/payments/submitted", route("admin", async ({ db }) => {
     const snapshot = await db.collection("payments").where("paymentStatus", "==", "Submitted").limit(100).get();
     return { payments: withIds(snapshot) };

@@ -622,6 +622,8 @@ service cloud.firestore {
         'experienceDescription',
         'yearsOfExperience',
         'verificationStatus',
+          'verificationProgress',
+          'verificationProgressLevel',
         'completedTasks',
         'createdAt',
         'updatedAt'
@@ -1222,6 +1224,10 @@ service cloud.firestore {
         )
         && request.resource.data.get('verificationStatus', null)
           == getAfter(/databases/$(database)/documents/users/$(userId)).data.get('verificationStatus', null)
+        && request.resource.data.get('verificationProgress', null)
+          == getAfter(/databases/$(database)/documents/users/$(userId)).data.get('verificationProgress', null)
+        && request.resource.data.get('verificationProgressLevel', null)
+          == getAfter(/databases/$(database)/documents/users/$(userId)).data.get('verificationProgressLevel', null)
         && request.resource.data.rating == getAfter(/databases/$(database)/documents/users/$(userId)).data.rating;
       allow update: if (
           hasEnabledAccount()
@@ -1234,6 +1240,10 @@ service cloud.firestore {
             == getAfter(/databases/$(database)/documents/users/$(userId)).data.fullName
           && request.resource.data.get('verificationStatus', null)
             == getAfter(/databases/$(database)/documents/users/$(userId)).data.get('verificationStatus', null)
+          && request.resource.data.get('verificationProgress', null)
+            == getAfter(/databases/$(database)/documents/users/$(userId)).data.get('verificationProgress', null)
+          && request.resource.data.get('verificationProgressLevel', null)
+            == getAfter(/databases/$(database)/documents/users/$(userId)).data.get('verificationProgressLevel', null)
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'rating', 'ratingCount', 'ratingTotal', 'completedTasks', 'createdAt'
           ])

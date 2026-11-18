@@ -52,6 +52,7 @@ import {
   reviewPayment,
   reviewPlatformFee,
   reviewVerification,
+  reviewVerificationDocument,
 } from "./services";
 import {
   AuditLog,
@@ -64,6 +65,7 @@ import {
   Task,
   TaskMatch,
   VerificationRequest,
+  VerificationDocumentKind,
   ViolationReport,
 } from "./types";
 import { where } from "firebase/firestore";
@@ -954,6 +956,12 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
         item: VerificationRequest;
         decision: "Verified" | "Rejected" | "Needs Resubmission";
       }
+    | {
+        kind: "verification-document";
+        item: VerificationRequest;
+        documentKind: VerificationDocumentKind;
+        decision: "Verified" | "Rejected" | "Needs Resubmission";
+      }
     | { kind: "payment"; item: Payment; decision: "Verified" | "Rejected" }
     | { kind: "platform-fee"; item: PlatformFee; decision: "verified" | "rejected" }
     | null
@@ -1029,20 +1037,16 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
           <Table
             headers={[
               "Account",
+              "Progress",
               "Uploaded requirements",
               "Submitted",
               "Decision",
             ]}
           >
           {sortedRequests.map((item) => {
-            const requirementsComplete = Boolean(
-              item.validIdPath &&
-                item.selfieWithIdPath &&
-                item.medicalCertificatePath &&
-                item.policeClearancePath,
-            );
             return <tr key={item.id}>
                 <td>{profiles[item.userId]?.fullName || "Account unavailable"}</td>
+                <td><strong>{profiles[item.userId]?.verificationProgress ?? 0}%</strong><small>{profiles[item.userId]?.verificationProgressLevel || "Incomplete"}</small></td>
                 <td>
                   <strong>{item.validIdType || "Identity document"}</strong>
                   <div className="row-actions document-actions">
@@ -1111,50 +1115,10 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
                 </td>
                 <td>{date(item.submittedAt)}</td>
                 <td>
-                  <div className="row-actions">
-                    <button
-                      className="text-button success-text"
-                      disabled={!requirementsComplete}
-                      title={
-                        requirementsComplete
-                          ? undefined
-                          : "All four documents are required before approval."
-                      }
-                      onClick={() =>
-                        setModal({
-                          kind: "verification",
-                          item,
-                          decision: "Verified",
-                        })
-                      }
-                    >
-                      Verify user
-                    </button>
-                    <button
-                      className="text-button"
-                      onClick={() =>
-                        setModal({
-                          kind: "verification",
-                          item,
-                          decision: "Needs Resubmission",
-                        })
-                      }
-                    >
-                      Request update
-                    </button>
-                    <button
-                      className="text-button danger-text"
-                      onClick={() =>
-                        setModal({
-                          kind: "verification",
-                          item,
-                          decision: "Rejected",
-                        })
-                      }
-                    >
-                      Reject
-                    </button>
-                  </div>
+                  <VerificationDocumentDecisions
+                    item={item}
+                    onReview={(documentKind, decision) => setModal({ kind: "verification-document", item, documentKind, decision })}
+                  />
                 </td>
               </tr>;
           })}
@@ -1238,6 +1202,34 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
       ) : null}
     </div>
   );
+}
+
+function VerificationDocumentDecisions({
+  item,
+  onReview,
+}: {
+  item: VerificationRequest;
+  onReview: (kind: VerificationDocumentKind, decision: "Verified" | "Rejected" | "Needs Resubmission") => void;
+}) {
+  const documents: Array<{ kind: VerificationDocumentKind; label: string; path?: string }> = [
+    { kind: "valid-id", label: "Valid ID", path: item.validIdPath },
+    { kind: "selfie-with-id", label: "Selfie with ID", path: item.selfieWithIdPath },
+    { kind: "medical-certificate", label: "Medical certificate", path: item.medicalCertificatePath },
+    { kind: "police-clearance", label: "Police clearance", path: item.policeClearancePath },
+  ];
+  return <div className="document-decisions">
+    {documents.map(({ kind, label, path }) => {
+      const status = item.documentReviews?.[kind]?.status || "Pending";
+      return <div className="document-decision" key={kind}>
+        <small><strong>{label}</strong> · {status}</small>
+        <div className="row-actions">
+          <button className="text-button success-text" disabled={!path || status === "Verified"} onClick={() => onReview(kind, "Verified")}>Verify</button>
+          <button className="text-button" disabled={!path || status === "Verified"} onClick={() => onReview(kind, "Needs Resubmission")}>Request update</button>
+          <button className="text-button danger-text" disabled={!path || status === "Verified"} onClick={() => onReview(kind, "Rejected")}>Reject</button>
+        </div>
+      </div>;
+    })}
+  </div>;
 }
 
 function HelpPage() {
@@ -1563,6 +1555,12 @@ function ReviewModal({
         item: VerificationRequest;
         decision: "Verified" | "Rejected" | "Needs Resubmission";
       }
+    | {
+        kind: "verification-document";
+        item: VerificationRequest;
+        documentKind: VerificationDocumentKind;
+        decision: "Verified" | "Rejected" | "Needs Resubmission";
+      }
     | { kind: "payment"; item: Payment; decision: "Verified" | "Rejected" }
     | { kind: "platform-fee"; item: PlatformFee; decision: "verified" | "rejected" };
   close: () => void;
@@ -1583,6 +1581,8 @@ function ReviewModal({
     try {
       if (modal.kind === "verification")
         await reviewVerification(modal.item.userId, modal.decision, reason);
+      else if (modal.kind === "verification-document")
+        await reviewVerificationDocument(modal.item.userId, modal.documentKind, modal.decision, reason);
       else if (modal.kind === "payment")
         await reviewPayment(
           modal.item.taskId || modal.item.id,
@@ -1601,12 +1601,12 @@ function ReviewModal({
   }
   return (
     <Modal
-      title={`${modal.decision} ${modal.kind === "verification" ? "verification" : modal.kind === "platform-fee" ? "TASKLINK service fee" : "payment"}`}
+      title={`${modal.decision} ${modal.kind === "verification-document" ? modal.documentKind.replace(/-/g, " ") : modal.kind === "verification" ? "verification" : modal.kind === "platform-fee" ? "TASKLINK service fee" : "payment"}`}
       close={close}
     >
       <form onSubmit={submit}>
         <p className="subtle">
-          {modal.kind === "verification"
+          {modal.kind === "verification" || modal.kind === "verification-document"
             ? modal.item.userId
             : modal.item.taskId || modal.item.id}
         </p>

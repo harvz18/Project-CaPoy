@@ -3,10 +3,12 @@ export type Role = "worker" | "client" | "admin";
 export type AccountStatus = "active" | "pending_verification" | "suspended" | "deleted";
 export type TaskStatus = "Finding Workers" | "Applied" | "Accepted" | "In Progress" | "Pending Approval" | "Finished" | "Archived" | "Cancelled" | "Disputed" | "Expired";
 export type VerificationStatus = "Not Submitted" | "Pending Verification" | "Verified" | "Rejected" | "Needs Resubmission";
+export type VerificationDocumentKind = "valid-id" | "selfie-with-id" | "medical-certificate" | "police-clearance";
+export type VerificationDocumentReview = { status: "Pending" | "Verified" | "Rejected" | "Needs Resubmission"; reviewedAt?: string; reviewedBy?: string; reason?: string | null };
 
 export type Profile = {
   id: string; fullName?: string; role?: Role; rating?: number; ratingCount?: number; createdAt?: string;
-  accountStatus?: AccountStatus; verificationStatus?: VerificationStatus; identityStatus?: string; businessName?: string; profilePhotoUrl?: string;
+  accountStatus?: AccountStatus; verificationStatus?: VerificationStatus; verificationProgress?: number; verificationProgressLevel?: string; identityStatus?: string; businessName?: string; profilePhotoUrl?: string;
 };
 
 export type Task = {
@@ -20,7 +22,7 @@ export type TaskMatch = {
   proposedAmount?: string; createdAt?: string; updatedAt?: string;
 };
 
-export type VerificationRequest = { id: string; userId: string; validIdType?: string; validIdPath?: string; selfieWithIdPath?: string; medicalCertificatePath?: string; policeClearancePath?: string; status?: VerificationStatus; submittedAt?: string; reviewReason?: string };
+export type VerificationRequest = { id: string; userId: string; validIdType?: string; validIdPath?: string; selfieWithIdPath?: string; medicalCertificatePath?: string; policeClearancePath?: string; status?: VerificationStatus; submittedAt?: string; reviewReason?: string; documentReviews?: Partial<Record<VerificationDocumentKind, VerificationDocumentReview>> };
 export type Payment = { id: string; taskId?: string; paymentMethod?: string; paymentStatus?: string; agreedAmount?: string; updatedAt?: string; createdAt?: string };
 export type PlatformFee = { id: string; taskId?: string; employerId?: string; taskTitle?: string; taskCategory?: string; workerWage?: string; feeAmount?: string; feeCentavos?: number; status?: "pending_payment" | "submitted_for_review" | "verified" | "rejected" | "overdue"; receiptPath?: string; transactionReference?: string; submittedAt?: string; reviewedAt?: string; rejectionReason?: string; createdAt?: string; updatedAt?: string };
 export type PlatformRevenueOverview = { revenueGeneratingCompletedTasks: number; totalCollectedCentavos: number; pendingPaymentCentavos: number; submittedForReviewCentavos: number; overdueCentavos: number; rejectedCentavos: number; byCategory: Array<{ category: string; feeCentavos: number }>; monthlyCollected: Array<{ month: string; feeCentavos: number }>; generatedAt: string };

@@ -9,6 +9,7 @@ import { useApp } from "../../src/context/AppContext";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
 import { rankTaskMatches, summarizeScoreBreakdown } from "../../src/domain/matching";
 import { estimateServiceFee, formatCentavos } from "../../src/domain/platformRevenue";
+import { verificationProgressPublicLabel } from "../../src/domain/verificationProgress";
 import { formatPaymentMethod, formatRequiredCapabilities, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
 import { loadPlatformRevenueConfig } from "../../src/services/platformRevenueService";
 import { TaskMatch } from "../../src/types";
@@ -172,7 +173,7 @@ export default function TaskDetailsScreen() {
           <DetailBox label="Applicants" value={hasAcceptedWorker ? "1 accepted" : `${applicantCount} applied`} />
           <DetailBox label="Capabilities" value={formatRequiredCapabilities(task)} />
           <DetailBox label="Task Radius" value={`${task.geofenceRadius ?? 500} meters`} />
-          <DetailBox label="Employer" value={`${employer?.fullName ?? "TaskLink employer"}${employer?.verificationStatus === "Verified" ? " · Verified" : ""}${employerRating ? ` · ${employerRating.toFixed(1)}/5` : ""}`} />
+          <DetailBox label="Employer" value={`${employer?.fullName ?? "TaskLink employer"} · ${employer ? verificationProgressPublicLabel(employer) : "Verification: 0% complete"}${employerRating ? ` · ${employerRating.toFixed(1)}/5` : ""}`} />
           <DetailBox label="Schedule" value={formatTaskSchedule(task)} />
         </View>
 
@@ -258,6 +259,7 @@ export default function TaskDetailsScreen() {
                     <View style={styles.flex}>
                       <Text style={styles.workerName}>{applicant.fullName}</Text>
                       <Text style={styles.workerMeta}>{ratingSummary(applicant.rating)} · {applicant.completedTasks ?? 0} jobs</Text>
+                      <Text style={styles.workerNote}>{verificationProgressPublicLabel(applicant)}</Text>
                       <Text style={styles.workerNote}>{applicant.availabilityStatus ?? "Availability not recorded"}</Text>
                     </View>
                   </Pressable>

@@ -115,6 +115,9 @@ export type UserProfile = {
   medicalCertificateUrl?: string;
   policeClearanceUrl?: string;
   verificationStatus?: VerificationStatus;
+  /** Trusted, derived percentage published without document details. */
+  verificationProgress?: number;
+  verificationProgressLevel?: "Incomplete" | "In Progress" | "Near Completion" | "Verification Complete";
   verificationReviewReason?: string | null;
   identityStatus?: IdentityStatus;
   identityApprovedAt?: string;
@@ -338,6 +341,12 @@ export type VerificationRequest = {
   medicalCertificatePath: string;
   policeClearancePath: string;
   status: VerificationStatus;
+  documentReviews?: Partial<Record<"valid-id" | "selfie-with-id" | "medical-certificate" | "police-clearance", {
+    status: "Pending" | "Verified" | "Needs Resubmission" | "Rejected";
+    reviewedAt?: string;
+    reviewedBy?: string;
+    reason?: string | null;
+  }>>;
   submittedAt: string;
   updatedAt: string;
   reviewedAt?: string;

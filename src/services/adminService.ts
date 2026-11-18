@@ -13,6 +13,7 @@ import {
   ViolationReport
 } from "../types";
 import { auth, db, functions, storage } from "./firebase";
+import { postTrustedApi } from "./trustedApi";
 import { getPaymentProofDownloadUrl } from "./fileUploadService";
 import { parseFirestorePaymentProofPath } from "../utils/paymentProof";
 
@@ -68,7 +69,7 @@ async function callAdminFunction(name: string, data: Record<string, unknown>) {
 }
 
 export function reviewWorkerVerification(userId: string, decision: "Verified" | "Rejected" | "Needs Resubmission", reason: string) {
-  return callAdminFunction("reviewWorkerVerification", { userId, decision, reason });
+  return postTrustedApi("/api/admin/verifications/review", { userId, decision, reason });
 }
 
 export function reviewPayment(taskId: string, decision: "Verified" | "Rejected", reason: string) {

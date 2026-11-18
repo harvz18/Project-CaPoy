@@ -7,6 +7,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
+import { verificationProgressPublicLabel } from "../../src/domain/verificationProgress";
 
 const palette = {
   background: "#F7FAF8",
@@ -58,7 +59,7 @@ export default function WorkerPublicProfileScreen() {
   );
   const skills = worker?.capabilities?.length ? worker.capabilities : worker?.skills ?? [];
   const name = worker?.fullName ?? "Worker profile";
-  const verificationStatus = worker?.verificationStatus ?? "Not Submitted";
+  const verificationStatus = worker ? verificationProgressPublicLabel(worker) : "Verification: 0% complete";
   const experienceText =
     worker?.experienceDescription ||
     (worker?.yearsOfExperience ? `${worker.yearsOfExperience} of local task experience.` : "Experience details not provided yet.");
