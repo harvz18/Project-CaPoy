@@ -57,7 +57,7 @@ export function PhilippineAddressPicker({ value, onChange, disabled = false }: P
     if (!value.regionCode) return;
     onChange({ ...value, province: option?.name ?? "", provinceCode: option?.code ?? noProvince, city: "", cityMunicipality: "", cityMunicipalityCode: "", barangay: "", barangayCode: "" });
     setBarangays([]); setOpen(undefined);
-    void safely("city", () => option ? loadCitiesMunicipalities(option.code) : loadIndependentCities(value.regionCode as string), setCities);
+    void safely("city", () => option ? loadCitiesMunicipalities(option.code, value.regionCode) : loadIndependentCities(value.regionCode as string), setCities);
   }
   function selectCity(option: PhilippineAddressOption) {
     onChange({ ...value, city: option.name, cityMunicipality: option.name, cityMunicipalityCode: option.code, barangay: "", barangayCode: "" });
@@ -80,7 +80,21 @@ export function PhilippineAddressPicker({ value, onChange, disabled = false }: P
     <Text style={styles.helper}>Residential address. Task service locations remain limited to Bacolod City.</Text>
     {(["region", "province", "city", "barangay"] as Level[]).map((level) => <View key={level} style={styles.field}>
       <Text style={styles.label}>{label(level)}</Text>
-      <Pressable accessibilityRole="button" disabled={!canOpen(level)} onPress={() => { setQuery(""); setOpen(level); }} style={[styles.trigger, !canOpen(level) && styles.disabled]}>
+      <Pressable accessibilityRole="button" disabled={!canOpen(level)} onPress={() => {
+        setQuery(""); setOpen(level);
+        // Existing accounts may already have a saved PSGC selection when this
+        // component mounts. Load dependent options on first open as well as on
+        // a new selection, so editing those addresses never opens an empty list.
+        if (level === "city" && !cities.length && value.regionCode) {
+          const regionCode = value.regionCode;
+          void safely("city", () => value.provinceCode && value.provinceCode !== noProvince
+            ? loadCitiesMunicipalities(value.provinceCode, regionCode)
+            : loadIndependentCities(regionCode), setCities);
+        }
+        if (level === "barangay" && !barangays.length && value.cityMunicipalityCode) {
+          void safely("barangay", () => loadBarangays(value.cityMunicipalityCode as string), setBarangays);
+        }
+      }} style={[styles.trigger, !canOpen(level) && styles.disabled]}>
         <Text numberOfLines={1} style={[styles.triggerText, !display(level) && styles.placeholder]}>{display(level) || `Choose ${label(level).toLowerCase()}`}</Text><Text style={styles.chevron}>⌄</Text>
       </Pressable>
       {level === "province" && value.regionCode && provinces.length > 0 ? <Pressable accessibilityRole="button" disabled={disabled || Boolean(loading)} onPress={() => selectProvince(undefined)} style={styles.independent}><Text style={styles.independentText}>My city is not under a province (HUC / NCR)</Text></Pressable> : null}

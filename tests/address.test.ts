@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseNominatimReverseResponse, parseNominatimSearchResponse } from "../src/services/reverseGeocoding";
+import { loadBarangays, loadCitiesMunicipalities } from "../src/services/philippineAddressService";
 import { formatAddressDetails, formatTaskAddressDetails, normalizeAddressDetails } from "../src/utils/address";
 
 test("address details produce a concise human-readable address without requiring a house number", () => {
@@ -65,4 +66,31 @@ test("a selected Nominatim search result provides both a pin and address fields"
     details: { street: "Alijis Road", barangay: "Alijis", city: "Bacolod", province: "Negros Occidental", postalCode: "6100" },
     provider: "OpenStreetMap Nominatim"
   });
+});
+
+test("Bacolod stays available for legacy Negros Occidental profiles and loads its current PSGC barangays", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = (async (input: string | URL) => {
+    const url = String(input); calls.push(url);
+    if (url.includes("/provinces/1804500000/cities-municipalities")) {
+      return new Response(JSON.stringify({ data: [{ code: "1804502000", name: "City of Bago", regionCode: "1800000000" }] }), { status: 200 });
+    }
+    if (url.includes("/regions/1800000000/cities-municipalities")) {
+      return new Response(JSON.stringify({ data: [{ code: "1830200000", name: "City of Bacolod", geographicProvinceCode: "1804500000" }] }), { status: 200 });
+    }
+    if (url.includes("/cities-municipalities/1830200000/barangays")) {
+      return new Response(JSON.stringify({ data: [{ code: "1830200001", name: "Alangilan" }] }), { status: 200 });
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+  try {
+    const cities = await loadCitiesMunicipalities("0645000000", "0600000000");
+    assert.deepEqual(cities.map((city) => city.name), ["City of Bacolod", "City of Bago"]);
+    assert.deepEqual(await loadBarangays("0645010000"), [{ code: "1830200001", name: "Alangilan" }]);
+    assert.equal(calls.some((url) => url.includes("1804500000")), true);
+    assert.equal(calls.some((url) => url.includes("1830200000")), true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
