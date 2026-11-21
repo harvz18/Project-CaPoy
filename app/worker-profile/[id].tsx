@@ -1,6 +1,6 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { AppText as Text } from "../../src/components/AppText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,6 +8,7 @@ import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
 import { verificationProgressPublicLabel } from "../../src/domain/verificationProgress";
+import { checkTaskerScheduleEligibility, TaskerScheduleEligibility } from "../../src/services/taskAcceptanceService";
 
 const palette = {
   background: "#F7FAF8",
@@ -36,12 +37,14 @@ export default function WorkerPublicProfileScreen() {
   const { id, taskId } = useLocalSearchParams<{ id: string; taskId?: string }>();
   const { actionLoading, currentUser, getUserById, ratings, taskMatches, tasks, updateTaskStatus, users } = useApp();
   const [actionError, setActionError] = useState("");
+  const [scheduleEligibility, setScheduleEligibility] = useState<TaskerScheduleEligibility>();
+  const [checkingSchedule, setCheckingSchedule] = useState(false);
   const worker = getUserById(id);
   const selectedTask = tasks.find((task) => task.id === taskId);
   const activeMatch = taskMatches.find((match) =>
     match.taskId === taskId && match.workerId === worker?.id && match.acceptanceStatus === "Applied"
   );
-  const canAcceptApplication = Boolean(
+  const hasActiveApplication = Boolean(
     worker
     && selectedTask
     && currentUser?.role === "client"
@@ -50,6 +53,7 @@ export default function WorkerPublicProfileScreen() {
     && selectedTask.applicantIds?.includes(worker.id)
     && activeMatch
   );
+  const canAcceptApplication = hasActiveApplication && scheduleEligibility?.eligible === true;
   const canMessageWorker = Boolean(
     worker
     && selectedTask
@@ -77,9 +81,40 @@ export default function WorkerPublicProfileScreen() {
     ? String(new Date(worker.createdAt).getFullYear())
     : "Not recorded";
 
+  useEffect(() => {
+    if (!hasActiveApplication || !taskId || !worker?.id) {
+      setScheduleEligibility(undefined);
+      setCheckingSchedule(false);
+      return;
+    }
+    let disposed = false;
+    setCheckingSchedule(true);
+    setScheduleEligibility(undefined);
+    void checkTaskerScheduleEligibility(taskId, worker.id)
+      .then((result) => {
+        if (!disposed) setScheduleEligibility(result);
+      })
+      .catch((error) => {
+        if (!disposed) setScheduleEligibility({
+          eligible: false,
+          message: error instanceof Error ? error.message : "Unable to check the tasker's schedule right now."
+        });
+      })
+      .finally(() => {
+        if (!disposed) setCheckingSchedule(false);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [hasActiveApplication, taskId, worker?.id]);
+
   async function handleAcceptWorker() {
-    if (!taskId || !worker || !canAcceptApplication) {
+    if (!taskId || !worker || !hasActiveApplication) {
       setActionError("This tasker does not have an active application for this task. Return to Review Applicants and select a tasker marked Applied.");
+      return;
+    }
+    if (!scheduleEligibility?.eligible) {
+      setActionError(scheduleEligibility?.message ?? "Check this tasker's schedule before accepting the application.");
       return;
     }
     try {
@@ -200,7 +235,12 @@ export default function WorkerPublicProfileScreen() {
           </View>
           <Text style={styles.bio}>TaskLink uses the tasker's private saved location for matching. Exact coordinates and home address are not displayed here.</Text>
         </View>
-        {taskId && !canAcceptApplication && selectedTask?.workerId !== worker.id ? (
+        {hasActiveApplication ? (
+          <View style={[styles.scheduleCheck, scheduleEligibility?.eligible ? styles.scheduleCheckAvailable : styles.scheduleCheckBlocked]}>
+            <Text style={styles.scheduleCheckTitle}>{checkingSchedule ? "Checking schedule…" : scheduleEligibility?.eligible ? "Available for this task" : "Schedule conflict"}</Text>
+            <Text style={styles.scheduleCheckText}>{scheduleEligibility?.message ?? "Checking this tasker's confirmed assignments."}</Text>
+          </View>
+        ) : taskId && selectedTask?.workerId !== worker.id ? (
           <Text style={styles.applicationHint}>This tasker cannot be accepted because they do not have an active application for the selected task.</Text>
         ) : null}
         {actionError ? <Text accessibilityRole="alert" style={styles.actionError}>{actionError}</Text> : null}
@@ -220,9 +260,9 @@ export default function WorkerPublicProfileScreen() {
         >
           <Text style={styles.messageButtonText}>Message</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" disabled={!canAcceptApplication || actionLoading} style={[styles.hireButton, (!canAcceptApplication || actionLoading) && styles.hireButtonDisabled]} onPress={handleAcceptWorker}>
+        <Pressable accessibilityRole="button" disabled={!canAcceptApplication || checkingSchedule || actionLoading} style={[styles.hireButton, (!canAcceptApplication || checkingSchedule || actionLoading) && styles.hireButtonDisabled]} onPress={handleAcceptWorker}>
           <Text style={[styles.hireButtonText, !canAcceptApplication && styles.hireButtonTextDisabled]}>
-            {actionLoading ? "Accepting..." : canAcceptApplication ? "Accept Application" : selectedTask?.workerId === worker.id ? "Worker Accepted" : taskId ? "Not an Active Applicant" : "No Task Selected"}
+            {actionLoading ? "Accepting..." : checkingSchedule ? "Checking Schedule..." : canAcceptApplication ? "Accept Application" : scheduleEligibility?.message ? "Schedule Conflict" : selectedTask?.workerId === worker.id ? "Worker Accepted" : taskId ? "Not an Active Applicant" : "No Task Selected"}
           </Text>
         </Pressable>
       </View>
@@ -326,6 +366,11 @@ const styles = StyleSheet.create({
   coverageCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surfaceLow, gap: 12 },
   actionError: { color: "#BA1A1A", fontSize: 13, lineHeight: 18, fontWeight: "700", textAlign: "center" },
   applicationHint: { color: "#684000", fontSize: 13, lineHeight: 18, fontWeight: "700", textAlign: "center" },
+  scheduleCheck: { gap: 3, borderRadius: 10, borderWidth: 1, padding: 12 },
+  scheduleCheckAvailable: { borderColor: "#9ADBCB", backgroundColor: "#EAF8F1" },
+  scheduleCheckBlocked: { borderColor: "#F2C7C7", backgroundColor: "#FFF5F5" },
+  scheduleCheckTitle: { color: palette.textStrong, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  scheduleCheckText: { color: palette.muted, fontSize: 12, lineHeight: 17 },
   coverageHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   coverageIcon: { color: palette.primary, fontSize: 24, fontWeight: "900" },
   coverageTitle: { color: palette.textStrong, fontSize: 14, lineHeight: 20, fontWeight: "900", textTransform: "uppercase" },

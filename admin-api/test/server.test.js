@@ -26,6 +26,10 @@ test("health is public and protected API data requires a bearer token", async ()
     assert.equal(protectedVerificationSubmission.status, 401);
     const protectedProgressRefresh = await fetch(`http://127.0.0.1:${port}/api/verification/progress/refresh`, { method: "POST" });
     assert.equal(protectedProgressRefresh.status, 401);
+    const protectedAcceptanceEligibility = await fetch(`http://127.0.0.1:${port}/api/tasks/acceptance-eligibility`, { method: "POST" });
+    assert.equal(protectedAcceptanceEligibility.status, 401);
+    const protectedTaskAcceptance = await fetch(`http://127.0.0.1:${port}/api/tasks/accept-application`, { method: "POST" });
+    assert.equal(protectedTaskAcceptance.status, 401);
     const preflight = await fetch(`http://127.0.0.1:${port}/api/revenue/config`, {
       method: "OPTIONS",
       headers: { Origin: "https://tasklink-fb027.web.app" }

@@ -1,12 +1,13 @@
 const express = require("express");
 const { cert, getApps, initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
-const { getFirestore } = require("firebase-admin/firestore");
+const { FieldValue, getFirestore } = require("firebase-admin/firestore");
 const { authorityFromClaims, buildAccountStatusChange, hasSuperadminAuthority, isIdentityLocked, toModerationUser } = require("../functions/authority");
 const { buildIdentityReview } = require("../functions/identity");
 const { DEFAULT_RATE_BASIS_POINTS, buildFeeSnapshot } = require("../functions/revenue");
 const { DOCUMENT_KINDS, calculateVerificationProgress, documentReviewsForSubmission, requestFieldByKind } = require("../functions/verificationProgress");
 const { buildVerifiedPhoneUpdate, hasMatchingVerifiedPhone, normalizePhilippineMobileNumber, normalizeStoredPhilippineMobileNumber } = require("./phoneAuth");
+const { findConflictingAssignment, validSchedule } = require("../functions/marketplace");
 
 class ApiError extends Error {
   constructor(status, message) {
@@ -415,6 +416,122 @@ function optionalBodyString(request, fieldName) {
   if (value === undefined || value === null) return "";
   if (typeof value !== "string") throw new ApiError(400, `${fieldName} must be text.`);
   return value.trim();
+}
+
+const CONFIRMED_ASSIGNMENT_STATUSES = new Set(["Accepted", "In Progress", "Pending Approval"]);
+
+function activeAssignmentAt(assignments, at = Date.now()) {
+  return assignments.find((assignment) => {
+    if (!CONFIRMED_ASSIGNMENT_STATUSES.has(assignment.status)) return false;
+    if (assignment.status === "In Progress") return true;
+    const schedule = validSchedule(assignment);
+    return Boolean(schedule && at >= schedule.start && at < schedule.end);
+  });
+}
+
+function availabilityUpdateForAssignments(assignments, at = Date.now()) {
+  const active = activeAssignmentAt(assignments, at);
+  return active
+    ? { availabilityStatus: "Busy", availability: "Busy", activeTaskId: active.id }
+    : { availabilityStatus: "Available", availability: "Available", activeTaskId: FieldValue.delete() };
+}
+
+function assertAcceptableApplication({ clientId, client, match, task, worker, workerId }) {
+  if (!client || client.role !== "client" || task.clientId !== clientId) {
+    throw new ApiError(403, "Only the employer who posted this task can accept an applicant.");
+  }
+  if (!worker || worker.role !== "worker") throw new ApiError(404, "Tasker profile not found.");
+  if (task.status !== "Applied" || task.workerId || !task.applicantIds?.includes(workerId)
+    || !match || match.workerId !== workerId || match.acceptanceStatus !== "Applied") {
+    throw new ApiError(409, "This application is no longer available for acceptance.");
+  }
+}
+
+async function getTaskerScheduleAvailability({ request, db, claims }) {
+  const taskId = requiredBodyString(request, "taskId");
+  const workerId = requiredBodyString(request, "workerId");
+  const [taskSnapshot, matchSnapshot, clientSnapshot, workerSnapshot, assignmentsSnapshot] = await Promise.all([
+    db.collection("tasks").doc(taskId).get(),
+    db.collection("taskMatches").doc(`${taskId}_${workerId}`).get(),
+    db.collection("users").doc(claims.uid).get(),
+    db.collection("users").doc(workerId).get(),
+    db.collection("tasks").where("workerId", "==", workerId).get()
+  ]);
+  if (!taskSnapshot.exists) throw new ApiError(404, "Task not found.");
+  const task = { id: taskSnapshot.id, ...taskSnapshot.data() };
+  const match = matchSnapshot.exists ? matchSnapshot.data() : undefined;
+  const client = clientSnapshot.exists ? clientSnapshot.data() : undefined;
+  const worker = workerSnapshot.exists ? workerSnapshot.data() : undefined;
+  assertAcceptableApplication({ clientId: claims.uid, client, match, task, worker, workerId });
+  const conflict = findConflictingAssignment(
+    assignmentsSnapshot.docs.map((document) => ({ id: document.id, ...document.data() })), task, taskId
+  );
+  return conflict
+    ? { eligible: false, message: "This tasker's confirmed schedule overlaps this task." }
+    : { eligible: true, message: "Available for this task's schedule." };
+}
+
+async function acceptTaskApplication({ request, db, claims }) {
+  const taskId = requiredBodyString(request, "taskId");
+  const workerId = requiredBodyString(request, "workerId");
+  if (workerId === claims.uid) throw new ApiError(409, "Employers cannot accept themselves for their own task.");
+  const acceptedAt = nowIso();
+
+  await db.runTransaction(async (transaction) => {
+    const taskRef = db.collection("tasks").doc(taskId);
+    const matchRef = db.collection("taskMatches").doc(`${taskId}_${workerId}`);
+    const paymentRef = db.collection("payments").doc(taskId);
+    const workerRef = db.collection("users").doc(workerId);
+    const assignmentsQuery = db.collection("tasks").where("workerId", "==", workerId);
+    const [taskSnapshot, matchSnapshot, paymentSnapshot, clientSnapshot, workerSnapshot, assignmentsSnapshot, allMatchesSnapshot] = await Promise.all([
+      transaction.get(taskRef), transaction.get(matchRef), transaction.get(paymentRef),
+      transaction.get(db.collection("users").doc(claims.uid)), transaction.get(workerRef),
+      transaction.get(assignmentsQuery), transaction.get(db.collection("taskMatches").where("taskId", "==", taskId))
+    ]);
+    if (!taskSnapshot.exists || !paymentSnapshot.exists) throw new ApiError(404, "Task or payment record was not found.");
+    const task = { id: taskSnapshot.id, ...taskSnapshot.data() };
+    const match = matchSnapshot.exists ? matchSnapshot.data() : undefined;
+    const client = clientSnapshot.exists ? clientSnapshot.data() : undefined;
+    const worker = workerSnapshot.exists ? workerSnapshot.data() : undefined;
+    assertAcceptableApplication({ clientId: claims.uid, client, match, task, worker, workerId });
+    const assignments = assignmentsSnapshot.docs.map((document) => ({ id: document.id, ...document.data() }));
+    if (findConflictingAssignment(assignments, task, taskId)) {
+      throw new ApiError(409, "This tasker's confirmed schedule overlaps this task.");
+    }
+    const agreedAmount = String(task.pricingMode === "bidding" ? match.proposedAmount : task.wage || "").trim();
+    if (!agreedAmount || !Number.isFinite(Number(agreedAmount)) || Number(agreedAmount) <= 0) {
+      throw new ApiError(409, "The selected application does not have a valid agreed amount.");
+    }
+    transaction.update(taskRef, {
+      status: "Accepted", workerId, applicantIds: [workerId], selectedMatchId: matchRef.id,
+      agreedAmount, acceptedAt, updatedAt: acceptedAt
+    });
+    transaction.update(paymentRef, { workerId, agreedAmount, updatedAt: acceptedAt });
+    transaction.update(matchRef, { acceptanceStatus: "Accepted", hiredAt: acceptedAt, updatedAt: acceptedAt });
+    allMatchesSnapshot.docs.forEach((document) => {
+      const candidate = document.data();
+      if (candidate.workerId === workerId || candidate.acceptanceStatus !== "Applied") return;
+      transaction.update(document.ref, { acceptanceStatus: "Rejected", rejectedAt: acceptedAt, updatedAt: acceptedAt });
+      transaction.set(db.collection("notifications").doc(`${taskId}_rejected_${candidate.workerId}`), {
+        userId: candidate.workerId, taskId, createdBy: claims.uid, notificationType: "Application update",
+        message: `Another tasker was selected for ${task.title}.`, readStatus: false, createdAt: acceptedAt
+      });
+    });
+    transaction.set(db.collection("notifications").doc(`${taskId}_accepted_${workerId}`), {
+      userId: workerId, taskId, createdBy: claims.uid, notificationType: "Application accepted",
+      message: `Your application for ${task.title} was accepted.`, readStatus: false, createdAt: acceptedAt
+    });
+    const availability = { ...availabilityUpdateForAssignments([...assignments, { ...task, workerId, status: "Accepted" }]), updatedAt: acceptedAt };
+    transaction.update(workerRef, availability);
+    transaction.set(db.collection("workerProfiles").doc(workerId), {
+      availabilityStatus: availability.availabilityStatus, availability: availability.availability, updatedAt: acceptedAt
+    }, { merge: true });
+    transaction.set(db.collection("publicProfiles").doc(workerId), {
+      availabilityStatus: availability.availabilityStatus, availability: availability.availability, updatedAt: acceptedAt
+    }, { merge: true });
+    writeAudit(transaction, db, { actorId: claims.uid, action: "accept_task_application", targetType: "task", targetId: taskId, metadata: { workerId } });
+  });
+  return { ok: true, status: "Accepted" };
 }
 
 async function hasStoredVerificationDocument(transaction, db, userId, path, kind) {
@@ -1050,6 +1167,8 @@ function createServer() {
   app.post("/api/revenue/fees/submit", route("user", submitPlatformFee));
   app.post("/api/revenue/fees/review", route("admin", reviewPlatformFee));
   app.get("/api/revenue/overview", route("superadmin", platformRevenueOverview));
+  app.post("/api/tasks/acceptance-eligibility", route("user", getTaskerScheduleAvailability));
+  app.post("/api/tasks/accept-application", route("user", acceptTaskApplication));
   app.post("/api/verification/submit", route("user", submitVerificationRequest));
   app.post("/api/verification/progress/refresh", route("user", refreshVerificationProgress));
   app.post("/api/verification/complete-missing", route("user", submitMissingVerificationDocuments));

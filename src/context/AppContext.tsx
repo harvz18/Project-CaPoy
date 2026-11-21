@@ -85,6 +85,7 @@ import { AddressDetails } from "../utils/address";
 import { isMarketplaceVerified, verificationRequiredMessage } from "../domain/verificationPolicy";
 import { normalizePhilippineMobileNumber, phoneVerificationErrorMessage } from "../domain/phoneVerification";
 import { claimSmsRegistrationVerification } from "../services/trustedApi";
+import { acceptTaskerApplication } from "../services/taskAcceptanceService";
 
 type RegisterInput = {
   fullName: string;
@@ -692,6 +693,12 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       const nextWorkerId = workerId ?? task?.workerId ?? (currentUser?.role === "worker" ? currentUser.id : undefined);
       assertTaskTransition(task, status, currentUser, nextWorkerId);
+
+      if (status === "Accepted") {
+        if (!nextWorkerId) throw new Error("Choose an active applicant before accepting a worker.");
+        await acceptTaskerApplication(taskId, nextWorkerId);
+        return;
+      }
 
       let actor = currentUser;
       if (currentUser.role === "worker" && (status === "In Progress" || status === "Pending Approval")) {
