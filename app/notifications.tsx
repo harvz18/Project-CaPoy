@@ -98,7 +98,7 @@ export default function NotificationsScreen() {
           <Pressable accessibilityRole="button" onPress={() => void openNotification(item)}>
             <AppCard>
               <View style={localStyles.rowBetween}>
-                <Text style={localStyles.type}>{item.notificationType}</Text>
+                <Text style={localStyles.type}>{notificationTypeLabel(item.notificationType)}</Text>
                 <StatusBadge status={item.readStatus ? "Read" : "Unread"} />
               </View>
               <Text style={localStyles.message}>{item.message}</Text>
@@ -128,6 +128,10 @@ function PreferenceRow({ disabled, label, onValueChange, value }: {
 function formatTimestamp(timestamp: string) {
   const date = new Date(timestamp);
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
+}
+
+function notificationTypeLabel(type: string) {
+  return type === "Matching task" ? "Smart Match" : type;
 }
 
 const localStyles = StyleSheet.create({
