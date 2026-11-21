@@ -1,11 +1,8 @@
 export type CoreMatchScoreBreakdown = {
   skill: number;
   proximity: number;
-  availability: number;
   verification: number;
-  experience: number;
-  rating: number;
-  completedTasks: number;
+  availability: number;
 };
 
 export type CoreMatchResult = {
@@ -23,11 +20,8 @@ export const MATCH_POLICY_WEIGHTS: Readonly<{
   skill: number;
   proximityMinimum: number;
   proximityMaximum: number;
-  availability: number;
   verification: number;
-  experience: number;
-  rating: number;
-  completedTasks: number;
+  availability: number;
 }>;
 
 export function scoreWorkerForTask(task: unknown, worker: unknown, now?: number): CoreMatchResult;

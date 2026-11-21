@@ -1,16 +1,13 @@
 const EARTH_RADIUS_KM = 6371;
-const MATCH_POLICY_VERSION = 6;
+const MATCH_POLICY_VERSION = 7;
 const DISCOVERY_LOCATION_MAX_AGE_MS = 30 * 60 * 1000;
 const DISCOVERY_MAX_DEVICE_ACCURACY_METERS = 200;
 const MATCH_POLICY_WEIGHTS = Object.freeze({
-  skill: 35,
+  skill: 50,
   proximityMinimum: 15,
-  proximityMaximum: 30,
-  availability: 15,
+  proximityMaximum: 35,
   verification: 10,
-  experience: 5,
-  rating: 3,
-  completedTasks: 2
+  availability: 5
 });
 
 function validCoordinates(latitude, longitude) {
@@ -70,33 +67,22 @@ function scoreWorkerForTask(task, worker, now = Date.now()) {
   const proximity = MATCH_POLICY_WEIGHTS.proximityMinimum + Math.round(
     proximityRatio * (MATCH_POLICY_WEIGHTS.proximityMaximum - MATCH_POLICY_WEIGHTS.proximityMinimum)
   );
-  const hasExperience = Boolean((worker.experienceDescription || "").trim() || (worker.yearsOfExperience || "").trim());
-  const rating = Math.max(0, Math.min(5, Number(worker.rating) || 0));
-  const ratingCount = Math.max(0, Number(worker.ratingCount) || 0);
-  const hasRatingHistory = ratingCount > 0 || rating > 0;
-  const ratingPoints = hasRatingHistory ? Math.round((rating / 5) * MATCH_POLICY_WEIGHTS.rating) : 0;
-  const completedTaskPoints = Math.min(
-    MATCH_POLICY_WEIGHTS.completedTasks,
-    Math.floor(Math.max(0, Number(worker.completedTasks) || 0) / 5)
-  );
+  // Availability is only a small ordering signal. A tasker's exact schedule
+  // is checked securely when an employer accepts their application.
+  const currentlyAvailable = (worker.availabilityStatus || worker.availability || "Available").toLowerCase() === "available";
   const breakdown = {
     skill: MATCH_POLICY_WEIGHTS.skill,
     proximity,
-    availability: MATCH_POLICY_WEIGHTS.availability,
-    verification: approvedIdentity ? MATCH_POLICY_WEIGHTS.verification : 0,
-    experience: hasExperience ? MATCH_POLICY_WEIGHTS.experience : 0,
-    rating: ratingPoints,
-    completedTasks: completedTaskPoints
+    verification: MATCH_POLICY_WEIGHTS.verification,
+    availability: currentlyAvailable ? MATCH_POLICY_WEIGHTS.availability : 0
   };
   const score = Object.values(breakdown).reduce((total, points) => total + points, 0);
 
   reasons.push(`Matches ${required.join(", ") || task.category}.`);
   reasons.push(`${distance.toFixed(1)} km away within the ${radius} km preferred radius.`);
-  reasons.push("Schedule conflicts will be checked before acceptance.");
-  if (hasExperience) reasons.push("Experience details provided.");
-  if (hasRatingHistory) reasons.push(`Rating history: ${rating.toFixed(1)} out of 5.`);
-  else reasons.push("New tasker with no rating history yet.");
-  if ((worker.completedTasks || 0) > 0) reasons.push(`${worker.completedTasks} completed task${worker.completedTasks === 1 ? "" : "s"}.`);
+  reasons.push(currentlyAvailable
+    ? "Currently available for new work."
+    : "Availability is limited; schedule conflicts are checked before acceptance.");
   return { eligible: true, score: Math.min(100, score), distanceKm: distance, reasons, breakdown };
 }
 

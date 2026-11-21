@@ -240,9 +240,6 @@ export type MatchScoreBreakdown = {
   proximity: number;
   availability: number;
   verification: number;
-  experience: number;
-  rating: number;
-  completedTasks: number;
 };
 
 export type AppNotification = {

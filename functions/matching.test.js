@@ -28,13 +28,10 @@ test("eligible nearby worker receives a perfect score", () => {
   assert.equal(result.eligible, true);
   assert.equal(result.score, 100);
   assert.deepEqual(result.breakdown, {
-    skill: 35,
-    proximity: 30,
-    availability: 15,
+    skill: 50,
+    proximity: 35,
     verification: 10,
-    experience: 5,
-    rating: 3,
-    completedTasks: 2
+    availability: 5
   });
 });
 
@@ -47,7 +44,7 @@ test("nearer workers receive more proximity points within the same radius", () =
   assert.ok(nearby.breakdown.proximity > farther.breakdown.proximity);
 });
 
-test("new unrated workers remain eligible and only miss optional history points", () => {
+test("experience, ratings, and completed work do not change the match percentage", () => {
   const result = scoreWorkerForTask(task(), worker({
     rating: 0,
     ratingCount: 0,
@@ -57,9 +54,13 @@ test("new unrated workers remain eligible and only miss optional history points"
   }), Date.parse(now));
 
   assert.equal(result.eligible, true);
-  assert.equal(result.score, 90);
-  assert.equal(result.breakdown.rating, 0);
-  assert.match(result.reasons.join(" "), /no rating history/);
+  assert.equal(result.score, 100);
+  assert.deepEqual(result.breakdown, {
+    skill: 50,
+    proximity: 35,
+    verification: 10,
+    availability: 5
+  });
 });
 
 test("unverified accounts are excluded from marketplace recommendations", () => {
@@ -75,19 +76,16 @@ test("unverified accounts are excluded from marketplace recommendations", () => 
 test("trusted match snapshots persist policy, score, reasons, distance, and breakdown", () => {
   const snapshot = buildMatchSnapshot(task(), worker(), Date.parse(now));
 
-  assert.equal(snapshot.matchPolicyVersion, 6);
+  assert.equal(snapshot.matchPolicyVersion, 7);
   assert.equal(snapshot.matchScore, 100);
   assert.equal(snapshot.eligible, true);
   assert.ok(snapshot.distanceKm >= 0);
   assert.ok(Array.isArray(snapshot.matchReasons));
   assert.deepEqual(snapshot.scoreBreakdown, {
-    skill: 35,
-    proximity: 30,
-    availability: 15,
+    skill: 50,
+    proximity: 35,
     verification: 10,
-    experience: 5,
-    rating: 3,
-    completedTasks: 2
+    availability: 5
   });
 });
 
@@ -114,8 +112,10 @@ test("worker outside their preferred radius is never notified", () => {
   assert.equal(result.eligible, false);
 });
 
-test("stale, inaccurate, and expired workers are never notified while global busy state stays discoverable", () => {
-  assert.equal(scoreWorkerForTask(task(), worker({ availabilityStatus: "Busy", activeTaskId: "active" }), Date.parse(now)).eligible, true);
+test("stale, inaccurate, and expired workers are never notified while availability stays a small signal", () => {
+  const busy = scoreWorkerForTask(task(), worker({ availabilityStatus: "Busy", activeTaskId: "active" }), Date.parse(now));
+  assert.equal(busy.eligible, true);
+  assert.equal(busy.score, 95);
   const results = [
     scoreWorkerForTask(task(), worker({ locationUpdatedAt: "2026-09-29T03:29:59.999Z" }), Date.parse(now)),
     scoreWorkerForTask(task(), worker({ locationAccuracyMeters: 201 }), Date.parse(now)),
@@ -129,12 +129,10 @@ test("manual pins can match for discovery but device accuracy is enforced", () =
 });
 
 test("matching notification policy is deterministic and independent from push opt-in", () => {
-  assert.equal(MATCH_POLICY_VERSION, 6);
+  assert.equal(MATCH_POLICY_VERSION, 7);
   assert.equal(
     MATCH_POLICY_WEIGHTS.skill + MATCH_POLICY_WEIGHTS.proximityMaximum +
-      MATCH_POLICY_WEIGHTS.availability + MATCH_POLICY_WEIGHTS.verification +
-      MATCH_POLICY_WEIGHTS.experience + MATCH_POLICY_WEIGHTS.rating +
-      MATCH_POLICY_WEIGHTS.completedTasks,
+      MATCH_POLICY_WEIGHTS.availability + MATCH_POLICY_WEIGHTS.verification,
     100
   );
   assert.equal(matchingNotificationId("task-1", "worker-1"), "task-1_nearby_worker-1");

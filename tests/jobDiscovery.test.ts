@@ -45,10 +45,10 @@ test("job sort choices are deterministic", () => {
   assert.deepEqual(filterAndSortRankedJobs(jobs, { category: "", query: "", sort: "nearest" }).map(({ task }) => task.id), ["clean", "repair"]);
   assert.deepEqual(filterAndSortRankedJobs(jobs, { category: "", query: "", sort: "newest" }).map(({ task }) => task.id), ["clean", "repair"]);
   assert.deepEqual(filterAndSortRankedJobs(jobs, { category: "", query: "", sort: "highest-pay" }).map(({ task }) => task.id), ["clean", "repair"]);
-  assert.deepEqual(filterAndSortRankedJobs(jobs, { category: "", query: "", sort: "recommended" }).map(({ task }) => task.id), ["clean", "repair"]);
+  assert.deepEqual(filterAndSortRankedJobs(jobs, { category: "", query: "", sort: "recommended" }).map(({ task }) => task.id), ["repair", "clean"]);
 });
 
-test("recommended jobs prioritize a skill match before a newer unmatched task", () => {
+test("recommended jobs prioritize the strongest eligible match before newer tasks", () => {
   const newerUnmatched: RankedJob = {
     task: { ...jobs[1].task, id: "new-unmatched", createdAt: "2026-10-02T00:00:00.000Z" },
     match: { eligible: false, score: 0, distanceKm: 0.5, reasons: [], skillMatched: false }
@@ -56,6 +56,6 @@ test("recommended jobs prioritize a skill match before a newer unmatched task", 
   assert.deepEqual(
     filterAndSortRankedJobs([newerUnmatched, ...jobs], { category: "", query: "", sort: "recommended" })
       .map(({ task }) => task.id),
-    ["clean", "repair", "new-unmatched"]
+    ["repair", "clean", "new-unmatched"]
   );
 });

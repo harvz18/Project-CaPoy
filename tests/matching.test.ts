@@ -32,15 +32,12 @@ test("a qualified nearby worker receives a predictable perfect score", () => {
   assert.equal(result.score, 100);
   assert.ok((result.distanceKm ?? 1) < 0.1);
   assert.ok(result.reasons.some((reason) => reason.includes("preferred radius")));
-  assert.equal(MATCH_POLICY_VERSION, 6);
+  assert.equal(MATCH_POLICY_VERSION, 7);
   assert.deepEqual(result.breakdown, {
-    skill: 35,
-    proximity: 30,
-    availability: 15,
+    skill: 50,
+    proximity: 35,
     verification: 10,
-    experience: 5,
-    rating: 3,
-    completedTasks: 2
+    availability: 5
   });
 });
 
@@ -53,7 +50,7 @@ test("distance contributes to the score within the same preferred radius", () =>
   assert.ok((nearby.breakdown?.proximity ?? 0) > (farther.breakdown?.proximity ?? 0));
 });
 
-test("new unrated taskers remain eligible without receiving rating points", () => {
+test("experience, ratings, and completed work do not change the match percentage", () => {
   const result = scoreWorkerForTask(task(), worker({
     rating: 0,
     ratingCount: 0,
@@ -63,9 +60,13 @@ test("new unrated taskers remain eligible without receiving rating points", () =
   }), Date.parse(now));
 
   assert.equal(result.eligible, true);
-  assert.equal(result.score, 90);
-  assert.equal(result.breakdown?.rating, 0);
-  assert.ok(result.reasons.some((reason) => reason.includes("no rating history")));
+  assert.equal(result.score, 100);
+  assert.deepEqual(result.breakdown, {
+    skill: 50,
+    proximity: 35,
+    verification: 10,
+    availability: 5
+  });
 });
 
 test("an unverified account is excluded from marketplace recommendations", () => {
@@ -100,13 +101,13 @@ test("a task outside the preferred radius is not eligible", () => {
   assert.ok(result.reasons.some((reason) => reason.includes("outside the worker's")));
 });
 
-test("task recommendations prioritize skill matches, then newest posts", () => {
+test("task recommendations put the strongest eligible match first", () => {
   const ranked = rankTasksForWorker([
     task({ id: "far", latitude: 10.71, createdAt: "2026-09-29T03:00:00.000Z" }),
     task({ id: "near", createdAt: "2026-09-29T02:00:00.000Z" }),
     task({ id: "wrong", requiredCapability: "Delivery assistance", createdAt: "2026-09-29T04:00:00.000Z" })
   ], worker(), Date.parse(now));
-  assert.deepEqual(ranked.map(({ task: rankedTask }) => rankedTask.id), ["far", "near", "wrong"]);
+  assert.deepEqual(ranked.map(({ task: rankedTask }) => rankedTask.id), ["near", "far", "wrong"]);
 });
 
 test("client applicant ranking uses the stored application snapshot", () => {
@@ -137,7 +138,7 @@ test("score explanations expose points without exposing coordinates", () => {
   const result = scoreWorkerForTask(task(), worker(), Date.parse(now));
   const summary = summarizeScoreBreakdown(result.breakdown);
 
-  assert.match(summary ?? "", /Skill 35/);
+  assert.match(summary ?? "", /Skill 50/);
   assert.doesNotMatch(summary ?? "", /10\.676/);
   assert.doesNotMatch(summary ?? "", /122\.950/);
 });

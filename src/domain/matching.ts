@@ -34,11 +34,10 @@ export function rankTasksForWorker(tasks: Task[], worker: UserProfile, now = Dat
   return tasks
     .map((task) => ({ task, match: scoreWorkerForTask(task, worker, now) }))
     .sort((left, right) =>
-      Number(right.match.skillMatched) - Number(left.match.skillMatched) ||
-      safeTimestamp(right.task.createdAt) - safeTimestamp(left.task.createdAt) ||
       Number(right.match.eligible) - Number(left.match.eligible) ||
       right.match.score - left.match.score ||
       (left.match.distanceKm ?? Number.POSITIVE_INFINITY) - (right.match.distanceKm ?? Number.POSITIVE_INFINITY) ||
+      safeTimestamp(right.task.createdAt) - safeTimestamp(left.task.createdAt) ||
       left.task.id.localeCompare(right.task.id)
     );
 }
@@ -64,10 +63,7 @@ export function summarizeScoreBreakdown(breakdown: MatchScoreBreakdown | undefin
   return [
     `Skill ${breakdown.skill}`,
     `Distance ${breakdown.proximity}`,
-    `Availability ${breakdown.availability}`,
     `Verification ${breakdown.verification}`,
-    `Experience ${breakdown.experience}`,
-    `Rating ${breakdown.rating}`,
-    `Completed work ${breakdown.completedTasks}`
+    `Availability ${breakdown.availability}`
   ].join(" · ");
 }

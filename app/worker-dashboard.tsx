@@ -83,7 +83,10 @@ export default function WorkerDashboardScreen() {
   );
   const smartMatches = rankedPostedTasks.filter(({ match }) => match.eligible);
   const visibleFinishedTasks = finishedExpanded ? finishedTasks : finishedTasks.slice(0, 3);
-  const featuredJobs = smartMatches.slice(0, 2);
+  // Keep open work visible even when there are no eligible smart matches. The
+  // ranked list places the strongest eligible match first when one exists.
+  const featuredJobs = rankedPostedTasks.slice(0, 2);
+  const bestMatchId = smartMatches[0]?.task.id;
   const tabWidth = Math.max(0, (tabRowWidth - TAB_ROW_PADDING * 2 - TAB_ROW_GAP) / 2);
   const mapOverlayViewportWidth = mapOverlayViewport?.width ?? viewportWidth;
   const mapOverlayViewportHeight = mapOverlayViewport?.height ?? viewportHeight;
@@ -464,6 +467,7 @@ export default function WorkerDashboardScreen() {
                 key={task.id}
                 task={task}
                 match={match}
+                isBestMatch={task.id === bestMatchId}
                 onOpen={() => router.push(`/task/${task.id}`)}
                 onQuickAccept={() => task.pricingMode === "bidding" ? router.push(`/task/${task.id}`) : handleQuickApply(task)}
                 applying={actionLoading}
@@ -472,8 +476,8 @@ export default function WorkerDashboardScreen() {
             ))
           ) : (
             <View style={styles.emptyApplicationCard}>
-              <Text style={styles.emptyApplicationTitle}>No smart matches yet</Text>
-              <Text style={styles.emptyApplicationText}>Refresh your location and complete your profile to see recommended tasks here.</Text>
+              <Text style={styles.emptyApplicationTitle}>No open opportunities yet</Text>
+              <Text style={styles.emptyApplicationText}>New tasks near you will appear here as employers post them.</Text>
             </View>
           )}
         </View>
@@ -701,6 +705,7 @@ export default function WorkerDashboardScreen() {
 function WorkerJobCard({
   task,
   match,
+  isBestMatch,
   onQuickAccept,
   onOpen,
   applying,
@@ -708,6 +713,7 @@ function WorkerJobCard({
 }: {
   task: Task;
   match: MatchResult;
+  isBestMatch: boolean;
   onQuickAccept: () => void;
   onOpen: () => void;
   applying: boolean;
@@ -715,13 +721,19 @@ function WorkerJobCard({
 }) {
   return (
     <View style={styles.jobCard}>
+      {isBestMatch ? (
+        <View style={styles.bestMatchBadge}>
+          <Feather accessibilityElementsHidden color="#005C55" name="award" size={14} />
+          <Text style={styles.bestMatchText}>Best Match</Text>
+        </View>
+      ) : null}
       <View style={styles.jobHeader}>
         <Text style={styles.jobTitle}>{task.title}</Text>
         <Text style={styles.price}>{formatTaskPrice(task)}</Text>
       </View>
       <Text style={styles.jobMeta}>{formatRelativeTime(task.createdAt)}</Text>
       <Text style={styles.jobMeta}>{formatDistance(match.distanceKm)} · {task.locationAddress ?? task.location}</Text>
-      <SmartMatchBadge eligible={match.eligible} reasons={match.reasons} score={match.score} />
+      {match.eligible ? <SmartMatchBadge eligible reasons={match.reasons} score={match.score} /> : null}
       <View style={styles.jobInfoRow}>
         <Text style={styles.jobInfo}>{task.estimatedDuration}</Text>
         <Text style={styles.jobInfo}>{task.requiredCapability ?? task.category}</Text>
@@ -974,6 +986,8 @@ const styles = StyleSheet.create({
   emptyApplicationTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
   emptyApplicationText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   jobCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 12, ...interactiveCardShadow },
+  bestMatchBadge: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: "#E2F5EF" },
+  bestMatchText: { color: palette.primary, fontSize: 11, lineHeight: 16, fontWeight: "900", textTransform: "uppercase" },
   urgentBadge: { position: "absolute", left: 16, top: 16, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: palette.secondaryContainer },
   urgentText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "900" },
   jobHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
