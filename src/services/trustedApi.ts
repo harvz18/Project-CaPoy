@@ -61,6 +61,18 @@ export function checkSmsPhoneLogin<T>(requestId: string, code: string) {
   return publicRequest<T>("/api/vonage-otp/login/check", { requestId, code });
 }
 
+export function startSmsRegistrationVerification<T>(phoneNumber: string) {
+  return publicRequest<T>("/api/vonage-otp/registration/start", { phoneNumber });
+}
+
+export function checkSmsRegistrationVerification<T>(requestId: string, code: string) {
+  return publicRequest<T>("/api/vonage-otp/registration/check", { requestId, code });
+}
+
+export function claimSmsRegistrationVerification<T>(requestId: string) {
+  return postTrustedApi<T>("/api/vonage-otp/registration/claim", { requestId });
+}
+
 export function startSmsProfilePhoneVerification<T>(phoneNumber: string) {
   return postTrustedApi<T>("/api/vonage-otp/profile/start", { phoneNumber });
 }

@@ -84,6 +84,7 @@ import { toUserFacingError } from "../utils/userFacingError";
 import { AddressDetails } from "../utils/address";
 import { isMarketplaceVerified, verificationRequiredMessage } from "../domain/verificationPolicy";
 import { normalizePhilippineMobileNumber, phoneVerificationErrorMessage } from "../domain/phoneVerification";
+import { claimSmsRegistrationVerification } from "../services/trustedApi";
 
 type RegisterInput = {
   fullName: string;
@@ -95,6 +96,7 @@ type RegisterInput = {
   skills?: string[];
   capabilities?: string[];
   businessName?: string;
+  mobileVerificationId?: string;
 };
 
 type LoginInput = {
@@ -465,8 +467,16 @@ export function AppProvider({ children }: PropsWithChildren) {
           businessName: input.businessName
         });
 
-        setCurrentUser(user);
-        createdUser = user;
+        const phoneVerification = await claimSmsRegistrationVerification<{ phoneNumber: string }>(input.mobileVerificationId!);
+        const verifiedUser = {
+          ...user,
+          mobileNumber: phoneVerification.phoneNumber,
+          phoneVerified: true,
+          verifiedPhoneNumber: phoneVerification.phoneNumber,
+          phoneVerifiedAt: new Date().toISOString()
+        };
+        setCurrentUser(verifiedUser);
+        createdUser = verifiedUser;
       } catch (profileError) {
         await deleteCurrentAuthUser().catch(() => undefined);
         throw profileError;
@@ -1021,6 +1031,10 @@ function validateRegistration(input: RegisterInput) {
 
   if (!normalizePhilippineMobileNumber(input.mobileNumber)) {
     throw new Error("Enter a Philippine mobile number as 09XXXXXXXXX or +639XXXXXXXXX.");
+  }
+
+  if (!input.mobileVerificationId) {
+    throw new Error("Verify your mobile number before creating an account.");
   }
 
   if (!input.address.trim()) {

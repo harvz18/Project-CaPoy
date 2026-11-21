@@ -20,6 +20,7 @@ import { useApp } from "../src/context/AppContext";
 import { normalizePhilippineMobileNumber, phoneVerificationErrorMessage } from "../src/domain/phoneVerification";
 import { pickProfilePhoto, SelectedFile, uploadProfilePhoto } from "../src/services/fileUploadService";
 import { phoneLoginRecaptchaContainerId, resetPhoneLogin, startPhoneLogin } from "../src/services/phoneLoginService";
+import { checkSmsRegistrationVerification, startSmsRegistrationVerification } from "../src/services/trustedApi";
 import { updateUserProfile } from "../src/services/userService";
 import { PublicRole, Role } from "../src/types";
 import { canResendOtp, getOtpResendRemainingSeconds, isValidOtpCode, sanitizeOtpInput } from "../src/utils/otp";
@@ -78,6 +79,12 @@ export default function LoginScreen() {
   const [registerVisible, setRegisterVisible] = useState(false);
   const [fullName, setFullName] = useState("");
   const [registerMobileNumber, setRegisterMobileNumber] = useState("");
+  const [registrationVerificationId, setRegistrationVerificationId] = useState<string>();
+  const [registrationOtpCode, setRegistrationOtpCode] = useState("");
+  const [registrationOtpRequestedAt, setRegistrationOtpRequestedAt] = useState<number>();
+  const [registrationOtpNow, setRegistrationOtpNow] = useState(Date.now());
+  const [registrationOtpLoading, setRegistrationOtpLoading] = useState<"send" | "verify">();
+  const [registrationNumberVerified, setRegistrationNumberVerified] = useState(false);
   const [registerPassword, setRegisterPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [registerRole, setRegisterRole] = useState<PublicRole>("client");
@@ -90,12 +97,20 @@ export default function LoginScreen() {
 
   const resendRemaining = getOtpResendRemainingSeconds(otpRequestedAt, otpNow);
   const canResend = canResendOtp(otpRequestedAt, otpNow);
+  const registrationResendRemaining = getOtpResendRemainingSeconds(registrationOtpRequestedAt, registrationOtpNow);
+  const canResendRegistrationOtp = canResendOtp(registrationOtpRequestedAt, registrationOtpNow);
 
   useEffect(() => {
     if (!otpRequestedAt) return;
     const timer = setInterval(() => setOtpNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [otpRequestedAt]);
+
+  useEffect(() => {
+    if (!registrationOtpRequestedAt) return;
+    const timer = setInterval(() => setRegistrationOtpNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [registrationOtpRequestedAt]);
 
   useEffect(() => () => resetPhoneLogin(), []);
 
@@ -165,12 +180,17 @@ export default function LoginScreen() {
       setRegisterError("Passwords do not match.");
       return;
     }
+    if (!registrationVerificationId || !registrationNumberVerified) {
+      setRegisterError("Verify your mobile number before creating an account.");
+      return;
+    }
     setRegisterError("");
     try {
       const user = await register({
         role: registerRole,
         fullName,
-        mobileNumber: registerMobileNumber,
+        mobileNumber: `+63${registerMobileNumber}`,
+        mobileVerificationId: registrationVerificationId,
         password: registerPassword,
         address: selectedBarangay,
         skills: registerRole === "worker" ? registerCapabilities : [],
@@ -190,6 +210,59 @@ export default function LoginScreen() {
       // AppContext exposes the readable error message.
     }
   }
+
+  function changeRegistrationMobileNumber(value: string) {
+    setRegisterMobileNumber(value);
+    setRegistrationVerificationId(undefined);
+    setRegistrationOtpCode("");
+    setRegistrationOtpRequestedAt(undefined);
+    setRegistrationNumberVerified(false);
+    setRegisterError("");
+  }
+
+  async function requestRegistrationOtp() {
+    const normalizedNumber = normalizePhilippineMobileNumber(`+63${registerMobileNumber}`);
+    if (!normalizedNumber) {
+      setRegisterError("Enter a valid 10-digit Philippine mobile number before requesting a code.");
+      return;
+    }
+    if (registrationOtpRequestedAt && !canResendRegistrationOtp) return;
+    setRegistrationOtpLoading("send");
+    setRegisterError("");
+    try {
+      const result = await startSmsRegistrationVerification<{ requestId: string }>(normalizedNumber);
+      if (!result.requestId) throw new Error("Unable to request a verification code. Please try again.");
+      setRegistrationVerificationId(result.requestId);
+      setRegistrationOtpRequestedAt(Date.now());
+      setRegistrationOtpNow(Date.now());
+      setRegistrationOtpCode("");
+      setRegistrationNumberVerified(false);
+    } catch (requestError) {
+      setRegisterError(phoneVerificationErrorMessage(requestError));
+    } finally {
+      setRegistrationOtpLoading(undefined);
+    }
+  }
+
+  async function verifyRegistrationOtp() {
+    if (!registrationVerificationId || !isValidOtpCode(registrationOtpCode)) {
+      setRegisterError("Enter the complete six-digit verification code.");
+      return;
+    }
+    setRegistrationOtpLoading("verify");
+    setRegisterError("");
+    try {
+      await checkSmsRegistrationVerification<{ requestId: string }>(registrationVerificationId, registrationOtpCode);
+      setRegisterError("");
+      setRegistrationNumberVerified(true);
+    } catch (verificationError) {
+      setRegisterError(phoneVerificationErrorMessage(verificationError));
+      setRegistrationVerificationId(undefined);
+    } finally {
+      setRegistrationOtpLoading(undefined);
+    }
+  }
+
 
   function toggleRegister() {
     animateNext();
@@ -383,7 +456,61 @@ export default function LoginScreen() {
               </View>
 
               <Text style={screenStyles.label}>Mobile Number</Text>
-              <PhoneInput mobileNumber={registerMobileNumber} onChange={setRegisterMobileNumber} />
+              <View style={screenStyles.registrationPhoneRow}>
+                <View style={screenStyles.registrationPhoneField}>
+                  <PhoneInput
+                    editable={!registrationNumberVerified && !registrationOtpLoading}
+                    mobileNumber={registerMobileNumber}
+                    onChange={changeRegistrationMobileNumber}
+                  />
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={Boolean(registrationOtpLoading) || registrationNumberVerified || Boolean(registrationOtpRequestedAt && !canResendRegistrationOtp)}
+                  onPress={() => void requestRegistrationOtp()}
+                  style={({ pressed }) => [
+                    screenStyles.verifyNumberButton,
+                    (registrationOtpLoading || registrationNumberVerified || Boolean(registrationOtpRequestedAt && !canResendRegistrationOtp)) && screenStyles.disabledButton,
+                    pressed && screenStyles.pressed
+                  ]}
+                >
+                  <Text style={screenStyles.verifyNumberButtonText}>
+                    {registrationNumberVerified ? "Verified" : registrationOtpLoading === "send" ? "Sending..." : registrationOtpRequestedAt ? "Send again" : "Verify required"}
+                  </Text>
+                </Pressable>
+              </View>
+              {registrationNumberVerified ? (
+                <Text accessibilityRole="status" style={screenStyles.registrationVerifiedText}>✓ Mobile number verified</Text>
+              ) : registrationVerificationId ? (
+                <View style={screenStyles.registrationOtpBlock}>
+                  <Text style={screenStyles.label}>Enter six-digit code</Text>
+                  <View style={screenStyles.registrationOtpRow}>
+                    <TextInput
+                      editable={!registrationOtpLoading}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      onChangeText={(value) => setRegistrationOtpCode(sanitizeOtpInput(value))}
+                      placeholder="123456"
+                      placeholderTextColor={palette.outline}
+                      style={screenStyles.registrationOtpInput}
+                      value={registrationOtpCode}
+                    />
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={registrationOtpLoading === "verify" || !isValidOtpCode(registrationOtpCode)}
+                      onPress={() => void verifyRegistrationOtp()}
+                      style={({ pressed }) => [
+                        screenStyles.verifyCodeButton,
+                        (registrationOtpLoading === "verify" || !isValidOtpCode(registrationOtpCode)) && screenStyles.disabledButton,
+                        pressed && screenStyles.pressed
+                      ]}
+                    >
+                      <Text style={screenStyles.verifyCodeButtonText}>{registrationOtpLoading === "verify" ? "Checking..." : "Confirm"}</Text>
+                    </Pressable>
+                  </View>
+                  {!canResendRegistrationOtp ? <Text style={screenStyles.otpHint}>You can request another code in {registrationResendRemaining}s.</Text> : null}
+                </View>
+              ) : <Text style={screenStyles.otpHint}>Verification is required before creating an account.</Text>}
 
               <BacolodBarangayPicker label="Barangay" value={selectedBarangay} onChange={setSelectedBarangay} />
 
@@ -401,9 +528,9 @@ export default function LoginScreen() {
 
               <Pressable
                 accessibilityRole="button"
-                disabled={actionLoading}
+                disabled={actionLoading || !registrationNumberVerified}
                 onPress={handleRegister}
-                style={({ pressed }) => [screenStyles.primaryButton, pressed && screenStyles.pressed]}
+                style={({ pressed }) => [screenStyles.primaryButton, (actionLoading || !registrationNumberVerified) && screenStyles.disabledButton, pressed && screenStyles.pressed]}
               >
                 <Text style={screenStyles.primaryButtonText}>
                   {actionLoading ? "Creating Account..." : `Create ${registerRole === "client" ? "Employer" : "Tasker"} Account`}
@@ -438,6 +565,7 @@ export default function LoginScreen() {
 type PhoneInputProps = {
   mobileNumber: string;
   onChange: (value: string) => void;
+  editable?: boolean;
 };
 
 /** Login accepts both canonical Philippine formats without changing the legacy registration control. */
@@ -455,7 +583,7 @@ function LoginMobileNumberInput({ mobileNumber, onChange }: PhoneInputProps) {
   );
 }
 
-function PhoneInput({ mobileNumber, onChange }: PhoneInputProps) {
+function PhoneInput({ mobileNumber, onChange, editable = true }: PhoneInputProps) {
   return (
     <View style={screenStyles.phoneInputWrap}>
       <View style={screenStyles.prefixWrap}>
@@ -464,6 +592,7 @@ function PhoneInput({ mobileNumber, onChange }: PhoneInputProps) {
         </Text>
       </View>
       <TextInput
+        editable={editable}
         keyboardType="phone-pad"
         maxLength={10}
         onChangeText={(value) => onChange(value.replace(/\D/g, ""))}
@@ -695,6 +824,39 @@ const screenStyles = StyleSheet.create({
     minHeight: 52,
     paddingRight: 16
   },
+  registrationPhoneRow: { flexDirection: "row", alignItems: "stretch", gap: 8 },
+  registrationPhoneField: { flex: 1, minWidth: 0 },
+  verifyNumberButton: {
+    minWidth: 116,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    backgroundColor: palette.primary
+  },
+  verifyNumberButtonText: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: "800", textAlign: "center" },
+  registrationOtpBlock: { gap: 8, paddingTop: 2 },
+  registrationOtpRow: { flexDirection: "row", alignItems: "stretch", gap: 8 },
+  registrationOtpInput: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    backgroundColor: palette.surfaceLow,
+    color: palette.text,
+    fontSize: 16,
+    letterSpacing: 2
+  },
+  verifyCodeButton: {
+    minWidth: 94,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    backgroundColor: palette.primary
+  },
+  verifyCodeButtonText: { color: palette.white, fontSize: 13, lineHeight: 18, fontWeight: "800" },
+  registrationVerifiedText: { color: palette.success, fontSize: 13, lineHeight: 18, fontWeight: "800" },
   primaryButton: {
     minHeight: 48,
     borderRadius: 8,

@@ -229,14 +229,15 @@ async function eligiblePhoneLoginProfile(db, phoneNumber) {
 }
 
 async function writePhoneOtpSession(db, { requestId, kind, userId, phoneNumber }) {
-  await db.collection(phoneOtpSessionCollection).doc(requestId).set({
+  const session = {
     kind,
-    userId,
     phoneNumber,
     status: "pending",
     createdAt: nowIso(),
     expiresAt: new Date(Date.now() + phoneOtpSessionLifetimeMs).toISOString()
-  });
+  };
+  if (userId) session.userId = userId;
+  await db.collection(phoneOtpSessionCollection).doc(requestId).set(session);
 }
 
 async function pendingPhoneOtpSession(db, requestId, kind, userId) {
@@ -318,6 +319,72 @@ async function completeVonageProfilePhoneVerification({ request, db, claims }) {
     })
   ]);
   return { phoneNumber: session.phoneNumber };
+}
+
+function mobileAliasForPhoneNumber(phoneNumber) {
+  return `${phoneNumber.slice(1)}@tasklink.local`;
+}
+
+async function assertPhoneNumberAvailableForRegistration(db, phoneNumber) {
+  const existingProfiles = await profilesForPhoneNumber(db, phoneNumber);
+  if (existingProfiles.length) throw new ApiError(409, "This mobile number is already registered. Please log in instead.");
+  try {
+    await services().auth.getUserByEmail(mobileAliasForPhoneNumber(phoneNumber));
+    throw new ApiError(409, "This mobile number is already registered. Please log in instead.");
+  } catch (error) {
+    if (error instanceof ApiError || error?.code !== "auth/user-not-found") throw error;
+  }
+}
+
+/** Verifies a new number before Firebase creates the mobile-password account. */
+async function startVonageRegistrationVerification({ request, db }) {
+  allowPhoneLoginAttempt(request);
+  const phoneNumber = normalizePhilippineMobileNumber(requiredBodyString(request, "phoneNumber"));
+  if (!phoneNumber) throw new ApiError(400, "Enter a Philippine mobile number as 09XXXXXXXXX or +639XXXXXXXXX.");
+  await assertPhoneNumberAvailableForRegistration(db, phoneNumber);
+  const requestId = await startVonageVerification(phoneNumber);
+  await writePhoneOtpSession(db, { requestId, kind: "registration", phoneNumber });
+  return { requestId };
+}
+
+async function completeVonageRegistrationVerification({ request, db }) {
+  const requestId = requiredBodyString(request, "requestId");
+  const code = requiredBodyString(request, "code");
+  if (!/^\d{6}$/.test(code)) throw new ApiError(400, "Enter the complete six-digit verification code.");
+  const { snapshot, session } = await pendingPhoneOtpSession(db, requestId, "registration");
+  await checkVonageVerification(requestId, code);
+  await snapshot.ref.update({ status: "verified", verifiedAt: nowIso() });
+  return { requestId, phoneNumber: session.phoneNumber };
+}
+
+/** Claims the already-verified registration request after the account profile exists. */
+async function claimVonageRegistrationVerification({ request, db, claims }) {
+  const requestId = requiredBodyString(request, "requestId");
+  const sessionRef = db.collection(phoneOtpSessionCollection).doc(requestId);
+  const userRef = db.collection("users").doc(claims.uid);
+  const verifiedAt = nowIso();
+  let phoneNumber;
+  await db.runTransaction(async (transaction) => {
+    const [sessionSnapshot, userSnapshot] = await Promise.all([transaction.get(sessionRef), transaction.get(userRef)]);
+    const session = sessionSnapshot.data();
+    if (!sessionSnapshot.exists || session.kind !== "registration" || session.status !== "verified"
+      || new Date(session.expiresAt).getTime() <= Date.now()) {
+      throw new ApiError(409, "Verify this mobile number before creating your account.");
+    }
+    if (!userSnapshot.exists || normalizeStoredPhilippineMobileNumber(userSnapshot.data().mobileNumber) !== session.phoneNumber) {
+      throw new ApiError(409, "The verified number does not match this TaskLink account.");
+    }
+    transaction.update(sessionRef, { status: "claimed", userId: claims.uid, claimedAt: verifiedAt });
+    transaction.update(userRef, {
+      mobileNumber: session.phoneNumber,
+      phoneVerified: true,
+      verifiedPhoneNumber: session.phoneNumber,
+      phoneVerifiedAt: verifiedAt,
+      updatedAt: verifiedAt
+    });
+    phoneNumber = session.phoneNumber;
+  });
+  return { phoneNumber };
 }
 
 function requestedIds(request) {
@@ -1006,6 +1073,21 @@ function createServer() {
       next(error);
     }
   });
+  app.post("/api/vonage-otp/registration/start", async (request, response, next) => {
+    try {
+      response.json(await startVonageRegistrationVerification({ request, db: services().db }));
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post("/api/vonage-otp/registration/check", async (request, response, next) => {
+    try {
+      response.json(await completeVonageRegistrationVerification({ request, db: services().db }));
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post("/api/vonage-otp/registration/claim", route("user", claimVonageRegistrationVerification));
   app.post("/api/vonage-otp/profile/start", route("user", startVonageProfilePhoneVerification));
   app.post("/api/vonage-otp/profile/check", route("user", completeVonageProfilePhoneVerification));
   app.post("/api/phone-verification/native-session", route("user", createPhoneVerificationNativeSession));
