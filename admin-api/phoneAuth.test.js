@@ -2,10 +2,10 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { buildVerifiedPhoneUpdate, hasMatchingVerifiedPhone, normalizePhilippineMobileNumber, normalizeStoredPhilippineMobileNumber } = require("./phoneAuth");
 
-test("trusted phone verification accepts only the supported Philippine formats", () => {
+test("trusted phone verification accepts local, compact, and E.164 Philippine formats", () => {
   assert.equal(normalizePhilippineMobileNumber("0917 123 4567"), "+639171234567");
   assert.equal(normalizePhilippineMobileNumber("+639171234567"), "+639171234567");
-  assert.equal(normalizePhilippineMobileNumber("9171234567"), undefined);
+  assert.equal(normalizePhilippineMobileNumber("9171234567"), "+639171234567");
   assert.equal(normalizeStoredPhilippineMobileNumber("9171234567"), "+639171234567");
 });
 

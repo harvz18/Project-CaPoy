@@ -9,6 +9,7 @@ import { AppInput } from "../src/components/AppInput";
 import { PhilippineAddressPicker } from "../src/components/PhilippineAddressPicker";
 import { ScreenContainer } from "../src/components/ScreenContainer";
 import { useApp } from "../src/context/AppContext";
+import { removePhilippineMobileLeadingZero } from "../src/domain/phoneVerification";
 import { styles } from "../src/styles";
 import { PublicRole } from "../src/types";
 import { sanitizePhoneNumberInput } from "../src/utils/numericInput";
@@ -61,6 +62,7 @@ export default function RegistrationScreen() {
           label="Mobile number"
           value={mobileNumber}
           onChangeText={(value) => setMobileNumber(sanitizePhoneNumberInput(value))}
+          onBlur={() => setMobileNumber(removePhilippineMobileLeadingZero(mobileNumber))}
           keyboardType="phone-pad"
           maxLength={24}
           placeholder="+63 917 000 0001"

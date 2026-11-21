@@ -7,7 +7,7 @@ import { AppInput } from "../src/components/AppInput";
 import { ScreenContainer } from "../src/components/ScreenContainer";
 import { AppText as Text } from "../src/components/AppText";
 import { useApp } from "../src/context/AppContext";
-import { formatPhilippineMobileForInput, normalizePhilippineMobileNumber, normalizeStoredPhilippineMobileNumber, phoneVerificationErrorMessage } from "../src/domain/phoneVerification";
+import { formatPhilippineMobileForInput, normalizePhilippineMobileNumber, normalizeStoredPhilippineMobileNumber, phoneVerificationErrorMessage, removePhilippineMobileLeadingZero } from "../src/domain/phoneVerification";
 import {
   completePhoneVerification,
   phoneVerificationRecaptchaContainerId,
@@ -101,6 +101,7 @@ export default function PhoneVerificationScreen() {
           label="Mobile number"
           value={mobileNumber}
           onChangeText={setMobileNumber}
+          onBlur={() => setMobileNumber(removePhilippineMobileLeadingZero(mobileNumber))}
           keyboardType="phone-pad"
           maxLength={18}
           placeholder="0917 123 4567"

@@ -6,6 +6,7 @@ function normalizePhilippineMobileNumber(value) {
   if (typeof value !== "string") return undefined;
   const compact = value.trim().replace(/[\s()-]/g, "");
   if (LOCAL_PHILIPPINE_MOBILE.test(compact)) return `+63${compact.slice(1)}`;
+  if (LEGACY_PHILIPPINE_MOBILE.test(compact)) return `+63${compact}`;
   if (E164_PHILIPPINE_MOBILE.test(compact)) return compact;
   return undefined;
 }

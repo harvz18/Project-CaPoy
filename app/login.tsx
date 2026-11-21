@@ -17,7 +17,7 @@ import { AppText as Text, AppTextInput as TextInput } from "../src/components/Ap
 import { BacolodBarangayPicker } from "../src/components/BacolodBarangayPicker";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
-import { normalizePhilippineMobileNumber, phoneVerificationErrorMessage } from "../src/domain/phoneVerification";
+import { normalizePhilippineMobileNumber, phoneVerificationErrorMessage, removePhilippineMobileLeadingZero } from "../src/domain/phoneVerification";
 import { pickProfilePhoto, SelectedFile, uploadProfilePhoto } from "../src/services/fileUploadService";
 import { phoneLoginRecaptchaContainerId, resetPhoneLogin, startPhoneLogin } from "../src/services/phoneLoginService";
 import { checkSmsRegistrationVerification, startSmsRegistrationVerification } from "../src/services/trustedApi";
@@ -574,6 +574,7 @@ function LoginMobileNumberInput({ mobileNumber, onChange }: PhoneInputProps) {
     <TextInput
       keyboardType="phone-pad"
       maxLength={18}
+      onBlur={() => onChange(removePhilippineMobileLeadingZero(mobileNumber))}
       onChangeText={(value) => onChange(value.replace(/[^\d+\s()-]/g, ""))}
       placeholder="09XX XXX XXXX"
       placeholderTextColor={palette.outline}
@@ -595,7 +596,7 @@ function PhoneInput({ mobileNumber, onChange, editable = true }: PhoneInputProps
         editable={editable}
         keyboardType="phone-pad"
         maxLength={11}
-        onBlur={() => onChange(mobileNumber.replace(/^0(?=9\d{9}$)/, ""))}
+        onBlur={() => onChange(removePhilippineMobileLeadingZero(mobileNumber))}
         onChangeText={(value) => onChange(value.replace(/\D/g, ""))}
         placeholder="917 000 0001"
         placeholderTextColor={palette.outline}

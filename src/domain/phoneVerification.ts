@@ -10,14 +10,23 @@ const LEGACY_PHILIPPINE_MOBILE = /^9\d{9}$/;
 export function normalizePhilippineMobileNumber(value: string) {
   const compact = value.trim().replace(/[\s()-]/g, "");
   if (LOCAL_PHILIPPINE_MOBILE.test(compact)) return `+63${compact.slice(1)}`;
+  // The phone controls remove the local trunk prefix after a complete number
+  // is entered, because they already show +63 beside the input.
+  if (LEGACY_PHILIPPINE_MOBILE.test(compact)) return `+63${compact}`;
   if (E164_PHILIPPINE_MOBILE.test(compact)) return compact;
   return undefined;
 }
 
+/** Removes only the local trunk prefix from a complete Philippine mobile number. */
+export function removePhilippineMobileLeadingZero(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return LOCAL_PHILIPPINE_MOBILE.test(digits) ? digits.slice(1) : value;
+}
+
 /**
  * Earlier TaskLink profiles stored the ten digits after a fixed +63 UI prefix
- * (for example 9927105318). This compatibility path is only for data already
- * stored on a private profile; all new input remains strict.
+ * (for example 9927105318). The same compact form is now also used by the
+ * mobile controls after they remove a leading zero on blur.
  */
 export function normalizeStoredPhilippineMobileNumber(value: string) {
   const normalized = normalizePhilippineMobileNumber(value);

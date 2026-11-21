@@ -22,6 +22,7 @@ import {
 } from "../../src/utils/location";
 import { getPaymentProofDownloadUrl, pickAndUploadGcashQr, pickAndUploadPaymentProof, UploadSource } from "../../src/services/fileUploadService";
 import { formatPhilippineMobileNumber, normalizePhilippineMobileNumber } from "../../src/domain/gcashPayment";
+import { removePhilippineMobileLeadingZero } from "../../src/domain/phoneVerification";
 import { subscribeToPayment } from "../../src/services/taskRepository";
 import { hasPendingTaskChange, summarizeTaskTermChanges } from "../../src/domain/taskTerms";
 import { getCancellationEligibility } from "../../src/domain/cancellation";
@@ -965,7 +966,7 @@ export default function TaskStatusScreen() {
               <Text style={styles.dialogTitle}>Confirm GCash receiving details</Text>
               <Text style={styles.dialogMessage}>Enter the GCash number where you want to receive payment. These details are visible only to you, the assigned employer, and authorized administrators.</Text>
               <Text style={styles.modalFieldLabel}>GCash mobile number</Text>
-              <TextInput accessibilityLabel="GCash mobile number" autoComplete="tel" keyboardType="phone-pad" onChangeText={(value) => setGcashMobileNumber(value || "0")} placeholder="09XXXXXXXXX" placeholderTextColor={palette.outline} style={styles.modalInput} value={gcashMobileNumber} />
+              <TextInput accessibilityLabel="GCash mobile number" autoComplete="tel" keyboardType="phone-pad" onBlur={() => setGcashMobileNumber(removePhilippineMobileLeadingZero(gcashMobileNumber))} onChangeText={(value) => setGcashMobileNumber(value || "0")} placeholder="09XXXXXXXXX" placeholderTextColor={palette.outline} style={styles.modalInput} value={gcashMobileNumber} />
               <Pressable accessibilityRole="button" disabled={uploadingGcashQr || actionLoading} onPress={() => choosePhotoSource("Upload GCash QR image", false, (source) => void handleUploadGcashQr(source))} style={styles.paymentOutlineButton}>
                 <Text style={styles.paymentOutlineButtonText}>{uploadingGcashQr ? "Uploading QR..." : gcashQrFileName || "Upload GCash QR Image (optional)"}</Text>
               </Pressable>
