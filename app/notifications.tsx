@@ -1,7 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { FlatList, Pressable, StyleSheet, Switch, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Switch, View } from "react-native";
 import { AppText as Text } from "../src/components/AppText";
 import { AppCard } from "../src/components/AppCard";
 import { EmptyState } from "../src/components/EmptyState";
@@ -10,6 +10,7 @@ import { StatusBadge } from "../src/components/StatusBadge";
 import { FREE_WEB_DEMO } from "../src/config/release";
 import { useApp } from "../src/context/AppContext";
 import { useTasklinkBack } from "../src/hooks/useTasklinkBack";
+import { usePullToRefresh } from "../src/hooks/usePullToRefresh";
 import { AppNotification, NotificationPreferences } from "../src/types";
 
 
@@ -23,8 +24,10 @@ export default function NotificationsScreen() {
     markNotificationAsOpened,
     notificationPreferences,
     notifications,
+    retryDataSync,
     updateNotificationPreferences
   } = useApp();
+  const { onRefresh, refreshing } = usePullToRefresh(retryDataSync);
   const [settingsError, setSettingsError] = useState("");
   const [saving, setSaving] = useState(false);
   const userNotifications = notifications.filter((item) => item.userId === currentUser?.id);
@@ -90,6 +93,7 @@ export default function NotificationsScreen() {
 
       <FlatList
         style={localStyles.list}
+        refreshControl={<RefreshControl colors={["#005C55"]} onRefresh={onRefresh} refreshing={refreshing} tintColor="#005C55" />}
         data={userNotifications}
         keyExtractor={(item) => item.id}
         contentContainerStyle={localStyles.listContent}

@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { AppText as Text } from "../src/components/AppText";
 import { interactiveCardShadow } from "../src/styles";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -8,6 +8,7 @@ import { HelpShortcut } from "../src/components/HelpShortcut";
 import { NotificationShortcut } from "../src/components/NotificationShortcut";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
+import { usePullToRefresh } from "../src/hooks/usePullToRefresh";
 import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
 import { Task } from "../src/types";
 
@@ -34,7 +35,8 @@ const palette = {
 
 export default function ClientDashboardScreen() {
   const router = useRouter();
-  const { currentUser, notifications, tasks, users } = useApp();
+  const { currentUser, notifications, tasks, users, retryDataSync } = useApp();
+  const { onRefresh, refreshing } = usePullToRefresh(retryDataSync);
   const [showAllOngoing, setShowAllOngoing] = useState(false);
   const clientTasks = tasks.filter((task) => task.clientId === currentUser?.id);
   const activeClientTasks = clientTasks.filter((task) => ["Finding Workers", "Applied", "Accepted", "In Progress", "Pending Approval", "Disputed"].includes(task.status));
@@ -55,7 +57,11 @@ export default function ClientDashboardScreen() {
         onPostTask={() => router.push("/post-task")}
         unreadCount={notifications.filter((notification) => notification.userId === currentUser?.id && !notification.readStatus).length}
       />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl colors={[palette.primary]} onRefresh={onRefresh} refreshing={refreshing} tintColor={palette.primary} />}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.heroGrid}>
           <View style={styles.heroPanel}>
             <View style={styles.heroCopy}>

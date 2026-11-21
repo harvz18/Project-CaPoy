@@ -3,7 +3,7 @@ import { BlurTargetView, BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { type ComponentRef, useEffect, useRef, useState } from "react";
-import { Animated, Easing, Modal, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Animated, Easing, Modal, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, useWindowDimensions, View } from "react-native";
 import { AppText as Text } from "../src/components/AppText";
 import { AppHeader } from "../src/components/AppHeader";
 import { interactiveCardShadow } from "../src/styles";
@@ -13,6 +13,7 @@ import { SmartMatchBadge } from "../src/components/SmartMatchBadge";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { TaskMapPreview } from "../src/components/TaskMapPreview";
 import { useApp } from "../src/context/AppContext";
+import { usePullToRefresh } from "../src/hooks/usePullToRefresh";
 import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
 import { Task } from "../src/types";
@@ -67,6 +68,7 @@ export default function WorkerDashboardScreen() {
   const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { actionLoading, currentUser, tasks, ratings, acceptTask, retryDataSync } = useApp();
+  const { onRefresh, refreshing } = usePullToRefresh(retryDataSync);
   const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
   const rankedPostedTasks = currentUser ? rankTasksForWorker(postedTasks, currentUser) : [];
   const acceptedTasks = tasks.filter(
@@ -211,7 +213,7 @@ export default function WorkerDashboardScreen() {
 
   function refreshHomepage() {
     homeScrollRef.current?.scrollTo({ animated: true, y: 0 });
-    retryDataSync();
+    onRefresh();
   }
 
   function openMapOverlay() {
@@ -283,7 +285,12 @@ export default function WorkerDashboardScreen() {
       <BlurTargetView ref={applicationBlurTargetRef} style={styles.blurTarget}>
         <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <AppHeader onHomeRefresh={refreshHomepage} />
-      <ScrollView ref={homeScrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={homeScrollRef}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl colors={[palette.primary]} onRefresh={onRefresh} refreshing={refreshing} tintColor={palette.primary} />}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.welcomeRow}>
           <View style={styles.welcomeCopy}>
             <Text numberOfLines={1} style={styles.welcomeTitle} variant="screenTitle">Welcome back, {currentUser?.fullName?.split(" ")[0] ?? "there"}.</Text>

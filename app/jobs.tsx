@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 import { AppHeader } from "../src/components/AppHeader";
 import { interactiveCardShadow } from "../src/styles";
@@ -10,6 +10,7 @@ import { TaskMapPreview } from "../src/components/TaskMapPreview";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { SmartMatchBadge } from "../src/components/SmartMatchBadge";
 import { useApp } from "../src/context/AppContext";
+import { usePullToRefresh } from "../src/hooks/usePullToRefresh";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
 import { filterAndSortRankedJobs, getAvailableJobs, getJobCategories, JobSort } from "../src/domain/jobDiscovery";
 import { formatRequiredCapabilities, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../src/domain/taskMarketplace";
@@ -44,7 +45,8 @@ const JOB_PAGE_SIZE = 10;
 export default function JobsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { tasks, acceptTask, currentUser, getUserById, updateProfile, actionLoading, error } = useApp();
+  const { tasks, acceptTask, currentUser, getUserById, updateProfile, actionLoading, error, retryDataSync } = useApp();
+  const { onRefresh, refreshing } = usePullToRefresh(retryDataSync);
   const [activeFilter, setActiveFilter] = useState("");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<JobSort>("recommended");
@@ -110,7 +112,11 @@ export default function JobsScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <AppHeader />
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 98 + insets.bottom }]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: 98 + insets.bottom }]}
+        refreshControl={<RefreshControl colors={[palette.primary]} onRefresh={onRefresh} refreshing={refreshing} tintColor={palette.primary} />}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.mapPanel}>
           <LocationMap
             center={currentUser?.currentLatitude !== undefined && currentUser.currentLongitude !== undefined ? { latitude: currentUser.currentLatitude, longitude: currentUser.currentLongitude } : undefined}

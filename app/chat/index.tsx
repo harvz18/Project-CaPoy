@@ -1,10 +1,11 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
 import { AppHeader } from "../../src/components/AppHeader";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "../../src/context/AppContext";
+import { usePullToRefresh } from "../../src/hooks/usePullToRefresh";
 import { ChatMessage, Task } from "../../src/types";
 
 const palette = {
@@ -39,7 +40,8 @@ type Conversation = {
 export default function ChatInboxScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { currentUser, tasks, messages, users } = useApp();
+  const { currentUser, tasks, messages, users, retryDataSync } = useApp();
+  const { onRefresh, refreshing } = usePullToRefresh(retryDataSync);
   const [query, setQuery] = useState("");
   const conversations = useMemo(
     () => buildConversations(tasks, messages, users, currentUser?.id, currentUser?.role),
@@ -56,7 +58,11 @@ export default function ChatInboxScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <AppHeader />
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 104 + insets.bottom }]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: 104 + insets.bottom }]}
+        refreshControl={<RefreshControl colors={[palette.primary]} onRefresh={onRefresh} refreshing={refreshing} tintColor={palette.primary} />}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.heroPanel}>
           <Text style={styles.heroKicker}>Messages</Text>
           <Text style={styles.heroTitle}>Choose a conversation.</Text>
