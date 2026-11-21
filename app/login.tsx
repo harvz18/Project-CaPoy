@@ -475,7 +475,7 @@ export default function LoginScreen() {
                   ]}
                 >
                   <Text style={screenStyles.verifyNumberButtonText}>
-                    {registrationNumberVerified ? "Verified" : registrationOtpLoading === "send" ? "Sending..." : registrationOtpRequestedAt ? "Send again" : "Verify required"}
+                    {registrationNumberVerified ? "Verified" : registrationOtpLoading === "send" ? "Sending..." : registrationOtpRequestedAt ? "Send again" : "Verify"}
                   </Text>
                 </Pressable>
               </View>
