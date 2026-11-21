@@ -5,15 +5,15 @@ import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBadge } from "../../src/components/StatusBadge";
+import { SmartMatchBadge } from "../../src/components/SmartMatchBadge";
 import { useApp } from "../../src/context/AppContext";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
-import { rankTaskMatches, summarizeScoreBreakdown } from "../../src/domain/matching";
+import { rankTaskMatches } from "../../src/domain/matching";
 import { estimateServiceFee, formatCentavos } from "../../src/domain/platformRevenue";
 import { verificationProgressPublicLabel } from "../../src/domain/verificationProgress";
 import { formatPaymentMethod, formatRequiredCapabilities, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
 import { loadPlatformRevenueConfig } from "../../src/services/platformRevenueService";
 import { TaskMatch } from "../../src/types";
-import { formatDistance } from "../../src/utils/location";
 import { sanitizeMoneyInput } from "../../src/utils/numericInput";
 
 const palette = {
@@ -186,7 +186,7 @@ export default function TaskDetailsScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{task.status === "Accepted" ? "Assigned Worker" : "Worker Applications"}</Text>
-              <Text style={styles.sectionMeta}>{task.status === "Accepted" ? "Ready to start" : "Review before accepting"}</Text>
+              <Text style={styles.sectionMeta}>{task.status === "Accepted" ? "Ready to start" : "Smart Match ranking"}</Text>
             </View>
             {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
             {hasAcceptedWorker ? (
@@ -346,7 +346,6 @@ export default function TaskDetailsScreen() {
 
 function ApplicantMatchSummary({ match, showBid, serviceFeeBasisPoints = 500 }: { match: TaskMatch; showBid?: boolean; serviceFeeBasisPoints?: number }) {
   const evaluated = match.matchScore !== undefined && match.matchPolicyVersion !== undefined;
-  const breakdown = summarizeScoreBreakdown(match.scoreBreakdown);
   const serviceFee = showBid && match.proposedAmount
     ? estimateServiceFee(match.proposedAmount, serviceFeeBasisPoints)
     : undefined;
@@ -367,15 +366,9 @@ function ApplicantMatchSummary({ match, showBid, serviceFeeBasisPoints = 500 }: 
     <View style={styles.matchSummary}>
       <View style={styles.skillRow}>
         {showBid && match.proposedAmount ? <Text style={styles.bidChip}>Offer: ₱{match.proposedAmount}</Text> : null}
-        <Text style={styles.skillChip}>{match.eligible === false ? "Open to apply" : `${match.matchScore}% match`}</Text>
-        <Text style={styles.skillChip}>Policy v{match.matchPolicyVersion}</Text>
-        {match.distanceKm === undefined ? null : <Text style={styles.skillChip}>{formatDistance(match.distanceKm)}</Text>}
+        <SmartMatchBadge eligible={match.eligible} reasons={match.matchReasons} score={match.matchScore} />
       </View>
       {offerFeeNotice}
-      {breakdown ? <Text style={styles.breakdownText}>{breakdown}</Text> : null}
-      {(match.matchReasons ?? []).slice(0, 3).map((reason, index) => (
-        <Text key={`${index}-${reason}`} style={styles.workerNote}>{reason}</Text>
-      ))}
     </View>
   );
 }
@@ -460,7 +453,6 @@ const styles = StyleSheet.create({
   workerMeta: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   workerNote: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
   matchSummary: { gap: 6 },
-  breakdownText: { color: palette.muted, fontSize: 11, lineHeight: 16 },
   skillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   skillChip: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: palette.surfaceContainer, color: palette.muted, fontSize: 12, fontWeight: "800" },
   workerActions: { flexDirection: "row", gap: 10 },

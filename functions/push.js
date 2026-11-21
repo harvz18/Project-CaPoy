@@ -7,7 +7,7 @@ function isNotificationCategoryEnabled(notification, preferences) {
   if (notification.route === "chat" || notification.notificationType === "New message") {
     return preferences.messagesEnabled !== false;
   }
-  if (notification.notificationType === "Matching task") {
+  if (["Matching task", "Smart Match"].includes(notification.notificationType)) {
     return preferences.matchingEnabled !== false;
   }
   return preferences.taskUpdatesEnabled !== false;

@@ -154,7 +154,7 @@ function buildAnalyticsReport(input, rangeInput = {}, generatedAt = new Date().t
   const payments = uniqueById(input.payments);
   const taskMatches = uniqueById(input.taskMatches);
   const matchingNotifications = uniqueById(input.notifications)
-    .filter((notification) => notification.notificationType === "Matching task");
+    .filter((notification) => ["Matching task", "Smart Match"].includes(notification.notificationType));
   const publicUsers = users.filter((user) => user.role === "client" || user.role === "worker");
   const postedTasks = tasks.filter((task) => inRange(task.createdAt, range));
   const applications = taskMatches.filter((match) => inRange(match.createdAt, range));

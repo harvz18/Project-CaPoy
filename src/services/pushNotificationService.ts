@@ -37,7 +37,7 @@ export function shouldShowDeviceAlert(notification: AppNotification, preferences
   if (notification.route === "chat" || notification.notificationType === "New message") {
     return preferences.messagesEnabled;
   }
-  if (notification.notificationType === "Matching task") {
+  if (["Matching task", "Smart Match"].includes(notification.notificationType)) {
     return preferences.matchingEnabled;
   }
   return preferences.taskUpdatesEnabled;

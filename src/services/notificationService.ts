@@ -90,7 +90,7 @@ export async function recordMatchingApplication(taskId: string, userId: string) 
   const firestore = requireDb();
   const notificationRef = doc(firestore, "notifications", `${taskId}_nearby_${userId}`);
   const snapshot = await getDoc(notificationRef);
-  if (!snapshot.exists() || snapshot.data().userId !== userId || snapshot.data().notificationType !== "Matching task") {
+  if (!snapshot.exists() || snapshot.data().userId !== userId || !["Matching task", "Smart Match"].includes(snapshot.data().notificationType)) {
     return;
   }
   await updateDoc(notificationRef, { applicationConvertedAt: new Date().toISOString() });

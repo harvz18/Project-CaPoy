@@ -6,6 +6,7 @@ import { interactiveCardShadow } from "../src/styles";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
+import { SmartMatchBadge } from "../src/components/SmartMatchBadge";
 import { useApp } from "../src/context/AppContext";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
 import { filterAndSortRankedJobs, getAvailableJobs, getJobCategories, JobSort } from "../src/domain/jobDiscovery";
@@ -255,12 +256,7 @@ function JobCard({
       <Text style={styles.jobMeta}>{formatDistance(match.distanceKm)} · {task.locationAddress ?? task.location}</Text>
       <Text style={styles.jobDescription} numberOfLines={2}>{task.description}</Text>
       {task.perks?.length ? <Text style={styles.perksText}>Perks: {task.perks.slice(0, 2).join(" · ")}</Text> : null}
-      <View style={styles.matchRow}>
-        <Text style={[styles.matchChip, match.eligible ? styles.matchChipGood : styles.matchChipWarn]}>
-          {match.eligible ? `${match.score}% match` : match.skillMatched ? "Skill match" : "Open to apply"}
-        </Text>
-        <Text style={styles.matchChip}>{match.reasons.slice(0, 2).join(" · ") || "Smart-match details unavailable."}</Text>
-      </View>
+      <SmartMatchBadge eligible={match.eligible} reasons={match.reasons} score={match.score} />
       <View style={styles.jobInfoRow}>
         <Text style={styles.jobInfo}>{formatTaskDuration(task)}</Text>
         <Text style={styles.jobInfo}>{formatRequiredCapabilities(task)}</Text>

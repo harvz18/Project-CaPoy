@@ -588,7 +588,7 @@ exports.getAdminAnalytics = onCall({ region: REGION }, async (request) => {
       db.collection("tasks").get(),
       db.collection("payments").get(),
       db.collection("taskMatches").get(),
-      db.collection("notifications").where("notificationType", "==", "Matching task").get()
+      db.collection("notifications").where("notificationType", "in", ["Matching task", "Smart Match"]).get()
     ]);
     const withIds = (snapshot) => snapshot.docs.map((document) => ({ id: document.id, ...document.data() }));
     const report = buildAnalyticsReport({
@@ -824,8 +824,8 @@ exports.notifyEligibleWorkers = onDocumentCreated(
           userId: worker.id,
           taskId: event.params.taskId,
           createdBy: task.clientId,
-          notificationType: "Matching task",
-          message: `${task.title} is a ${match.score}% match for your profile.`,
+          notificationType: "Smart Match",
+          message: `Smart Match: ${task.title} is a ${match.score}% match for you.`,
           matchScore: match.score,
           matchReasons: match.reasons,
           matchPolicyVersion: MATCH_POLICY_VERSION,

@@ -6,6 +6,7 @@ import { interactiveCardShadow } from "../src/styles";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NotificationShortcut } from "../src/components/NotificationShortcut";
 import LocationMap from "../src/components/LocationMap";
+import { SmartMatchBadge } from "../src/components/SmartMatchBadge";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
 import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
@@ -51,7 +52,8 @@ export default function WorkerDashboardScreen() {
   const finishedTasks = tasks.filter(
     (task) => task.workerId === currentUser?.id && (task.status === "Finished" || task.status === "Archived")
   );
-  const featuredJobs = rankedPostedTasks.slice(0, 2);
+  const smartMatches = rankedPostedTasks.filter(({ match }) => match.eligible);
+  const featuredJobs = smartMatches.slice(0, 2);
   const workerMapCenter = currentUser?.currentLatitude !== undefined && currentUser.currentLongitude !== undefined
     ? { latitude: currentUser.currentLatitude, longitude: currentUser.currentLongitude }
     : undefined;
@@ -177,7 +179,7 @@ export default function WorkerDashboardScreen() {
             height={208}
           />
           <View style={styles.locationBadge}>
-            <Text style={styles.locationText}>{rankedPostedTasks.filter(({ match }) => match.eligible).length} recommended jobs near you</Text>
+            <Text style={styles.locationText}>{smartMatches.length} smart matches near you</Text>
           </View>
           <Pressable accessibilityLabel="Open full screen map" accessibilityRole="button" onPress={() => setMapFullscreen(true)} style={styles.expandMapButton}>
             <Text style={styles.expandMapButtonText}>Expand map</Text>
@@ -186,8 +188,8 @@ export default function WorkerDashboardScreen() {
 
         <View style={styles.sectionHeader}>
           <View style={styles.sectionCopy}>
-            <Text style={styles.sectionTitle}>Top Opportunities</Text>
-            <Text style={styles.sectionSubtitle}>A quick glance. Jobs has the full board with filters.</Text>
+            <Text style={styles.sectionTitle}>For You</Text>
+            <Text style={styles.sectionSubtitle}>Smart matches based on your profile and service area.</Text>
           </View>
           <Pressable accessibilityRole="button" onPress={() => router.push("/jobs")} style={styles.viewAllButton}>
             <Text style={styles.viewAllText}>View All</Text>
@@ -209,8 +211,8 @@ export default function WorkerDashboardScreen() {
             ))
           ) : (
             <View style={styles.emptyApplicationCard}>
-              <Text style={styles.emptyApplicationTitle}>No jobs posted yet</Text>
-              <Text style={styles.emptyApplicationText}>Available tasks from clients will appear here.</Text>
+              <Text style={styles.emptyApplicationTitle}>No smart matches yet</Text>
+              <Text style={styles.emptyApplicationText}>Refresh your location and complete your profile to see recommended tasks here.</Text>
             </View>
           )}
         </View>
@@ -280,7 +282,7 @@ function WorkerJobCard({
       </View>
       <Text style={styles.jobMeta}>{formatRelativeTime(task.createdAt)}</Text>
       <Text style={styles.jobMeta}>{formatDistance(match.distanceKm)} · {task.locationAddress ?? task.location}</Text>
-      <Text style={styles.jobMeta}>{match.score}% match · {match.reasons.slice(0, 2).join(" · ")}</Text>
+      <SmartMatchBadge eligible={match.eligible} reasons={match.reasons} score={match.score} />
       <View style={styles.jobInfoRow}>
         <Text style={styles.jobInfo}>{task.estimatedDuration}</Text>
         <Text style={styles.jobInfo}>{task.requiredCapability ?? task.category}</Text>
