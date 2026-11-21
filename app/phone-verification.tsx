@@ -17,8 +17,15 @@ import {
 import { canResendOtp, getOtpResendRemainingSeconds, isValidOtpCode, sanitizeOtpInput } from "../src/utils/otp";
 import { styles } from "../src/styles";
 
-export default function PhoneVerificationScreen() {
-  const router = useRouter();
+export function PhoneVerificationContent({
+  closeLabel = "Back to Profile",
+  onBusyChange,
+  onClose
+}: {
+  closeLabel?: string;
+  onBusyChange?: (busy: boolean) => void;
+  onClose: () => void;
+}) {
   const { currentUser } = useApp();
   const [mobileNumber, setMobileNumber] = useState(() => formatPhilippineMobileForInput(currentUser?.mobileNumber ?? ""));
   const [code, setCode] = useState("");
@@ -43,6 +50,11 @@ export default function PhoneVerificationScreen() {
   }, [requestedAt]);
 
   useEffect(() => () => resetPhoneVerification(), []);
+
+  useEffect(() => {
+    onBusyChange?.(Boolean(loading));
+    return () => onBusyChange?.(false);
+  }, [loading, onBusyChange]);
 
   async function requestCode(resend = false) {
     const normalizedNumber = normalizePhilippineMobileNumber(mobileNumber);
@@ -92,8 +104,6 @@ export default function PhoneVerificationScreen() {
   }
 
   return (
-    <ScreenContainer scroll>
-      <Text style={styles.heading}>Verify Mobile Number</Text>
       <AppCard>
         <Text style={styles.subheading}>Secure your TaskLink account</Text>
         <Text style={styles.muted}>Verify the mobile number already saved on your profile. This does not replace your password login or identity-document review.</Text>
@@ -112,7 +122,7 @@ export default function PhoneVerificationScreen() {
           <View style={localStyles.successBox}>
             <Text style={localStyles.successTitle}>Mobile number verified</Text>
             <Text style={localStyles.successText}>This number is confirmed for your existing account.</Text>
-            <AppButton title="Back to Profile" onPress={() => router.back()} />
+            <AppButton title={closeLabel} onPress={onClose} />
           </View>
         ) : (
           <>
@@ -138,6 +148,15 @@ export default function PhoneVerificationScreen() {
         {error ? <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text> : null}
         <Text style={styles.muted}>For account safety, only the mobile number saved on your TaskLink profile can be verified.</Text>
       </AppCard>
+  );
+}
+
+export default function PhoneVerificationScreen() {
+  const router = useRouter();
+  return (
+    <ScreenContainer scroll>
+      <Text style={styles.heading}>Verify Mobile Number</Text>
+      <PhoneVerificationContent onClose={() => router.back()} />
     </ScreenContainer>
   );
 }

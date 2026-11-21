@@ -212,6 +212,7 @@ function ProtectedNavigator() {
         <Stack.Screen name="chat/[id]" options={{ title: "Chat" }} />
         <Stack.Screen name="rating/[id]" options={{ title: "Rating and Feedback" }} />
         <Stack.Screen name="profile" options={{ title: "Profile" }} />
+        <Stack.Screen name="profile-manage" options={{ title: "Profile Management" }} />
         <Stack.Screen name="phone-verification" options={{ title: "Verify Mobile Number" }} />
         <Stack.Screen name="worker-profile/[id]" options={{ title: "Worker Profile" }} />
         <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
