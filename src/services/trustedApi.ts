@@ -47,3 +47,24 @@ export function postPhoneLoginPreflight<T>(phoneNumber: string) {
 export function postPhoneLoginSession<T>(idToken: string) {
   return publicRequest<T>("/api/phone-login/session", { idToken });
 }
+
+/**
+ * Starts and checks the server-owned SMS flow. These requests never expose a
+ * provider credential to the client; a completed login returns only a Firebase
+ * custom token for the account already associated with the verified number.
+ */
+export function startSmsPhoneLogin<T>(phoneNumber: string) {
+  return publicRequest<T>("/api/vonage-otp/login/start", { phoneNumber });
+}
+
+export function checkSmsPhoneLogin<T>(requestId: string, code: string) {
+  return publicRequest<T>("/api/vonage-otp/login/check", { requestId, code });
+}
+
+export function startSmsProfilePhoneVerification<T>(phoneNumber: string) {
+  return postTrustedApi<T>("/api/vonage-otp/profile/start", { phoneNumber });
+}
+
+export function checkSmsProfilePhoneVerification<T>(requestId: string, code: string) {
+  return postTrustedApi<T>("/api/vonage-otp/profile/check", { requestId, code });
+}

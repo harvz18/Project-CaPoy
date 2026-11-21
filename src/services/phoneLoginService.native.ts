@@ -1,44 +1,27 @@
-import { PhoneAuthProvider, getAuth, signInWithCredential, verifyPhoneNumber } from "@react-native-firebase/auth";
 import { signInWithCustomToken } from "firebase/auth";
 import { auth } from "./firebase";
-import { postPhoneLoginPreflight, postPhoneLoginSession } from "./trustedApi";
+import { checkSmsPhoneLogin, startSmsPhoneLogin } from "./trustedApi";
 
-let verificationId: string | undefined;
+let requestId: string | undefined;
 
 export async function startPhoneLogin(phoneNumber: string) {
-  // Do this before native Firebase starts a sign-in so unlinked numbers never
-  // create a second Firebase account.
-  await postPhoneLoginPreflight<{ ok: true }>(phoneNumber);
-  const nativeAuth = getAuth();
-  return new Promise<void>((resolve, reject) => {
-    const listener = verifyPhoneNumber(nativeAuth, phoneNumber);
-    listener.on("state_changed", (snapshot) => {
-      if (snapshot.error) {
-        reject(snapshot.error);
-        return;
-      }
-      if (snapshot.state === "sent" || snapshot.state === "verified") {
-        verificationId = snapshot.verificationId;
-        resolve();
-      }
-    }, reject);
-  });
+  const result = await startSmsPhoneLogin<{ requestId: string }>(phoneNumber);
+  if (!result.requestId) throw new Error("Unable to request a verification code. Please try again.");
+  requestId = result.requestId;
 }
 
 export async function completePhoneLogin(code: string) {
-  if (!verificationId) throw new Error("Request a verification code before continuing.");
-  const credential = PhoneAuthProvider.credential(verificationId, code);
-  const result = await signInWithCredential(getAuth(), credential);
-  const idToken = await result.user.getIdToken();
-  const session = await postPhoneLoginSession<{ customToken: string }>(idToken);
-  if (!auth || !session.customToken) throw new Error("Unable to restore your TaskLink session.");
-  const webSession = await signInWithCustomToken(auth, session.customToken);
-  verificationId = undefined;
-  return { localId: webSession.user.uid };
+  if (!requestId) throw new Error("Request a verification code before continuing.");
+  if (!auth) throw new Error("Firebase is not configured. Please reopen the app and try again.");
+  const result = await checkSmsPhoneLogin<{ customToken: string }>(requestId, code);
+  if (!result.customToken) throw new Error("Unable to restore your TaskLink session.");
+  const session = await signInWithCustomToken(auth, result.customToken);
+  requestId = undefined;
+  return { localId: session.user.uid };
 }
 
 export function resetPhoneLogin() {
-  verificationId = undefined;
+  requestId = undefined;
 }
 
 export const phoneLoginRecaptchaContainerId = undefined;

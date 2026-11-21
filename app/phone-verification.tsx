@@ -63,8 +63,8 @@ export default function PhoneVerificationScreen() {
       setRequestedAt(Date.now());
       if (result.automaticallyVerifiedCode) setCode(sanitizeOtpInput(result.automaticallyVerifiedCode));
       setMessage(result.automaticallyVerifiedCode
-        ? "Firebase confirmed your device. Review the code and tap Verify Mobile Number."
-        : "Verification code requested. Enter the six-digit code from Firebase to continue.");
+        ? "Your device confirmed the number. Review the code and tap Verify Mobile Number."
+        : "Verification code sent. Enter the six-digit code to continue.");
     } catch (requestError) {
       setError(phoneVerificationErrorMessage(requestError));
     } finally {
@@ -110,7 +110,7 @@ export default function PhoneVerificationScreen() {
         {complete ? (
           <View style={localStyles.successBox}>
             <Text style={localStyles.successTitle}>Mobile number verified</Text>
-            <Text style={localStyles.successText}>Firebase confirmed this number for your existing account.</Text>
+            <Text style={localStyles.successText}>This number is confirmed for your existing account.</Text>
             <AppButton title="Back to Profile" onPress={() => router.back()} />
           </View>
         ) : (
@@ -135,7 +135,7 @@ export default function PhoneVerificationScreen() {
         )}
         {message ? <Text accessibilityRole="status" style={localStyles.message}>{message}</Text> : null}
         {error ? <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text> : null}
-        <Text style={styles.muted}>Firebase fictional test numbers validate normally but do not receive a text message. Real delivery depends on the Firebase project’s authorized SMS configuration.</Text>
+        <Text style={styles.muted}>For account safety, only the mobile number saved on your TaskLink profile can be verified.</Text>
       </AppCard>
     </ScreenContainer>
   );

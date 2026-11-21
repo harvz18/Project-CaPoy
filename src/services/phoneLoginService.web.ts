@@ -1,51 +1,27 @@
-import {
-  PhoneAuthProvider,
-  RecaptchaVerifier,
-  signInWithCredential
-} from "firebase/auth";
+import { signInWithCustomToken } from "firebase/auth";
 import { auth } from "./firebase";
-import { postPhoneLoginPreflight } from "./trustedApi";
+import { checkSmsPhoneLogin, startSmsPhoneLogin } from "./trustedApi";
 
-const recaptchaContainerId = "tasklink-login-recaptcha";
-let verificationId: string | undefined;
-let verifier: RecaptchaVerifier | undefined;
-
-function requirePhoneAuth() {
-  if (!auth) throw new Error("Firebase is not configured. Please reopen the app and try again.");
-  return auth;
-}
-
-function getVerifier(firebaseAuth: NonNullable<typeof auth>) {
-  if (verifier) return verifier;
-  if (typeof document === "undefined" || !document.getElementById(recaptchaContainerId)) {
-    throw new Error("Phone verification is not ready. Reopen this screen and try again.");
-  }
-  verifier = new RecaptchaVerifier(firebaseAuth, recaptchaContainerId, { size: "invisible" });
-  return verifier;
-}
+let requestId: string | undefined;
 
 export async function startPhoneLogin(phoneNumber: string) {
-  // Only existing accounts with this provider already linked may continue.
-  // This prevents Firebase from provisioning a separate phone-only account.
-  await postPhoneLoginPreflight<{ ok: true }>(phoneNumber);
-  const firebaseAuth = requirePhoneAuth();
-  const provider = new PhoneAuthProvider(firebaseAuth);
-  verificationId = await provider.verifyPhoneNumber(phoneNumber, getVerifier(firebaseAuth));
+  const result = await startSmsPhoneLogin<{ requestId: string }>(phoneNumber);
+  if (!result.requestId) throw new Error("Unable to request a verification code. Please try again.");
+  requestId = result.requestId;
 }
 
 export async function completePhoneLogin(code: string) {
-  const firebaseAuth = requirePhoneAuth();
-  if (!verificationId) throw new Error("Request a verification code before continuing.");
-  const credential = PhoneAuthProvider.credential(verificationId, code);
-  const result = await signInWithCredential(firebaseAuth, credential);
-  verificationId = undefined;
-  return { localId: result.user.uid };
+  if (!requestId) throw new Error("Request a verification code before continuing.");
+  if (!auth) throw new Error("Firebase is not configured. Please reopen the app and try again.");
+  const result = await checkSmsPhoneLogin<{ customToken: string }>(requestId, code);
+  if (!result.customToken) throw new Error("Unable to restore your TaskLink session.");
+  const session = await signInWithCustomToken(auth, result.customToken);
+  requestId = undefined;
+  return { localId: session.user.uid };
 }
 
 export function resetPhoneLogin() {
-  verificationId = undefined;
-  verifier?.clear();
-  verifier = undefined;
+  requestId = undefined;
 }
 
-export const phoneLoginRecaptchaContainerId = recaptchaContainerId;
+export const phoneLoginRecaptchaContainerId = undefined;

@@ -137,7 +137,7 @@ export default function LoginScreen() {
       await startPhoneLogin(normalizedNumber);
       setOtpRequestedAt(Date.now());
       setOtpNow(Date.now());
-      setOtpMessage("Verification code requested. Enter the six-digit code from Firebase to continue.");
+      setOtpMessage("Verification code sent. Enter the six-digit code to continue.");
     } catch (requestError) {
       setOtpError(phoneVerificationErrorMessage(requestError));
     } finally {

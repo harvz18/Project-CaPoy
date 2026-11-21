@@ -6,7 +6,7 @@ const { authorityFromClaims, buildAccountStatusChange, hasSuperadminAuthority, i
 const { buildIdentityReview } = require("../functions/identity");
 const { DEFAULT_RATE_BASIS_POINTS, buildFeeSnapshot } = require("../functions/revenue");
 const { DOCUMENT_KINDS, calculateVerificationProgress, documentReviewsForSubmission, requestFieldByKind } = require("../functions/verificationProgress");
-const { buildVerifiedPhoneUpdate, hasMatchingVerifiedPhone, normalizePhilippineMobileNumber } = require("./phoneAuth");
+const { buildVerifiedPhoneUpdate, hasMatchingVerifiedPhone, normalizePhilippineMobileNumber, normalizeStoredPhilippineMobileNumber } = require("./phoneAuth");
 
 class ApiError extends Error {
   constructor(status, message) {
@@ -144,6 +144,180 @@ async function createPhoneLoginSession({ request, db }) {
     throw new ApiError(403, "Verification-code login could not be completed. Use Password Login and verify this number from your profile.");
   }
   return { customToken: await services().auth.createCustomToken(claims.uid) };
+}
+
+// Vonage Verify is used only by this server. The browser and mobile apps never
+// receive the provider credentials, nor a Firebase credential for a different
+// account. A verified code is exchanged for a Firebase custom token for the
+// existing TaskLink UID.
+const phoneOtpSessionLifetimeMs = 10 * 60 * 1000;
+const phoneOtpSessionCollection = "phoneOtpSessions";
+
+function vonageConfiguration() {
+  const apiKey = process.env.VONAGE_API_KEY?.trim();
+  const apiSecret = process.env.VONAGE_API_SECRET?.trim();
+  const brand = (process.env.VONAGE_VERIFY_BRAND || "TaskLink").trim();
+  if (!apiKey || !apiSecret) throw new ApiError(503, "SMS verification is not configured. Please try again later.");
+  return { apiKey, apiSecret, brand: brand.slice(0, 20) || "TaskLink" };
+}
+
+async function vonageVerifyRequest(path, payload) {
+  const { apiKey, apiSecret } = vonageConfiguration();
+  let response;
+  try {
+    response = await fetch(`https://api.nexmo.com${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${apiKey}:${apiSecret}`).toString("base64")}`,
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch {
+    throw new ApiError(503, "SMS verification is temporarily unavailable. Please try again.");
+  }
+  const body = await response.json().catch(() => ({}));
+  return { response, body };
+}
+
+async function startVonageVerification(phoneNumber) {
+  const { brand } = vonageConfiguration();
+  const { response, body } = await vonageVerifyRequest("/v2/verify", {
+    brand,
+    code_length: 6,
+    workflow: [{ channel: "sms", to: phoneNumber }]
+  });
+  if (!response.ok || typeof body.request_id !== "string" || !body.request_id) {
+    throw new ApiError(503, "Unable to send a verification code right now. Please try again shortly.");
+  }
+  return body.request_id;
+}
+
+async function checkVonageVerification(requestId, code) {
+  const { response, body } = await vonageVerifyRequest(`/v2/verify/${encodeURIComponent(requestId)}`, { code });
+  if (!response.ok || (typeof body.status === "string" && body.status !== "completed")) {
+    throw new ApiError(400, "That verification code is invalid or expired. Request a new code and try again.");
+  }
+}
+
+function phoneStorageVariants(phoneNumber) {
+  return [phoneNumber, `0${phoneNumber.slice(3)}`, phoneNumber.slice(3)];
+}
+
+async function profilesForPhoneNumber(db, phoneNumber) {
+  const snapshot = await db.collection("users")
+    .where("mobileNumber", "in", phoneStorageVariants(phoneNumber))
+    .limit(10)
+    .get();
+  return snapshot.docs.filter((document) => normalizeStoredPhilippineMobileNumber(document.data().mobileNumber) === phoneNumber);
+}
+
+function hasDisabledAccount(profile) {
+  return ["suspended", "restricted", "deleted"].includes(String(profile.accountStatus || "active").toLowerCase());
+}
+
+async function eligiblePhoneLoginProfile(db, phoneNumber) {
+  const matches = await profilesForPhoneNumber(db, phoneNumber);
+  if (matches.length !== 1) return undefined;
+  const profile = matches[0].data();
+  return profile.phoneVerified
+    && hasMatchingVerifiedPhone(profile.mobileNumber, profile.verifiedPhoneNumber)
+    && !hasDisabledAccount(profile)
+    ? { id: matches[0].id, profile }
+    : undefined;
+}
+
+async function writePhoneOtpSession(db, { requestId, kind, userId, phoneNumber }) {
+  await db.collection(phoneOtpSessionCollection).doc(requestId).set({
+    kind,
+    userId,
+    phoneNumber,
+    status: "pending",
+    createdAt: nowIso(),
+    expiresAt: new Date(Date.now() + phoneOtpSessionLifetimeMs).toISOString()
+  });
+}
+
+async function pendingPhoneOtpSession(db, requestId, kind, userId) {
+  const snapshot = await db.collection(phoneOtpSessionCollection).doc(requestId).get();
+  const session = snapshot.data();
+  if (!snapshot.exists || session.kind !== kind || (userId && session.userId !== userId)
+    || session.status !== "pending" || new Date(session.expiresAt).getTime() <= Date.now()) {
+    throw new ApiError(400, "This verification request has expired. Request a new code and try again.");
+  }
+  return { snapshot, session };
+}
+
+/** Starts an anonymous code request without exposing whether a number has an account. */
+async function startVonagePhoneLogin({ request, db }) {
+  allowPhoneLoginAttempt(request);
+  const phoneNumber = normalizePhilippineMobileNumber(requiredBodyString(request, "phoneNumber"));
+  if (!phoneNumber) throw new ApiError(400, "Enter a Philippine mobile number as 09XXXXXXXXX or +639XXXXXXXXX.");
+  const profile = await eligiblePhoneLoginProfile(db, phoneNumber);
+  if (!profile) {
+    throw new ApiError(403, "Verification-code login is not available for this number. Use Password Login first, then verify the number from your profile.");
+  }
+  const requestId = await startVonageVerification(phoneNumber);
+  await writePhoneOtpSession(db, { requestId, kind: "login", userId: profile.id, phoneNumber });
+  return { requestId };
+}
+
+async function completeVonagePhoneLogin({ request, db }) {
+  const requestId = requiredBodyString(request, "requestId");
+  const code = requiredBodyString(request, "code");
+  if (!/^\d{6}$/.test(code)) throw new ApiError(400, "Enter the complete six-digit verification code.");
+  const { snapshot, session } = await pendingPhoneOtpSession(db, requestId, "login");
+  const profile = await eligiblePhoneLoginProfile(db, session.phoneNumber);
+  if (!profile || profile.id !== session.userId) {
+    throw new ApiError(403, "Verification-code login could not be completed. Use Password Login and verify this number from your profile.");
+  }
+  await checkVonageVerification(requestId, code);
+  await snapshot.ref.update({ status: "completed", completedAt: nowIso() });
+  return { customToken: await services().auth.createCustomToken(session.userId) };
+}
+
+async function startVonageProfilePhoneVerification({ request, db, claims }) {
+  allowPhoneLoginAttempt(request);
+  const phoneNumber = normalizePhilippineMobileNumber(requiredBodyString(request, "phoneNumber"));
+  if (!phoneNumber) throw new ApiError(400, "Enter a Philippine mobile number as 09XXXXXXXXX or +639XXXXXXXXX.");
+  const userSnapshot = await db.collection("users").doc(claims.uid).get();
+  if (!userSnapshot.exists) throw new ApiError(404, "User profile not found.");
+  if (normalizeStoredPhilippineMobileNumber(userSnapshot.data().mobileNumber) !== phoneNumber) {
+    throw new ApiError(409, "Verify the same mobile number that is saved on this TaskLink profile.");
+  }
+  const matches = await profilesForPhoneNumber(db, phoneNumber);
+  if (matches.some((document) => document.id !== claims.uid)) {
+    throw new ApiError(409, "This mobile number is already assigned to another TaskLink account.");
+  }
+  const requestId = await startVonageVerification(phoneNumber);
+  await writePhoneOtpSession(db, { requestId, kind: "profile", userId: claims.uid, phoneNumber });
+  return { requestId };
+}
+
+async function completeVonageProfilePhoneVerification({ request, db, claims }) {
+  const requestId = requiredBodyString(request, "requestId");
+  const code = requiredBodyString(request, "code");
+  if (!/^\d{6}$/.test(code)) throw new ApiError(400, "Enter the complete six-digit verification code.");
+  const { snapshot, session } = await pendingPhoneOtpSession(db, requestId, "profile", claims.uid);
+  const userRef = db.collection("users").doc(claims.uid);
+  const userSnapshot = await userRef.get();
+  if (!userSnapshot.exists || normalizeStoredPhilippineMobileNumber(userSnapshot.data().mobileNumber) !== session.phoneNumber) {
+    throw new ApiError(409, "Verify the same mobile number that is saved on this TaskLink profile.");
+  }
+  await checkVonageVerification(requestId, code);
+  const verifiedAt = nowIso();
+  await Promise.all([
+    snapshot.ref.update({ status: "completed", completedAt: verifiedAt }),
+    userRef.update({
+      mobileNumber: session.phoneNumber,
+      phoneVerified: true,
+      verifiedPhoneNumber: session.phoneNumber,
+      phoneVerifiedAt: verifiedAt,
+      updatedAt: verifiedAt
+    })
+  ]);
+  return { phoneNumber: session.phoneNumber };
 }
 
 function requestedIds(request) {
@@ -818,6 +992,22 @@ function createServer() {
       next(error);
     }
   });
+  app.post("/api/vonage-otp/login/start", async (request, response, next) => {
+    try {
+      response.json(await startVonagePhoneLogin({ request, db: services().db }));
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post("/api/vonage-otp/login/check", async (request, response, next) => {
+    try {
+      response.json(await completeVonagePhoneLogin({ request, db: services().db }));
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post("/api/vonage-otp/profile/start", route("user", startVonageProfilePhoneVerification));
+  app.post("/api/vonage-otp/profile/check", route("user", completeVonageProfilePhoneVerification));
   app.post("/api/phone-verification/native-session", route("user", createPhoneVerificationNativeSession));
   app.post("/api/phone-verification/sync", route("user", syncPhoneVerification));
   app.post("/api/admin/profiles/lookup", route("admin", profileLookup));
