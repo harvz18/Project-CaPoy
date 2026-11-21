@@ -20,7 +20,7 @@ export type VerificationProgressLevel = "Incomplete" | "In Progress" | "Near Com
 
 type ProgressProfile = Pick<
   UserProfile,
-  "fullName" | "mobileNumber" | "address" | "validIdUrl" | "selfieWithIdUrl" | "medicalCertificateUrl" | "policeClearanceUrl" | "verificationStatus" | "identityStatus"
+  "profilePhotoUrl" | "validIdUrl" | "selfieWithIdUrl" | "medicalCertificateUrl" | "policeClearanceUrl" | "verificationStatus" | "identityStatus"
 >;
 
 type ProgressRequest = {
@@ -84,8 +84,8 @@ export function getVerificationDocumentDecision(
   return legacyDecision(profile, request, hasDocument);
 }
 
-export function isVerificationProfileComplete(profile: ProgressProfile) {
-  return hasText(profile.fullName, 2) && hasText(profile.mobileNumber, 10) && hasText(profile.address, 3);
+export function hasVerificationProfilePhoto(profile: ProgressProfile) {
+  return hasText(profile.profilePhotoUrl);
 }
 
 export function calculateVerificationProgress(profile: ProgressProfile, request?: ProgressRequest): VerificationProgress {
@@ -100,11 +100,10 @@ export function calculateVerificationProgress(profile: ProgressProfile, request?
       allDocumentsVerified: true,
       documents: Object.fromEntries(verificationDocumentKinds.map((kind) => [kind, "Verified"])) as Record<VerificationDocumentKind, VerificationDocumentDecision>,
       criteria: [
-        { label: "Government ID and matching selfie", percentage: 30, complete: true },
-        { label: "Medical certificate", percentage: 25, complete: true },
-        { label: "Police clearance", percentage: 25, complete: true },
-        { label: "Profile information", percentage: 10, complete: true },
-        { label: "All requirements verified", percentage: 10, complete: true }
+        { label: "Profile picture uploaded", percentage: 10, complete: true },
+        { label: "Government ID and matching selfie", percentage: 60, complete: true },
+        { label: "Medical certificate", percentage: 15, complete: true },
+        { label: "Police clearance", percentage: 15, complete: true }
       ]
     };
   }
@@ -115,14 +114,12 @@ export function calculateVerificationProgress(profile: ProgressProfile, request?
   const identityVerified = documents["valid-id"] === "Verified" && documents["selfie-with-id"] === "Verified";
   const medicalVerified = documents["medical-certificate"] === "Verified";
   const policeVerified = documents["police-clearance"] === "Verified";
-  const profileComplete = isVerificationProfileComplete(profile);
+  const profileComplete = hasVerificationProfilePhoto(profile);
   const allDocumentsVerified = identityVerified && medicalVerified && policeVerified;
-  const completionBonus = allDocumentsVerified && profileComplete;
-  const percentage = (identityVerified ? 30 : 0)
-    + (medicalVerified ? 25 : 0)
-    + (policeVerified ? 25 : 0)
-    + (profileComplete ? 10 : 0)
-    + (completionBonus ? 10 : 0);
+  const percentage = (profileComplete ? 10 : 0)
+    + (identityVerified ? 60 : 0)
+    + (medicalVerified ? 15 : 0)
+    + (policeVerified ? 15 : 0);
   const level: VerificationProgressLevel = percentage === 100
     ? "Verification Complete"
     : percentage >= 70 ? "Near Completion"
@@ -136,11 +133,10 @@ export function calculateVerificationProgress(profile: ProgressProfile, request?
     allDocumentsVerified,
     documents,
     criteria: [
-      { label: "Government ID and matching selfie", percentage: 30, complete: identityVerified },
-      { label: "Medical certificate", percentage: 25, complete: medicalVerified },
-      { label: "Police clearance", percentage: 25, complete: policeVerified },
-      { label: "Profile information", percentage: 10, complete: profileComplete },
-      { label: "All requirements verified", percentage: 10, complete: completionBonus }
+      { label: "Profile picture uploaded", percentage: 10, complete: profileComplete },
+      { label: "Government ID and matching selfie", percentage: 60, complete: identityVerified },
+      { label: "Medical certificate", percentage: 15, complete: medicalVerified },
+      { label: "Police clearance", percentage: 15, complete: policeVerified }
     ]
   };
 }

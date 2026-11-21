@@ -218,6 +218,25 @@ async function submitVerificationRequest({ request, db, claims }) {
   return { ok: true, status: "Pending Verification" };
 }
 
+/** Recalculates the trusted public percentage after a profile picture changes. */
+async function refreshVerificationProgress({ db, claims }) {
+  const userRef = db.collection("users").doc(claims.uid);
+  const requestRef = db.collection("verificationRequests").doc(claims.uid);
+  const now = nowIso();
+  await db.runTransaction(async (transaction) => {
+    const [userSnapshot, verificationSnapshot] = await Promise.all([transaction.get(userRef), transaction.get(requestRef)]);
+    if (!userSnapshot.exists) throw new ApiError(404, "User account was not found.");
+    const user = userSnapshot.data();
+    if (!new Set(["worker", "client"]).has(user.role)) throw new ApiError(409, "Only employer and tasker accounts have verification progress.");
+    const progress = calculateVerificationProgress(user, verificationSnapshot.exists ? verificationSnapshot.data() : undefined);
+    const progressFields = verificationProfileFields(progress);
+    transaction.update(userRef, { ...progressFields, updatedAt: now });
+    transaction.set(db.collection(user.role === "worker" ? "workerProfiles" : "clientProfiles").doc(claims.uid), { ...progressFields, updatedAt: now }, { merge: true });
+    transaction.set(db.collection("publicProfiles").doc(claims.uid), { ...progressFields, updatedAt: now }, { merge: true });
+  });
+  return { ok: true };
+}
+
 /** Completes a legacy approval without allowing any approved evidence to change. */
 async function submitMissingVerificationDocuments({ request, db, claims }) {
   const validIdType = requiredBodyString(request, "validIdType");
@@ -684,6 +703,7 @@ function createServer() {
   app.post("/api/revenue/fees/review", route("admin", reviewPlatformFee));
   app.get("/api/revenue/overview", route("superadmin", platformRevenueOverview));
   app.post("/api/verification/submit", route("user", submitVerificationRequest));
+  app.post("/api/verification/progress/refresh", route("user", refreshVerificationProgress));
   app.post("/api/verification/complete-missing", route("user", submitMissingVerificationDocuments));
   app.post("/api/admin/profiles/lookup", route("admin", profileLookup));
   app.get("/api/admin/verifications/pending", route("admin", async ({ db }) => {

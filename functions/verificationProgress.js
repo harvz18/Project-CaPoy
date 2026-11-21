@@ -43,11 +43,10 @@ function calculateVerificationProgress(user = {}, verification = {}) {
   const identityVerified = documents["valid-id"] === "Verified" && documents["selfie-with-id"] === "Verified";
   const medicalVerified = documents["medical-certificate"] === "Verified";
   const policeVerified = documents["police-clearance"] === "Verified";
-  const profileComplete = hasText(user.fullName, 2) && hasText(user.mobileNumber, 10) && hasText(user.address, 3);
+  const profileComplete = hasText(user.profilePhotoUrl);
   const allDocumentsVerified = identityVerified && medicalVerified && policeVerified;
-  const completionBonus = allDocumentsVerified && profileComplete;
-  const percentage = (identityVerified ? 30 : 0) + (medicalVerified ? 25 : 0) + (policeVerified ? 25 : 0)
-    + (profileComplete ? 10 : 0) + (completionBonus ? 10 : 0);
+  const percentage = (profileComplete ? 10 : 0) + (identityVerified ? 60 : 0)
+    + (medicalVerified ? 15 : 0) + (policeVerified ? 15 : 0);
   const level = percentage === 100 ? "Verification Complete" : percentage >= 70 ? "Near Completion" : percentage >= 40 ? "In Progress" : "Incomplete";
   return { percentage, level, profileComplete, allDocumentsVerified, documents };
 }

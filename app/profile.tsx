@@ -14,7 +14,7 @@ import { isIdentityLocked } from "../src/domain/profileIdentity";
 import { captureForegroundLocation } from "../src/services/locationService";
 import { pickAndUploadPrivateDocument, pickAndUploadProfilePhoto, UploadSource } from "../src/services/fileUploadService";
 import { AddressSearchResult, reverseGeocodeSelectedPin, searchAddressOnMap } from "../src/services/reverseGeocoding";
-import { submitMissingVerificationDocuments, submitVerificationRequest, subscribeToVerificationRequest } from "../src/services/verificationService";
+import { refreshVerificationProgress, submitMissingVerificationDocuments, submitVerificationRequest, subscribeToVerificationRequest } from "../src/services/verificationService";
 import type { VerificationRequest } from "../src/types";
 import { parseCoordinate } from "../src/utils/location";
 import { AddressDetails, formatAddressDetails } from "../src/utils/address";
@@ -170,6 +170,14 @@ export default function ProfileScreen() {
     return subscribeToVerificationRequest(currentUser.id, setVerificationRequest, () => setVerificationRequest(undefined));
   }, [currentUser?.id]);
 
+  useEffect(() => {
+    if (!currentUser || !["worker", "client"].includes(currentUser.role)) return;
+    // Bring accounts created under an earlier percentage breakdown forward as
+    // soon as their owner opens this screen. A failed refresh never blocks
+    // profile viewing or editing.
+    void refreshVerificationProgress().catch(() => undefined);
+  }, [currentUser?.id, currentUser?.role]);
+
   async function handleLogout() {
     try {
       await logout();
@@ -238,6 +246,7 @@ export default function ProfileScreen() {
       if (uploaded) {
         setProfilePhotoUrl(uploaded.url);
         await updateProfile({ profilePhotoUrl: uploaded.url });
+        await refreshVerificationProgress();
         setUploadMessage("Profile photo uploaded and saved.");
       }
     } catch (uploadError) {

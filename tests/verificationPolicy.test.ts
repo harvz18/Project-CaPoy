@@ -20,6 +20,7 @@ test("verification progress remains separate from official marketplace verificat
     fullName: "Tasker Person",
     mobileNumber: "09171234567",
     address: "Bacolod City",
+    profilePhotoUrl: "profile-photo",
     validIdUrl: "valid-id",
     selfieWithIdUrl: "selfie",
     medicalCertificateUrl: "medical",
@@ -35,9 +36,21 @@ test("verification progress remains separate from official marketplace verificat
       "police-clearance": { status: "Pending" }
     }
   });
-  assert.equal(progress.percentage, 65);
+  assert.equal(progress.percentage, 85);
   assert.equal(isMarketplaceVerified(profile), false);
-  assert.equal(verificationProgressPublicLabel({ ...profile, verificationProgress: progress.percentage }), "Verification: 65% complete");
+  assert.equal(verificationProgressPublicLabel({ ...profile, verificationProgress: progress.percentage }), "Verification: 85% complete");
+});
+
+test("profile-photo progress is earned by uploading a photo and does not require a document review", () => {
+  const progress = calculateVerificationProgress({
+    fullName: "Tasker Person",
+    mobileNumber: "09171234567",
+    address: "Bacolod City",
+    profilePhotoUrl: "profile-photo",
+    verificationStatus: "Not Submitted"
+  });
+  assert.equal(progress.percentage, 10);
+  assert.deepEqual(progress.criteria[0], { label: "Profile picture uploaded", percentage: 10, complete: true });
 });
 
 test("legacy verified accounts remain fully verified in progress displays", () => {

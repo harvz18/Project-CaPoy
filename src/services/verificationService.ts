@@ -14,6 +14,11 @@ export function subscribeToVerificationRequest(
   }, (error) => onError?.(error));
 }
 
+/** Refreshes trusted public progress after a profile-picture upload. */
+export async function refreshVerificationProgress() {
+  await postTrustedApi("/api/verification/progress/refresh", {});
+}
+
 export async function submitVerificationRequest(input: {
   userId: string;
   role?: "worker" | "client";
