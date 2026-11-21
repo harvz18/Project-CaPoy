@@ -338,39 +338,35 @@ export default function LoginScreen() {
 
           <View style={screenStyles.section}>
             <Text style={screenStyles.label}>Mobile Number</Text>
-            <LoginMobileNumberInput mobileNumber={mobileNumber} onChange={setMobileNumber} />
+            <PhoneInput mobileNumber={mobileNumber} onChange={setMobileNumber} />
           </View>
 
           {loginMethod === "verification-code" ? (
             <View style={screenStyles.section}>
               {typeof phoneLoginRecaptchaContainerId === "string" ? <View nativeID={phoneLoginRecaptchaContainerId} style={screenStyles.recaptchaContainer} /> : null}
-              <Pressable
-                accessibilityRole="button"
-                disabled={otpLoading || Boolean(otpRequestedAt && !canResend)}
-                onPress={() => void requestOtp()}
-                style={({ pressed }) => [screenStyles.secondaryButton, (otpLoading || Boolean(otpRequestedAt && !canResend)) && screenStyles.disabledButton, pressed && screenStyles.pressed]}
-              >
-                <Text style={screenStyles.secondaryButtonText}>{otpLoading ? "Requesting code..." : "Get Code"}</Text>
-              </Pressable>
-              {otpRequestedAt ? (
-                <View style={screenStyles.otpResendRow}>
-                  <Text style={screenStyles.otpHint}>Didn't receive the code?</Text>
-                  <Pressable accessibilityRole="button" disabled={otpLoading || !canResend} onPress={() => void requestOtp()} style={screenStyles.resendButton}>
-                    <Text style={[screenStyles.resendText, (otpLoading || !canResend) && screenStyles.resendTextDisabled]}>{canResend ? "Resend" : `Resend in ${resendRemaining}s`}</Text>
-                  </Pressable>
-                </View>
-              ) : null}
               <Text style={screenStyles.label}>Verification Code</Text>
-              <TextInput
-                editable={Boolean(otpRequestedAt) && !otpLoading && !actionLoading}
-                keyboardType="number-pad"
-                maxLength={6}
-                onChangeText={(value) => setOtpCode(sanitizeOtpInput(value))}
-                placeholder="Enter 6-digit code"
-                placeholderTextColor={palette.outline}
-                style={screenStyles.textInput}
-                value={otpCode}
-              />
+              <View style={screenStyles.loginOtpInputWrap}>
+                <TextInput
+                  editable={Boolean(otpRequestedAt) && !otpLoading && !actionLoading}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  onChangeText={(value) => setOtpCode(sanitizeOtpInput(value))}
+                  placeholder="Enter 6-digit code"
+                  placeholderTextColor={palette.outline}
+                  style={screenStyles.loginOtpInput}
+                  value={otpCode}
+                />
+                <Pressable
+                  accessibilityLabel={otpRequestedAt ? "Resend OTP" : "Get OTP"}
+                  accessibilityRole="button"
+                  disabled={otpLoading || Boolean(otpRequestedAt && !canResend)}
+                  onPress={() => void requestOtp()}
+                  style={({ pressed }) => [screenStyles.getOtpButton, (otpLoading || Boolean(otpRequestedAt && !canResend)) && screenStyles.getOtpButtonDisabled, pressed && screenStyles.pressed]}
+                >
+                  <Text style={screenStyles.getOtpButtonText}>{otpLoading ? "Sending..." : otpRequestedAt ? (canResend ? "Resend" : `Wait ${resendRemaining}s`) : "Get OTP"}</Text>
+                </Pressable>
+              </View>
+              {otpRequestedAt && !canResend ? <Text style={screenStyles.otpHint}>You can request another code in {resendRemaining}s.</Text> : null}
               <Pressable
                 accessibilityRole="button"
                 disabled={!otpRequestedAt || otpLoading || actionLoading}
@@ -568,22 +564,6 @@ type PhoneInputProps = {
   editable?: boolean;
 };
 
-/** Login accepts both canonical Philippine formats without changing the legacy registration control. */
-function LoginMobileNumberInput({ mobileNumber, onChange }: PhoneInputProps) {
-  return (
-    <TextInput
-      keyboardType="phone-pad"
-      maxLength={18}
-      onBlur={() => onChange(removePhilippineMobileLeadingZero(mobileNumber))}
-      onChangeText={(value) => onChange(value.replace(/[^\d+\s()-]/g, ""))}
-      placeholder="09XX XXX XXXX"
-      placeholderTextColor={palette.outline}
-      style={screenStyles.textInput}
-      value={mobileNumber}
-    />
-  );
-}
-
 function PhoneInput({ mobileNumber, onChange, editable = true }: PhoneInputProps) {
   return (
     <View style={screenStyles.phoneInputWrap}>
@@ -761,7 +741,6 @@ const screenStyles = StyleSheet.create({
     gap: 14
   },
   recaptchaContainer: { minHeight: 1 },
-  otpResendRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
   otpHint: { color: palette.muted, fontSize: 12, lineHeight: 17, textAlign: "center" },
   otpMessage: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "700" },
   registerPanel: {
@@ -832,6 +811,35 @@ const screenStyles = StyleSheet.create({
     minHeight: 52,
     paddingRight: 16
   },
+  loginOtpInputWrap: {
+    minHeight: 48,
+    borderRadius: 8,
+    backgroundColor: palette.surfaceLow,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 16,
+    paddingRight: 6,
+    gap: 8
+  },
+  loginOtpInput: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 48,
+    color: palette.text,
+    fontSize: 16,
+    letterSpacing: 1
+  },
+  getOtpButton: {
+    minWidth: 86,
+    minHeight: 36,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    backgroundColor: palette.primary
+  },
+  getOtpButtonDisabled: { backgroundColor: palette.outlineVariant },
+  getOtpButtonText: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: "800", textAlign: "center" },
   registrationPhoneRow: { flexDirection: "row", alignItems: "stretch", gap: 8 },
   registrationPhoneField: { flex: 1, minWidth: 0 },
   verifyNumberButton: {
