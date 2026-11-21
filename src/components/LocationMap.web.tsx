@@ -30,6 +30,8 @@ export default function LocationMap({
   interactive = false,
   fitToMarkers = false,
   connectMarkers = false,
+  showLayerSwitcher = true,
+  expandedControls = false,
   onSelectCoordinate
 }: LocationMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -224,6 +226,10 @@ export default function LocationMap({
     mapRef.current?.invalidateSize({ pan: false });
   }, [height]);
 
+  useEffect(() => {
+    mapRef.current?.zoomControl.setPosition(expandedControls ? "bottomright" : "topleft");
+  }, [expandedControls]);
+
   return (
     <div
       aria-label={interactive ? "Interactive task location map" : "Task location map"}
@@ -238,11 +244,12 @@ export default function LocationMap({
       }}
     >
       <div ref={containerRef} style={{ height: "100%", width: "100%" }} />
-      {interactive ? (
-        <div aria-label="Map layer" role="group" style={{ background: "rgba(0,92,85,.94)", border: "1px solid rgba(255,255,255,.75)", borderRadius: 9, display: "flex", gap: 2, padding: 3, position: "absolute", right: 12, top: 52, zIndex: 700 }}>
+      {interactive && showLayerSwitcher ? (
+        <div aria-label="Map layer" role="group" style={{ background: expandedControls ? "#D4DBD9" : "rgba(0,92,85,.94)", border: expandedControls ? "1px solid rgba(189,201,198,.78)" : "1px solid rgba(255,255,255,.75)", borderRadius: expandedControls ? 12 : 9, display: "flex", gap: expandedControls ? 8 : 2, left: expandedControls ? 12 : undefined, padding: expandedControls ? 4 : 3, position: "absolute", right: expandedControls ? undefined : 12, top: expandedControls ? 12 : 52, width: expandedControls ? 190 : undefined, zIndex: 700 }}>
+          {expandedControls ? <span aria-hidden style={{ background: "#005C55", borderRadius: 10, bottom: 4, boxShadow: "0 3px 5px rgba(15,47,43,.28)", left: 4, position: "absolute", top: 4, transform: mapLayer === "satellite" ? "translateX(calc(100% + 8px))" : "translateX(0)", transition: "transform 240ms cubic-bezier(.22,.61,.36,1)", width: "calc((100% - 16px) / 2)" }} /> : null}
           {(["street", "satellite"] as const).map((layer) => {
             const selected = mapLayer === layer;
-            return <button aria-pressed={selected} key={layer} onClick={(event) => { event.preventDefault(); event.stopPropagation(); selectMapLayer(layer); }} style={{ background: selected ? "#20D5C5" : "transparent", border: 0, borderRadius: 6, color: selected ? "#003C37" : "#FFFFFF", cursor: "pointer", fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 800, minHeight: 36, padding: "0 10px" }} type="button">{layer === "street" ? "Street" : "Satellite"}</button>;
+            return <button aria-pressed={selected} key={layer} onClick={(event) => { event.preventDefault(); event.stopPropagation(); selectMapLayer(layer); }} style={{ background: expandedControls ? "transparent" : selected ? "#20D5C5" : "transparent", border: 0, borderRadius: expandedControls ? 10 : 6, color: expandedControls ? selected ? "#FFFFFF" : "#3E4947" : selected ? "#003C37" : "#FFFFFF", cursor: "pointer", flex: expandedControls ? 1 : undefined, fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 800, minHeight: 36, padding: expandedControls ? 0 : "0 10px", position: "relative", zIndex: 1 }} type="button">{layer === "street" ? "Street" : "Satellite"}</button>;
           })}
         </div>
       ) : null}

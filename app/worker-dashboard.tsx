@@ -1,10 +1,13 @@
+import Feather from "@expo/vector-icons/Feather";
+import { BlurTargetView, BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useState } from "react";
-import { Image, Modal, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { type ComponentRef, useEffect, useRef, useState } from "react";
+import { Animated, Easing, Modal, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, useWindowDimensions, View } from "react-native";
 import { AppText as Text } from "../src/components/AppText";
+import { AppHeader } from "../src/components/AppHeader";
 import { interactiveCardShadow } from "../src/styles";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { NotificationShortcut } from "../src/components/NotificationShortcut";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import LocationMap from "../src/components/LocationMap";
 import { SmartMatchBadge } from "../src/components/SmartMatchBadge";
 import { StatusBadge } from "../src/components/StatusBadge";
@@ -32,14 +35,36 @@ const palette = {
   white: "#FFFFFF"
 };
 
+const TAB_ROW_PADDING = 4;
+const TAB_ROW_GAP = 8;
+const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
+type MapOverlayRect = { x: number; y: number; width: number; height: number };
+
 export default function WorkerDashboardScreen() {
   const router = useRouter();
   const [selectedTab, setSelectedTab] = useState<"active" | "finished">("active");
-  const [applicationsExpanded, setApplicationsExpanded] = useState(false);
+  const [applicationsOverlayOpen, setApplicationsOverlayOpen] = useState(false);
+  const [applicationsOverlayClosing, setApplicationsOverlayClosing] = useState(false);
+  const [finishedExpanded, setFinishedExpanded] = useState(false);
   const [mapFullscreen, setMapFullscreen] = useState(false);
+  const [mapOverlayClosing, setMapOverlayClosing] = useState(false);
+  const [mapOverlayMapReady, setMapOverlayMapReady] = useState(false);
+  const [mapOverlayOrigin, setMapOverlayOrigin] = useState<MapOverlayRect>();
+  const [mapOverlayViewport, setMapOverlayViewport] = useState<{ width: number; height: number }>();
   const [actionMessage, setActionMessage] = useState("");
-  const { height: viewportHeight } = useWindowDimensions();
-  const { actionLoading, currentUser, notifications, tasks, ratings, acceptTask } = useApp();
+  const [tabRowWidth, setTabRowWidth] = useState(0);
+  const tabPosition = useRef(new Animated.Value(0)).current;
+  const applicationBorderRotation = useRef(new Animated.Value(0)).current;
+  const applicationsOverlayScale = useRef(new Animated.Value(0.82)).current;
+  const applicationsOverlayClosingRef = useRef(false);
+  const mapOverlayClosingRef = useRef(false);
+  const mapOverlayProgress = useRef(new Animated.Value(0)).current;
+  const mapPanelRef = useRef<ComponentRef<typeof View>>(null);
+  const applicationBlurTargetRef = useRef<ComponentRef<typeof View>>(null);
+  const homeScrollRef = useRef<ScrollViewInstance>(null);
+  const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const { actionLoading, currentUser, tasks, ratings, acceptTask, retryDataSync } = useApp();
   const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
   const rankedPostedTasks = currentUser ? rankTasksForWorker(postedTasks, currentUser) : [];
   const acceptedTasks = tasks.filter(
@@ -53,7 +78,186 @@ export default function WorkerDashboardScreen() {
     (task) => task.workerId === currentUser?.id && (task.status === "Finished" || task.status === "Archived")
   );
   const smartMatches = rankedPostedTasks.filter(({ match }) => match.eligible);
+  const visibleFinishedTasks = finishedExpanded ? finishedTasks : finishedTasks.slice(0, 3);
   const featuredJobs = smartMatches.slice(0, 2);
+  const tabWidth = Math.max(0, (tabRowWidth - TAB_ROW_PADDING * 2 - TAB_ROW_GAP) / 2);
+  const mapOverlayViewportWidth = mapOverlayViewport?.width ?? viewportWidth;
+  const mapOverlayViewportHeight = mapOverlayViewport?.height ?? viewportHeight;
+  const mapOverlayTargetWidth = Math.min(720, Math.max(0, mapOverlayViewportWidth - 32));
+  const mapOverlayTargetHeight = Math.min(640, Math.max(320, mapOverlayViewportHeight - 64));
+  const mapOverlayTarget: MapOverlayRect = {
+    x: (mapOverlayViewportWidth - mapOverlayTargetWidth) / 2,
+    y: (mapOverlayViewportHeight - mapOverlayTargetHeight) / 2,
+    width: mapOverlayTargetWidth,
+    height: mapOverlayTargetHeight
+  };
+  const mapOverlayTranslateX = mapOverlayOrigin
+    ? mapOverlayOrigin.x + mapOverlayOrigin.width / 2 - (mapOverlayTarget.x + mapOverlayTarget.width / 2)
+    : 0;
+  const mapOverlayTranslateY = mapOverlayOrigin
+    ? mapOverlayOrigin.y + mapOverlayOrigin.height / 2 - (mapOverlayTarget.y + mapOverlayTarget.height / 2)
+    : 0;
+  const mapOverlayScaleX = mapOverlayOrigin && mapOverlayTarget.width > 0
+    ? mapOverlayOrigin.width / mapOverlayTarget.width
+    : 1;
+  const mapOverlayScaleY = mapOverlayOrigin && mapOverlayTarget.height > 0
+    ? mapOverlayOrigin.height / mapOverlayTarget.height
+    : 1;
+
+  useEffect(() => {
+    const animation = Animated.timing(tabPosition, {
+      toValue: selectedTab === "active" ? 0 : 1,
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [selectedTab, tabPosition]);
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.timing(applicationBorderRotation, {
+        toValue: 1,
+        duration: 4200,
+        easing: Easing.linear,
+        useNativeDriver: true
+      })
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [applicationBorderRotation]);
+
+  useEffect(() => {
+    if (!applicationsOverlayOpen) return;
+    applicationsOverlayScale.setValue(0.82);
+    const animation = Animated.sequence([
+      Animated.timing(applicationsOverlayScale, {
+        toValue: 1.045,
+        duration: 180,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true
+      }),
+      Animated.spring(applicationsOverlayScale, {
+        toValue: 1,
+        friction: 5,
+        tension: 140,
+        useNativeDriver: true
+      })
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [applicationsOverlayOpen, applicationsOverlayScale]);
+
+  useEffect(() => () => applicationsOverlayScale.stopAnimation(), [applicationsOverlayScale]);
+
+  useEffect(() => {
+    if (!mapFullscreen || !mapOverlayOrigin || !mapOverlayViewport) return;
+    let animation: Animated.CompositeAnimation | undefined;
+    const frame = requestAnimationFrame(() => {
+      animation = Animated.timing(mapOverlayProgress, {
+        toValue: 1,
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true
+      });
+      animation.start(({ finished }) => {
+        if (finished && !mapOverlayClosingRef.current) setMapOverlayMapReady(true);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      animation?.stop();
+    };
+  }, [mapFullscreen, mapOverlayOrigin, mapOverlayProgress, mapOverlayViewport]);
+
+  useEffect(() => () => mapOverlayProgress.stopAnimation(), [mapOverlayProgress]);
+
+  function openApplicationsOverlay() {
+    if (applicationsOverlayClosingRef.current) return;
+    applicationsOverlayClosingRef.current = false;
+    setApplicationsOverlayClosing(false);
+    setApplicationsOverlayOpen(true);
+  }
+
+  function closeApplicationsOverlay(onClosed?: () => void) {
+    if (applicationsOverlayClosingRef.current) return;
+    applicationsOverlayClosingRef.current = true;
+    setApplicationsOverlayClosing(true);
+    applicationsOverlayScale.stopAnimation();
+    Animated.sequence([
+      Animated.timing(applicationsOverlayScale, {
+        toValue: 1.035,
+        duration: 80,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true
+      }),
+      Animated.timing(applicationsOverlayScale, {
+        toValue: 0.82,
+        duration: 160,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true
+      })
+    ]).start(({ finished }) => {
+      if (!finished) return;
+      setApplicationsOverlayOpen(false);
+      setApplicationsOverlayClosing(false);
+      applicationsOverlayClosingRef.current = false;
+      onClosed?.();
+    });
+  }
+
+  function refreshHomepage() {
+    homeScrollRef.current?.scrollTo({ animated: true, y: 0 });
+    retryDataSync();
+  }
+
+  function openMapOverlay() {
+    if (mapOverlayClosingRef.current) return;
+    const showOverlay = (origin: MapOverlayRect) => {
+      mapOverlayClosingRef.current = false;
+      setMapOverlayClosing(false);
+      setMapOverlayMapReady(false);
+      setMapOverlayViewport(undefined);
+      setMapOverlayOrigin(origin);
+      mapOverlayProgress.setValue(0);
+      setMapFullscreen(true);
+    };
+    const fallbackOrigin: MapOverlayRect = {
+      x: 16,
+      y: Math.max(insets.top + 16, (viewportHeight - 208) / 2),
+      width: Math.max(0, viewportWidth - 32),
+      height: 208
+    };
+    if (!mapPanelRef.current) {
+      showOverlay(fallbackOrigin);
+      return;
+    }
+    mapPanelRef.current.measureInWindow((x, y, width, height) => {
+      showOverlay(width > 0 && height > 0 ? { x, y, width, height } : fallbackOrigin);
+    });
+  }
+
+  function closeMapOverlay() {
+    if (mapOverlayClosingRef.current) return;
+    mapOverlayClosingRef.current = true;
+    setMapOverlayClosing(true);
+    setMapOverlayMapReady(false);
+    mapOverlayProgress.stopAnimation();
+    Animated.timing(mapOverlayProgress, {
+      toValue: 0,
+      duration: 240,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true
+    }).start(({ finished }) => {
+      if (!finished) return;
+      setMapFullscreen(false);
+      setMapOverlayOrigin(undefined);
+      setMapOverlayViewport(undefined);
+      setMapOverlayClosing(false);
+      mapOverlayClosingRef.current = false;
+    });
+  }
   const workerMapCenter = currentUser?.currentLatitude !== undefined && currentUser.currentLongitude !== undefined
     ? { latitude: currentUser.currentLatitude, longitude: currentUser.currentLongitude }
     : undefined;
@@ -72,12 +276,11 @@ export default function WorkerDashboardScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <DashboardHeader
-        onNotifications={() => router.push("/notifications")}
-        unreadCount={notifications.filter((notification) => notification.userId === currentUser?.id && !notification.readStatus).length}
-      />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <>
+      <BlurTargetView ref={applicationBlurTargetRef} style={styles.blurTarget}>
+        <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+      <AppHeader onHomeRefresh={refreshHomepage} />
+      <ScrollView ref={homeScrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.welcomeRow}>
           <View style={styles.welcomeCopy}>
             <Text numberOfLines={1} style={styles.welcomeTitle} variant="screenTitle">Welcome back, {currentUser?.fullName?.split(" ")[0] ?? "there"}.</Text>
@@ -93,12 +296,30 @@ export default function WorkerDashboardScreen() {
           <StatCard label="Applications" value={String(acceptedTasks.length).padStart(2, "0")} />
         </View>
 
-        <View style={styles.tabRow}>
+        <View onLayout={(event) => setTabRowWidth(event.nativeEvent.layout.width)} style={styles.tabRow}>
+          {tabWidth > 0 ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.tabHighlight,
+                {
+                  left: TAB_ROW_PADDING,
+                  width: tabWidth,
+                  transform: [{
+                    translateX: tabPosition.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, tabWidth + TAB_ROW_GAP]
+                    })
+                  }]
+                }
+              ]}
+            />
+          ) : null}
           <Pressable
             accessibilityRole="tab"
             accessibilityState={{ selected: selectedTab === "active" }}
             onPress={() => setSelectedTab("active")}
-            style={[styles.tabButton, selectedTab === "active" && styles.tabButtonActive]}
+            style={styles.tabButton}
           >
             <Text style={[styles.tabButtonText, selectedTab === "active" && styles.tabButtonTextActive]}>Active</Text>
           </Pressable>
@@ -106,40 +327,53 @@ export default function WorkerDashboardScreen() {
             accessibilityRole="tab"
             accessibilityState={{ selected: selectedTab === "finished" }}
             onPress={() => setSelectedTab("finished")}
-            style={[styles.tabButton, selectedTab === "finished" && styles.tabButtonActive]}
+            style={styles.tabButton}
           >
             <Text style={[styles.tabButtonText, selectedTab === "finished" && styles.tabButtonTextActive]}>Finished</Text>
           </Pressable>
         </View>
 
         {selectedTab === "active" ? (
-          <View style={styles.applicationSection}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ expanded: applicationsExpanded }}
-              onPress={() => setApplicationsExpanded((expanded) => !expanded)}
-              style={({ pressed }) => [styles.applicationHeader, pressed && styles.pressed]}
-            >
-              <View style={styles.sectionCopy}>
-                <Text style={styles.sectionTitle}>Applications</Text>
-                <Text style={styles.sectionSubtitle}>{acceptedTasks.length} active · Tap to {applicationsExpanded ? "hide" : "show"}</Text>
+          <View style={styles.applicationCardShadow}>
+            <View style={styles.applicationGlowShadow}>
+              <View style={styles.applicationGlowFrame}>
+              <AnimatedLinearGradient
+                colors={["#FFFFFF", "#20D5C5", "#FFFFFF", "#008F83"]}
+                end={{ x: 1, y: 1 }}
+                pointerEvents="none"
+                start={{ x: 0, y: 0 }}
+                style={[
+                  styles.applicationGlowGradient,
+                  {
+                    transform: [
+                      { scale: 4 },
+                      {
+                        rotate: applicationBorderRotation.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ["0deg", "360deg"]
+                        })
+                      }
+                    ]
+                  }
+                ]}
+              />
+                <View style={styles.applicationSection}>
+                  <Pressable
+                    accessibilityLabel={`Open My Applications, ${acceptedTasks.length} active`}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: applicationsOverlayOpen }}
+                    onPress={openApplicationsOverlay}
+                    style={({ pressed }) => [styles.applicationHeader, pressed && styles.pressed]}
+                  >
+                    <View style={styles.sectionCopy}>
+                      <Text style={styles.sectionTitle}>My Applications</Text>
+                      <Text style={styles.sectionSubtitle}>{acceptedTasks.length} active</Text>
+                    </View>
+                    <Feather accessibilityElementsHidden color={palette.primary} name="chevron-right" size={24} />
+                  </Pressable>
+                </View>
               </View>
-              <Text style={styles.applicationToggle}>{applicationsExpanded ? "Hide −" : "Show +"}</Text>
-            </Pressable>
-            {applicationsExpanded ? (
-              <View style={styles.applicationGrid}>
-                {acceptedTasks.length ? (
-                  acceptedTasks.map((task) => (
-                    <ApplicationCard key={task.id} task={task} onOpen={() => router.push(`/task-status/${task.id}`)} />
-                  ))
-                ) : (
-                  <View style={styles.emptyApplicationCard}>
-                    <Text style={styles.emptyApplicationTitle}>No applications yet</Text>
-                    <Text style={styles.emptyApplicationText}>Apply to a job and it will stay here while the client reviews it.</Text>
-                  </View>
-                )}
-              </View>
-            ) : null}
+            </View>
           </View>
         ) : (
           <View style={styles.historyPanel}>
@@ -148,10 +382,20 @@ export default function WorkerDashboardScreen() {
                 <Text style={styles.historyTitle}>Finished Jobs</Text>
                 <Text style={styles.historyMeta}>{finishedTasks.length} completed</Text>
               </View>
+              {finishedTasks.length > 3 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: finishedExpanded }}
+                  onPress={() => setFinishedExpanded((expanded) => !expanded)}
+                  style={({ pressed }) => [styles.historyViewAllButton, pressed && styles.pressed]}
+                >
+                  <Text style={styles.viewAllText}>{finishedExpanded ? "Show Less" : "View All"}</Text>
+                </Pressable>
+              ) : null}
             </View>
             {finishedTasks.length ? (
               <View style={styles.historyList}>
-                {finishedTasks.map((task) => (
+                {visibleFinishedTasks.map((task) => (
                     <HistoryRow
                       key={task.id}
                       task={task}
@@ -170,26 +414,26 @@ export default function WorkerDashboardScreen() {
           </View>
         )}
 
-        <View style={styles.mapPanel}>
+        <View collapsable={false} ref={mapPanelRef} style={styles.mapPanel}>
           <LocationMap
             center={workerMapCenter}
             interactive
             markers={workerMapMarkers}
             showUserLocation
+            showLayerSwitcher={false}
             height={208}
           />
           <View style={styles.locationBadge}>
             <Text style={styles.locationText}>{smartMatches.length} smart matches near you</Text>
           </View>
-          <Pressable accessibilityLabel="Open full screen map" accessibilityRole="button" onPress={() => setMapFullscreen(true)} style={styles.expandMapButton}>
+          <Pressable accessibilityLabel="Open expanded map" accessibilityRole="button" onPress={openMapOverlay} style={styles.expandMapButton}>
             <Text style={styles.expandMapButtonText}>Expand map</Text>
           </Pressable>
         </View>
 
         <View style={styles.sectionHeader}>
           <View style={styles.sectionCopy}>
-            <Text style={styles.sectionTitle}>For You</Text>
-            <Text style={styles.sectionSubtitle}>Smart matches based on your profile and service area.</Text>
+            <Text style={styles.sectionTitle}>Top Opportunities</Text>
           </View>
           <Pressable accessibilityRole="button" onPress={() => router.push("/jobs")} style={styles.viewAllButton}>
             <Text style={styles.viewAllText}>View All</Text>
@@ -219,43 +463,211 @@ export default function WorkerDashboardScreen() {
 
         {actionMessage ? <Text accessibilityRole="alert" style={styles.actionMessage}>{actionMessage}</Text> : null}
 
-        <Pressable accessibilityRole="button" onPress={() => router.push("/jobs")} style={styles.fullBoardButton}>
-          <Text style={styles.fullBoardText}>Open Full Job Board</Text>
-        </Pressable>
-
       </ScrollView>
-      <Modal animationType="slide" onRequestClose={() => setMapFullscreen(false)} presentationStyle="fullScreen" visible={mapFullscreen}>
-        <SafeAreaView style={styles.fullscreenMap} edges={["top", "bottom", "left", "right"]}>
-          <LocationMap
-            center={workerMapCenter}
-            fitToMarkers
-            interactive
-            markers={workerMapMarkers}
-            showUserLocation
-            height={Math.max(320, viewportHeight - 24)}
-          />
-          <Pressable accessibilityLabel="Close full screen map" accessibilityRole="button" onPress={() => setMapFullscreen(false)} style={styles.closeMapButton}>
-            <Text style={styles.closeMapButtonText}>×</Text>
-          </Pressable>
         </SafeAreaView>
+      </BlurTargetView>
+      <Modal
+        animationType="none"
+        onRequestClose={closeMapOverlay}
+        statusBarTranslucent
+        transparent
+        visible={mapFullscreen}
+      >
+        <View
+          accessibilityViewIsModal
+          onLayout={(event) => {
+            const { width, height } = event.nativeEvent.layout;
+            setMapOverlayViewport((current) => current?.width === width && current.height === height ? current : { width, height });
+          }}
+          pointerEvents={mapOverlayClosing ? "none" : "auto"}
+          style={styles.mapOverlayRoot}
+        >
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.mapOverlayFill, { opacity: mapOverlayProgress }]}
+          >
+            <BlurView
+              blurMethod="dimezisBlurViewSdk31Plus"
+              blurReductionFactor={1}
+              blurTarget={applicationBlurTargetRef}
+              intensity={42}
+              style={styles.mapOverlayFill}
+              tint="dark"
+            />
+          </Animated.View>
+          <Animated.View style={[styles.mapOverlayBackdrop, { opacity: mapOverlayProgress }]}>
+            <Pressable
+              accessibilityLabel="Close expanded map"
+              accessibilityRole="button"
+              onPress={closeMapOverlay}
+              style={styles.mapOverlayFill}
+            />
+          </Animated.View>
+          {mapOverlayOrigin ? (
+            <Animated.View
+              accessibilityLabel="Expanded nearby jobs map"
+              accessibilityRole="summary"
+              style={[
+                styles.mapOverlaySurface,
+                {
+                  left: mapOverlayTarget.x,
+                  top: mapOverlayTarget.y,
+                  width: mapOverlayTarget.width,
+                  height: mapOverlayTarget.height,
+                  transform: [
+                    {
+                      translateX: mapOverlayProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [mapOverlayTranslateX, 0]
+                      })
+                    },
+                    {
+                      translateY: mapOverlayProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [mapOverlayTranslateY, 0]
+                      })
+                    },
+                    {
+                      scaleX: mapOverlayProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [mapOverlayScaleX, 1]
+                      })
+                    },
+                    {
+                      scaleY: mapOverlayProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [mapOverlayScaleY, 1]
+                      })
+                    }
+                  ]
+                }
+              ]}
+            >
+              {mapOverlayMapReady ? (
+                <>
+                  <LocationMap
+                    center={workerMapCenter}
+                    fitToMarkers
+                    interactive
+                    markers={workerMapMarkers}
+                    showUserLocation
+                    expandedControls
+                    height={mapOverlayTarget.height}
+                  />
+                  <View style={styles.mapOverlayCloseWrap}>
+                    <Pressable
+                      accessibilityLabel="Close expanded map"
+                      accessibilityRole="button"
+                      onPress={closeMapOverlay}
+                      style={({ pressed }) => [styles.closeMapButton, pressed && styles.closeMapButtonPressed]}
+                    >
+                      <Feather accessibilityElementsHidden color="#BA1A1A" name="x" size={25} />
+                    </Pressable>
+                  </View>
+                </>
+              ) : (
+                <View accessibilityLabel="Expanding map" accessibilityRole="progressbar" style={styles.mapOverlayPlaceholder} />
+              )}
+            </Animated.View>
+          ) : null}
+        </View>
       </Modal>
-    </SafeAreaView>
-  );
-}
-
-function DashboardHeader({ onNotifications, unreadCount }: {
-  onNotifications: () => void;
-  unreadCount: number;
-}) {
-  return (
-    <View style={styles.header}>
-      <View style={styles.headerLeft}>
-        <Image accessibilityLabel="TaskLink" resizeMode="contain" source={require("../assets/tasklink-logo.jpg")} style={styles.brandLogo} />
-      </View>
-      <View style={styles.headerRight}>
-        <NotificationShortcut compact onPress={onNotifications} unreadCount={unreadCount} />
-      </View>
-    </View>
+      <Modal
+        animationType="none"
+        onRequestClose={() => closeApplicationsOverlay()}
+        statusBarTranslucent
+        transparent
+        visible={applicationsOverlayOpen}
+      >
+        <View
+          accessibilityViewIsModal
+          pointerEvents={applicationsOverlayClosing ? "none" : "auto"}
+          style={styles.applicationsOverlayRoot}
+        >
+          <BlurView
+            blurMethod="dimezisBlurViewSdk31Plus"
+            blurReductionFactor={1}
+            blurTarget={applicationBlurTargetRef}
+            intensity={42}
+            pointerEvents="none"
+            style={styles.applicationsOverlayFill}
+            tint="dark"
+          />
+          <Pressable
+            accessibilityLabel="Close My Applications"
+            accessibilityRole="button"
+            onPress={() => closeApplicationsOverlay()}
+            style={styles.applicationsOverlayBackdrop}
+          />
+          <Animated.View
+            style={[
+              styles.applicationsOverlaySurface,
+              {
+                opacity: applicationsOverlayScale.interpolate({
+                  inputRange: [0.82, 1],
+                  outputRange: [0, 1],
+                  extrapolate: "clamp"
+                }),
+                transform: [{ scale: applicationsOverlayScale }]
+              }
+            ]}
+          >
+            <View style={styles.applicationsOverlayHeader}>
+              <View style={styles.applicationsOverlayTitleGroup}>
+                <Text style={styles.applicationsOverlayTitle}>My Applications</Text>
+                <Text style={styles.applicationsOverlayMeta}>{acceptedTasks.length} active</Text>
+              </View>
+              <Pressable
+                accessibilityLabel="Close My Applications"
+                accessibilityRole="button"
+                onPress={() => closeApplicationsOverlay()}
+                style={({ pressed }) => [styles.applicationsOverlayClose, pressed && styles.applicationsOverlayClosePressed]}
+              >
+                <Feather accessibilityElementsHidden color="#BA1A1A" name="x" size={24} />
+              </Pressable>
+            </View>
+            <View style={styles.applicationsOverlayBody}>
+              <ScrollView
+                contentContainerStyle={styles.applicationsOverlayList}
+                showsVerticalScrollIndicator={false}
+                style={styles.applicationsOverlayScroll}
+              >
+                {acceptedTasks.length ? (
+                  acceptedTasks.map((task) => (
+                    <ApplicationCard
+                      key={task.id}
+                      task={task}
+                      onOpen={() => closeApplicationsOverlay(() => router.push(`/task-status/${task.id}`))}
+                    />
+                  ))
+                ) : (
+                  <View style={styles.emptyApplicationCard}>
+                    <Text style={styles.emptyApplicationTitle}>No applications yet</Text>
+                    <Text style={styles.emptyApplicationText}>Apply to a job and it will appear here while the client reviews it.</Text>
+                  </View>
+                )}
+              </ScrollView>
+              <View pointerEvents="none" style={styles.applicationsOverlayTopFade}>
+                <LinearGradient
+                  colors={["rgba(233,237,240,0.98)", "rgba(233,237,240,0.58)", "rgba(233,237,240,0)"]}
+                  locations={[0, 0.42, 1]}
+                  pointerEvents="none"
+                  style={styles.applicationsOverlayFill}
+                />
+              </View>
+              <View pointerEvents="none" style={styles.applicationsOverlayBottomFade}>
+                <LinearGradient
+                  colors={["rgba(233,237,240,0)", "rgba(233,237,240,0.58)", "rgba(233,237,240,0.98)"]}
+                  locations={[0, 0.58, 1]}
+                  pointerEvents="none"
+                  style={styles.applicationsOverlayFill}
+                />
+              </View>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -418,21 +830,8 @@ function HistoryRow({
 }
 
 const styles = StyleSheet.create({
+  blurTarget: { flex: 1 },
   safeArea: { flex: 1, backgroundColor: palette.background },
-  header: {
-    minHeight: 56,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: palette.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EDF1EF"
-  },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  headerRight: { flexDirection: "row", alignItems: "center" },
-  menuText: { color: palette.primary, fontSize: 24, fontWeight: "800" },
-  brandLogo: { width: 44, height: 44 },
   content: { padding: 16, paddingBottom: 110, gap: 14 },
   welcomeRow: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 12 },
   welcomeCopy: { flex: 1, minWidth: 0, gap: 3 },
@@ -444,8 +843,13 @@ const styles = StyleSheet.create({
   statCard: { flex: 1, borderRadius: 12, padding: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant },
   statValue: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   statLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 4 },
-  mapPanel: { height: 132, borderRadius: 12, overflow: "hidden", backgroundColor: "#DDEDEA", elevation: 2 },
-  fullscreenMap: { flex: 1, backgroundColor: palette.background, padding: 12 },
+  mapPanel: { height: 208, borderRadius: 12, overflow: "hidden", backgroundColor: "#DDEDEA", elevation: 2 },
+  mapOverlayRoot: { flex: 1 },
+  mapOverlayFill: { position: "absolute", inset: 0 },
+  mapOverlayBackdrop: { position: "absolute", inset: 0, backgroundColor: "rgba(35,43,48,0.14)" },
+  mapOverlaySurface: { position: "absolute", overflow: "hidden", borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.72)", backgroundColor: "#FFFFFF", shadowColor: "#111827", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 10 },
+  mapOverlayPlaceholder: { flex: 1, backgroundColor: "#FFFFFF" },
+  mapOverlayCloseWrap: { position: "absolute", right: 12, top: 12 },
   mapGrid: { flex: 1, backgroundColor: "#E7F3F0" },
   mapLineHorizontal: { position: "absolute", left: -20, right: -20, top: 58, height: 14, backgroundColor: "#C8DBD7", transform: [{ rotate: "-10deg" }] },
   mapLineVertical: { position: "absolute", top: -20, bottom: -20, left: "56%", width: 16, backgroundColor: "#D6C29E", transform: [{ rotate: "18deg" }] },
@@ -455,26 +859,57 @@ const styles = StyleSheet.create({
   locationBadge: { position: "absolute", left: 12, bottom: 12, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8 },
   locationIcon: { color: palette.primary, fontSize: 18, fontWeight: "900" },
   locationText: { color: palette.text, fontSize: 12, fontWeight: "800" },
-  expandMapButton: { position: "absolute", right: 12, top: 12, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.94)", borderWidth: 1, borderColor: palette.outlineVariant, minHeight: 34, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
-  expandMapButtonText: { color: palette.primary, fontSize: 11, fontWeight: "900" },
-  closeMapButton: { position: "absolute", right: 22, top: 22, width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.96)", borderWidth: 1, borderColor: palette.outlineVariant },
-  closeMapButtonText: { color: palette.textStrong, fontSize: 29, lineHeight: 32, fontWeight: "500" },
+  expandMapButton: { position: "absolute", right: 12, top: 12, borderRadius: 999, backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primary, minHeight: 34, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
+  expandMapButtonText: { color: palette.white, fontSize: 11, fontWeight: "900" },
+  closeMapButton: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.96)", borderWidth: 1, borderColor: "rgba(186,26,26,0.22)" },
+  closeMapButtonPressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   sectionCopy: { flex: 1 },
   sectionTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
   sectionSubtitle: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  tabRow: { flexDirection: "row", gap: 8, padding: 4, borderRadius: 12, backgroundColor: palette.surfaceLow },
-  tabButton: { flex: 1, minHeight: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  tabButtonActive: { backgroundColor: palette.primary },
+  tabRow: { flexDirection: "row", gap: TAB_ROW_GAP, padding: TAB_ROW_PADDING, borderRadius: 12, backgroundColor: "#D4DBD9" },
+  tabHighlight: { position: "absolute", top: TAB_ROW_PADDING, bottom: TAB_ROW_PADDING, borderRadius: 10, backgroundColor: palette.primary, elevation: 5, shadowColor: "#0F2F2B", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 5 },
+  tabButton: { flex: 1, zIndex: 1, minHeight: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   tabButtonText: { color: palette.muted, fontSize: 13, lineHeight: 18, fontWeight: "900" },
   tabButtonTextActive: { color: palette.white },
-  viewAllButton: { minHeight: 38, borderRadius: 19, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceContainer },
+  viewAllButton: { minHeight: 44, paddingHorizontal: 4, alignItems: "center", justifyContent: "center" },
   viewAllText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
   jobGrid: { gap: 12 },
-  applicationSection: { borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, overflow: "hidden" },
+  applicationCardShadow: { borderRadius: 14, shadowColor: "#008F83", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.24, shadowRadius: 8, elevation: 8 },
+  applicationGlowShadow: { borderRadius: 14, shadowColor: "#20D5C5", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.55, shadowRadius: 9 },
+  applicationGlowFrame: { borderRadius: 14, padding: 2, overflow: "hidden" },
+  applicationGlowGradient: { position: "absolute", inset: 0 },
+  applicationSection: { borderRadius: 12, backgroundColor: palette.surface, overflow: "hidden" },
   applicationHeader: { minHeight: 68, paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  applicationToggle: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
-  applicationGrid: { gap: 10, paddingHorizontal: 12, paddingBottom: 12 },
+  applicationsOverlayRoot: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20 },
+  applicationsOverlayFill: { position: "absolute", inset: 0 },
+  applicationsOverlayBackdrop: { position: "absolute", inset: 0, backgroundColor: "rgba(35,43,48,0.14)" },
+  applicationsOverlaySurface: {
+    width: "100%",
+    maxWidth: 560,
+    maxHeight: "82%",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.72)",
+    backgroundColor: "#E9EDF0",
+    overflow: "hidden",
+    shadowColor: "#111827",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 10
+  },
+  applicationsOverlayHeader: { position: "relative", minHeight: 72, paddingHorizontal: 18, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  applicationsOverlayTitleGroup: { flex: 1, gap: 2 },
+  applicationsOverlayTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  applicationsOverlayMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "700" },
+  applicationsOverlayClose: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#BA1A1A" },
+  applicationsOverlayClosePressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
+  applicationsOverlayBody: { flexShrink: 1, position: "relative", width: "100%" },
+  applicationsOverlayScroll: { flexShrink: 1, width: "100%" },
+  applicationsOverlayList: { gap: 10, padding: 16, paddingBottom: 16 },
+  applicationsOverlayTopFade: { position: "absolute", left: 0, right: 0, top: 0, height: 36, overflow: "hidden" },
+  applicationsOverlayBottomFade: { position: "absolute", left: 0, right: 0, bottom: 0, height: 36, overflow: "hidden" },
   applicationCard: {
     padding: 16,
     borderRadius: 12,
@@ -523,11 +958,10 @@ const styles = StyleSheet.create({
   detailsButtonText: { color: palette.primary, fontSize: 14, fontWeight: "900" },
   quickButton: { flex: 1.3, minHeight: 46, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   quickButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
-  fullBoardButton: { minHeight: 48, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer },
-  fullBoardText: { color: "#684000", fontSize: 14, fontWeight: "900" },
   actionMessage: { color: "#BA1A1A", fontSize: 13, lineHeight: 18, fontWeight: "700" },
   historyPanel: { padding: 16, borderRadius: 12, backgroundColor: palette.surfaceLow, gap: 12 },
   historyHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  historyViewAllButton: { minHeight: 44, paddingHorizontal: 4, alignItems: "center", justifyContent: "center" },
   historyList: { gap: 10 },
   historyCard: {
     gap: 10,

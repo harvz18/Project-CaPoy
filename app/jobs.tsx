@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
+import { AppHeader } from "../src/components/AppHeader";
 import { interactiveCardShadow } from "../src/styles";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import LocationMap from "../src/components/LocationMap";
@@ -99,14 +100,7 @@ export default function JobsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.brand}>TASKLINK</Text>
-        </View>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{currentUser?.fullName?.[0] ?? "J"}</Text>
-        </View>
-      </View>
+      <AppHeader />
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 98 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View style={styles.mapPanel}>
@@ -306,11 +300,6 @@ function getApplicationMessage(status: Task["status"]) {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
-  header: { minHeight: 56, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: "#EDF1EF" },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
-  avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer, borderWidth: 1, borderColor: palette.outlineVariant },
-  avatarText: { color: "#684000", fontWeight: "900" },
   content: { paddingBottom: 104 },
   mapPanel: { minHeight: 250, overflow: "hidden", backgroundColor: "#DDEDEA", elevation: 2 },
   mapGrid: { flex: 1, backgroundColor: "#E7F3F0" },

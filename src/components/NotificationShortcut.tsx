@@ -23,12 +23,9 @@ const styles = StyleSheet.create({
   button: {
     width: 42,
     height: 42,
-    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E7F3F0",
-    borderWidth: 1,
-    borderColor: "#BDC9C6"
+    backgroundColor: "transparent"
   },
   bell: { width: 24, height: 24, alignItems: "center", justifyContent: "flex-start" },
   bellCompact: { transform: [{ scale: 0.76 }] },

@@ -3,6 +3,7 @@ import { Href, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
+import { AppHeader } from "../src/components/AppHeader";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
@@ -390,14 +391,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.brand}>TASKLINK</Text>
-        </View>
-        <View style={styles.smallAvatar}>
-          <Text style={styles.avatarText}>{fullName[0] ?? "U"}</Text>
-        </View>
-      </View>
+      <AppHeader />
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 112 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View style={styles.profileCard}>
@@ -974,10 +968,6 @@ function ReviewCard({ initials, name, date, stars, text }: { initials: string; n
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
-  header: { minHeight: 56, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: "#EDF1EF" },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
-  smallAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.surfaceHigh, alignItems: "center", justifyContent: "center" },
   avatarText: { color: palette.secondary, fontWeight: "900" },
   content: { padding: 16, paddingTop: 24, gap: 16 },
   profileCard: { padding: 24, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surface, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },

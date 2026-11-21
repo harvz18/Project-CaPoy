@@ -1,3 +1,5 @@
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, LayoutChangeEvent, Pressable, StyleSheet, View } from "react-native";
@@ -12,6 +14,7 @@ export type BottomNavKey = "home" | "jobs" | "chat" | "profile";
 const ACTIVE_COLOR = "#684000";
 const INACTIVE_COLOR = "#3E4947";
 const TAB_COUNT = 4;
+const NAV_SIDE_GAP = 16;
 const NAV_HORIZONTAL_PADDING = 8;
 const MARKER_MARGIN = 6;
 const NAV_TRANSITION_DURATION_MS = 220;
@@ -19,6 +22,7 @@ const NAV_TRANSITION_DURATION_MS = 220;
 export function AnimatedBottomNav({ active, role }: { active: BottomNavKey; role?: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const navBottomOffset = Math.max(insets.bottom, 8);
   const reduceMotion = usePrefersReducedMotion();
   const activeIndex = navItems.findIndex((item) => item.key === active);
   const markerPosition = useRef(new Animated.Value(activeIndex)).current;
@@ -41,50 +45,65 @@ export function AnimatedBottomNav({ active, role }: { active: BottomNavKey; role
   }
 
   return (
-    <View pointerEvents="box-none" style={[styles.bottomNavFrame, { bottom: Math.max(insets.bottom, 8) }]}>
-      <View onLayout={handleLayout} style={styles.bottomNav}>
-      {slotWidth > 0 ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.activeMarker,
-            {
-              left: NAV_HORIZONTAL_PADDING + MARKER_MARGIN,
-              width: Math.max(0, slotWidth - MARKER_MARGIN * 2),
-              transform: [{
-                translateX: markerPosition.interpolate({
-                  inputRange: [0, TAB_COUNT - 1],
-                  outputRange: [0, slotWidth * (TAB_COUNT - 1)]
-                })
-              }]
-            }
-          ]}
+    <View pointerEvents="box-none" style={[styles.bottomNavFrame, { bottom: navBottomOffset }]}>
+      <View pointerEvents="none" style={[styles.navBackdrop, { bottom: -navBottomOffset }]}>
+        <BlurView
+          blurMethod="dimezisBlurViewSdk31Plus"
+          intensity={36}
+          style={styles.backdropBlur}
+          tint="light"
         />
-      ) : null}
-      {navItems.map((item) => {
-        const selected = item.key === active;
-        const route = item.key === "home"
-          ? role === "client" ? "/client-dashboard" : "/worker-dashboard"
-          : item.key === "jobs"
-            ? role === "client" ? "/post-task" : "/jobs"
-            : item.route;
-        return (
-          <View key={item.key} style={styles.navSlot}>
-            <Pressable
-              accessibilityLabel={item.label}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              onPress={() => {
-                if (!selected) router.push(route as never);
-              }}
-              style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
-            >
-              <BottomNavIcon name={item.key} color={selected ? ACTIVE_COLOR : INACTIVE_COLOR} />
-              <Text style={[styles.navLabel, selected && styles.navLabelActive]}>{item.label}</Text>
-            </Pressable>
-          </View>
-        );
-      })}
+        <LinearGradient
+          colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.98)"]}
+          locations={[0, 1]}
+          style={styles.backdropFade}
+        />
+      </View>
+      <View style={styles.navShadow}>
+        <View onLayout={handleLayout} style={styles.bottomNav}>
+          {slotWidth > 0 ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.activeMarker,
+                {
+                  left: NAV_HORIZONTAL_PADDING + MARKER_MARGIN,
+                  width: Math.max(0, slotWidth - MARKER_MARGIN * 2),
+                  transform: [{
+                    translateX: markerPosition.interpolate({
+                      inputRange: [0, TAB_COUNT - 1],
+                      outputRange: [0, slotWidth * (TAB_COUNT - 1)]
+                    })
+                  }]
+                }
+              ]}
+            />
+          ) : null}
+          {navItems.map((item) => {
+            const selected = item.key === active;
+            const route = item.key === "home"
+              ? role === "client" ? "/client-dashboard" : "/worker-dashboard"
+              : item.key === "jobs"
+                ? role === "client" ? "/post-task" : "/jobs"
+                : item.route;
+            return (
+              <View key={item.key} style={styles.navSlot}>
+                <Pressable
+                  accessibilityLabel={item.label}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => {
+                    if (!selected) router.push(route as never);
+                  }}
+                  style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
+                >
+                  <BottomNavIcon name={item.key} color={selected ? ACTIVE_COLOR : INACTIVE_COLOR} />
+                  <Text style={[styles.navLabel, selected && styles.navLabelActive]}>{item.label}</Text>
+                </Pressable>
+              </View>
+            );
+          })}
+        </View>
       </View>
     </View>
   );
@@ -100,31 +119,47 @@ const navItems: Array<{ key: BottomNavKey; label: string; route: string }> = [
 const styles = StyleSheet.create({
   bottomNavFrame: {
     position: "absolute",
-    left: 0,
-    right: 0,
+    left: NAV_SIDE_GAP,
+    right: NAV_SIDE_GAP,
     zIndex: 50,
     alignItems: "center"
   },
-  bottomNav: {
+  navShadow: {
     width: "100%",
     maxWidth: 680,
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    minHeight: 72,
-    paddingHorizontal: NAV_HORIZONTAL_PADDING,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#BDC9C6",
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
+    borderRadius: 24,
     elevation: 10,
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.08,
     shadowRadius: 8
+  },
+  navBackdrop: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: -NAV_SIDE_GAP,
+    right: -NAV_SIDE_GAP,
+    overflow: "hidden"
+  },
+  bottomNav: {
+    width: "100%",
+    minHeight: 72,
+    paddingHorizontal: NAV_HORIZONTAL_PADDING,
+    paddingVertical: 8,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#BDC9C6",
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row"
+  },
+  backdropBlur: {
+    position: "absolute",
+    inset: 0
+  },
+  backdropFade: {
+    position: "absolute",
+    inset: 0
   },
   activeMarker: {
     position: "absolute",

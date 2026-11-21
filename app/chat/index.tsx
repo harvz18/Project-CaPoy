@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
+import { AppHeader } from "../../src/components/AppHeader";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "../../src/context/AppContext";
 import { ChatMessage, Task } from "../../src/types";
@@ -53,14 +54,7 @@ export default function ChatInboxScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.brand}>TASKLINK</Text>
-        </View>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{currentUser?.fullName?.[0] ?? "U"}</Text>
-        </View>
-      </View>
+      <AppHeader />
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 104 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View style={styles.heroPanel}>
@@ -214,30 +208,6 @@ function formatInboxTime(timestamp: string) {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
-  header: {
-    minHeight: 56,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: palette.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EDF1EF"
-  },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  menuText: { color: palette.primary, fontSize: 24, fontWeight: "800" },
-  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: palette.secondaryContainer,
-    borderWidth: 1,
-    borderColor: palette.outlineVariant
-  },
-  avatarText: { color: "#684000", fontWeight: "900" },
   content: { padding: 16, gap: 14 },
   heroPanel: { borderRadius: 12, padding: 20, backgroundColor: palette.primary, gap: 6 },
   heroKicker: { color: palette.primaryFixed, fontSize: 12, lineHeight: 16, fontWeight: "900", textTransform: "uppercase" },

@@ -16,5 +16,7 @@ export type LocationMapProps = {
   fitToMarkers?: boolean;
   connectMarkers?: boolean;
   showUserLocation?: boolean;
+  showLayerSwitcher?: boolean;
+  expandedControls?: boolean;
   onSelectCoordinate?: (coordinate: MapCoordinate) => void;
 };

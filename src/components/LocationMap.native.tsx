@@ -1,7 +1,7 @@
 import Constants from "expo-constants";
 import type { Feature, LineString, Polygon } from "geojson";
 import { type ComponentRef, useEffect, useMemo, useRef, useState } from "react";
-import { NativeModules, Pressable, StyleSheet, View } from "react-native";
+import { Animated, Easing, NativeModules, Pressable, StyleSheet, View } from "react-native";
 import { AppText as Text } from "./AppText";
 import { WebView } from "react-native-webview";
 import type { CameraRef, MapRef, StyleSpecification } from "@maplibre/maplibre-react-native";
@@ -11,6 +11,8 @@ import { getMapTilerSatelliteTileUrl, isSatelliteLayerAvailable, MAPTILER_SATELL
 const bacolodCenter: MapCoordinate = { latitude: 10.6765, longitude: 122.9509 };
 const osmAttribution = "© OpenStreetMap contributors";
 const mapTilerAttribution = "© MapTiler © OpenStreetMap contributors";
+const LAYER_SWITCHER_PADDING = 4;
+const LAYER_SWITCHER_GAP = 8;
 
 // This controlled fallback lets the defense build render a map before a
 // MapTiler key is supplied. It is not intended as unlimited OSM tile hosting.
@@ -97,7 +99,7 @@ function safeJson(value: unknown) {
   return JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
 }
 
-function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers, connectMarkers, mapLayer, mapTilerApiKey }: LocationMapProps & { mapLayer: MapLayer; mapTilerApiKey?: string }) {
+function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers, connectMarkers, mapLayer, mapTilerApiKey, expandedControls = false }: LocationMapProps & { mapLayer: MapLayer; mapTilerApiKey?: string }) {
   const mapData = safeJson({
     center,
     connectMarkers,
@@ -106,7 +108,8 @@ function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers,
     markers,
     radiusMeters,
     mapLayer,
-    mapTilerApiKey
+    mapTilerApiKey,
+    expandedControls
   });
 
   return `<!doctype html>
@@ -123,7 +126,8 @@ function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers,
       const data = ${mapData};
       const fallback = { latitude: 10.6765, longitude: 122.9509 };
       const focus = data.center || data.markers[0] || fallback;
-      const map = L.map('map', { zoomControl: true }).setView([focus.latitude, focus.longitude], data.center || data.markers.length ? 15 : 13);
+      const map = L.map('map', { zoomControl: false }).setView([focus.latitude, focus.longitude], data.center || data.markers.length ? 15 : 13);
+      L.control.zoom({ position: data.expandedControls ? 'bottomright' : 'topleft' }).addTo(map);
       let baseLayer;
       function baseLayerOptions(layer) {
         const satellite = layer === 'satellite' && data.mapTilerApiKey;
@@ -179,11 +183,11 @@ function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers,
 </html>`;
 }
 
-function LeafletMapFallback({ center, markers = [], height, interactive = false, onSelectCoordinate, mapLayer, mapTilerApiKey, mapError, onMapError, onSelectMapLayer, ...mapProps }: LocationMapProps & { mapLayer: MapLayer; mapTilerApiKey?: string; mapError: string; onMapError: (message: string) => void; onSelectMapLayer: (layer: MapLayer) => void }) {
+function LeafletMapFallback({ center, markers = [], height, interactive = false, showLayerSwitcher = true, expandedControls = false, onSelectCoordinate, mapLayer, mapTilerApiKey, mapError, onMapError, onSelectMapLayer, ...mapProps }: LocationMapProps & { mapLayer: MapLayer; mapTilerApiKey?: string; mapError: string; onMapError: (message: string) => void; onSelectMapLayer: (layer: MapLayer) => void }) {
   const webViewRef = useRef<ComponentRef<typeof WebView>>(null);
   const html = useMemo(
-    () => leafletHtml({ center, interactive, markers, mapLayer: "street", mapTilerApiKey, ...mapProps }),
-    [center?.latitude, center?.longitude, interactive, JSON.stringify(markers), mapProps.connectMarkers, mapProps.fitToMarkers, mapProps.radiusMeters, mapTilerApiKey]
+    () => leafletHtml({ center, expandedControls, interactive, markers, mapLayer: "street", mapTilerApiKey, ...mapProps }),
+    [center?.latitude, center?.longitude, expandedControls, interactive, JSON.stringify(markers), mapProps.connectMarkers, mapProps.fitToMarkers, mapProps.radiusMeters, mapTilerApiKey]
   );
 
   useEffect(() => {
@@ -214,7 +218,7 @@ function LeafletMapFallback({ center, markers = [], height, interactive = false,
         source={{ html }}
         style={styles.map}
       />
-      {interactive ? <MapLayerSwitcher mapLayer={mapLayer} error={mapError} onSelect={onSelectMapLayer} /> : null}
+      {interactive && showLayerSwitcher ? <MapLayerSwitcher expanded={expandedControls} mapLayer={mapLayer} error={mapError} onSelect={onSelectMapLayer} /> : null}
       <Text accessibilityElementsHidden pointerEvents="none" style={styles.attribution}>{mapLayer === "satellite" && mapTilerApiKey ? mapTilerAttribution : osmAttribution}</Text>
     </View>
   );
@@ -229,6 +233,8 @@ export default function LocationMap({
   fitToMarkers = false,
   connectMarkers = false,
   showUserLocation = false,
+  showLayerSwitcher = true,
+  expandedControls = false,
   onSelectCoordinate
 }: LocationMapProps) {
   const [mapLayer, setMapLayer] = useState<MapLayer>("street");
@@ -250,6 +256,7 @@ export default function LocationMap({
       fitToMarkers={fitToMarkers}
       height={height}
       interactive={interactive}
+      expandedControls={expandedControls}
       markers={markers}
       mapLayer={mapLayer}
       mapTilerApiKey={mapTilerApiKey}
@@ -258,6 +265,7 @@ export default function LocationMap({
       onSelectMapLayer={selectMapLayer}
       onSelectCoordinate={onSelectCoordinate}
       radiusMeters={radiusMeters}
+      showLayerSwitcher={showLayerSwitcher}
     />;
   }
 
@@ -336,7 +344,7 @@ export default function LocationMap({
         attribution
         attributionPosition={{ bottom: 8, right: 8 }}
         compass
-        compassPosition={{ top: 8, right: 8 }}
+        compassPosition={expandedControls ? { bottom: 8, left: 8 } : { top: 8, right: 8 }}
         logo={false}
         mapStyle={mapStyle}
         onDidFailLoadingMap={() => {
@@ -347,7 +355,7 @@ export default function LocationMap({
           longitude: event.nativeEvent.lngLat[0]
         }) : undefined}
         scaleBar
-        scaleBarPosition={{ top: 8, left: 8 }}
+        scaleBarPosition={expandedControls ? { bottom: 8, left: 52 } : { top: 8, left: 8 }}
         style={styles.map}
       >
         <Camera ref={cameraRef} initialViewState={{ center: coordinateToLngLat(focus), zoom: center || markers.length ? 15 : 13 }} />
@@ -374,8 +382,8 @@ export default function LocationMap({
       <Text accessibilityElementsHidden pointerEvents="none" style={styles.attribution}>
         {mapTilerApiKey ? mapTilerAttribution : osmAttribution}
       </Text>
-      {interactive ? <MapLayerSwitcher mapLayer={mapLayer} error={mapError} onSelect={selectMapLayer} /> : null}
-      {interactive ? <MapZoomControls onAdjust={adjustZoom} /> : null}
+      {interactive && showLayerSwitcher ? <MapLayerSwitcher expanded={expandedControls} mapLayer={mapLayer} error={mapError} onSelect={selectMapLayer} /> : null}
+      {interactive ? <MapZoomControls expanded={expandedControls} onAdjust={adjustZoom} /> : null}
       {interactive && !center ? <View pointerEvents="none" style={styles.selectionHint}><Text style={styles.selectionHintText}>Tap the map to place the task pin</Text></View> : null}
     </View>
   );
@@ -397,13 +405,46 @@ function satelliteMapStyle(apiKey: string): StyleSpecification {
   };
 }
 
-function MapLayerSwitcher({ mapLayer, error, onSelect }: { mapLayer: MapLayer; error: string; onSelect: (layer: MapLayer) => void }) {
+function MapLayerSwitcher({ expanded = false, mapLayer, error, onSelect }: { expanded?: boolean; mapLayer: MapLayer; error: string; onSelect: (layer: MapLayer) => void }) {
+  const activeIndex = mapLayer === "street" ? 0 : 1;
+  const markerPosition = useRef(new Animated.Value(activeIndex)).current;
+  const [controlWidth, setControlWidth] = useState(0);
+  const slotWidth = Math.max(0, (controlWidth - LAYER_SWITCHER_PADDING * 2 - LAYER_SWITCHER_GAP) / 2);
+
+  useEffect(() => {
+    const animation = Animated.timing(markerPosition, {
+      toValue: activeIndex,
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [activeIndex, markerPosition]);
+
   return (
-    <View accessibilityRole="radiogroup" style={styles.layerControl}>
-      <View style={styles.layerButtons}>
+    <View accessibilityRole="radiogroup" style={[styles.layerControl, expanded && styles.layerControlExpanded]}>
+      <View onLayout={(event) => setControlWidth(event.nativeEvent.layout.width)} style={[styles.layerButtons, expanded && styles.layerButtonsExpanded]}>
+        {expanded && slotWidth > 0 ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.layerActiveMarker,
+              {
+                width: slotWidth,
+                transform: [{
+                  translateX: markerPosition.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, slotWidth + LAYER_SWITCHER_GAP]
+                  })
+                }]
+              }
+            ]}
+          />
+        ) : null}
         {(["street", "satellite"] as const).map((layer) => {
           const selected = mapLayer === layer;
-          return <Pressable accessibilityLabel={`${layer === "street" ? "Street" : "Satellite"} map view`} accessibilityRole="radio" accessibilityState={{ selected }} key={layer} onPress={() => onSelect(layer)} style={[styles.layerButton, selected && styles.layerButtonSelected]}><Text style={[styles.layerButtonText, selected && styles.layerButtonTextSelected]}>{layer === "street" ? "Street" : "Satellite"}</Text></Pressable>;
+          return <Pressable accessibilityLabel={`${layer === "street" ? "Street" : "Satellite"} map view`} accessibilityRole="radio" accessibilityState={{ selected }} key={layer} onPress={() => onSelect(layer)} style={[styles.layerButton, expanded && styles.layerButtonExpanded, selected && !expanded && styles.layerButtonSelected]}><Text style={[styles.layerButtonText, expanded && styles.layerButtonTextExpanded, selected && (expanded ? styles.layerButtonTextExpandedSelected : styles.layerButtonTextSelected)]}>{layer === "street" ? "Street" : "Satellite"}</Text></Pressable>;
         })}
       </View>
       {error ? <Text accessibilityRole="alert" style={styles.layerError}>{error}</Text> : null}
@@ -411,9 +452,9 @@ function MapLayerSwitcher({ mapLayer, error, onSelect }: { mapLayer: MapLayer; e
   );
 }
 
-function MapZoomControls({ onAdjust }: { onAdjust: (amount: number) => void }) {
+function MapZoomControls({ expanded = false, onAdjust }: { expanded?: boolean; onAdjust: (amount: number) => void }) {
   return (
-    <View accessibilityLabel="Map zoom controls" style={styles.zoomControl}>
+    <View accessibilityLabel="Map zoom controls" style={[styles.zoomControl, expanded && styles.zoomControlExpanded]}>
       <Pressable accessibilityLabel="Zoom in" accessibilityRole="button" onPress={() => void onAdjust(1)} style={styles.zoomButton}><Text style={styles.zoomButtonText}>+</Text></Pressable>
       <Pressable accessibilityLabel="Zoom out" accessibilityRole="button" onPress={() => void onAdjust(-1)} style={styles.zoomButton}><Text style={styles.zoomButtonText}>−</Text></Pressable>
     </View>
@@ -428,13 +469,20 @@ const styles = StyleSheet.create({
   selectionHint: { backgroundColor: "rgba(255,255,255,0.94)", borderColor: "#BDC9C6", borderRadius: 999, borderWidth: 1, left: 16, paddingHorizontal: 12, paddingVertical: 8, position: "absolute", right: 16, top: 106 },
   selectionHintText: { color: "#005C55", fontSize: 13, fontWeight: "700", textAlign: "center" },
   layerControl: { alignItems: "flex-end", gap: 6, position: "absolute", right: 8, top: 8 },
+  layerControlExpanded: { alignItems: "flex-start", left: 8, right: undefined },
   layerButtons: { backgroundColor: "rgba(0,92,85,0.94)", borderColor: "rgba(255,255,255,0.78)", borderRadius: 9, borderWidth: 1, flexDirection: "row", gap: 2, padding: 3 },
+  layerButtonsExpanded: { width: 190, backgroundColor: "#D4DBD9", borderColor: "rgba(189,201,198,0.78)", borderRadius: 12, gap: LAYER_SWITCHER_GAP, padding: LAYER_SWITCHER_PADDING },
+  layerActiveMarker: { position: "absolute", left: LAYER_SWITCHER_PADDING, top: LAYER_SWITCHER_PADDING, bottom: LAYER_SWITCHER_PADDING, borderRadius: 10, backgroundColor: "#005C55", elevation: 5, shadowColor: "#0F2F2B", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 5 },
   layerButton: { alignItems: "center", borderRadius: 6, justifyContent: "center", minHeight: 36, paddingHorizontal: 10 },
+  layerButtonExpanded: { flex: 1, zIndex: 1, borderRadius: 10, paddingHorizontal: 0 },
   layerButtonSelected: { backgroundColor: "#20D5C5" },
   layerButtonText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
+  layerButtonTextExpanded: { color: "#3E4947" },
+  layerButtonTextExpandedSelected: { color: "#FFFFFF" },
   layerButtonTextSelected: { color: "#003C37" },
   layerError: { backgroundColor: "rgba(255,255,255,0.96)", borderColor: "#B42318", borderRadius: 8, borderWidth: 1, color: "#8A1C16", fontSize: 12, fontWeight: "700", maxWidth: 230, paddingHorizontal: 9, paddingVertical: 6, textAlign: "right" },
   zoomControl: { backgroundColor: "rgba(255,255,255,0.96)", borderColor: "#BDC9C6", borderRadius: 8, borderWidth: 1, overflow: "hidden", position: "absolute", right: 8, top: 56 },
+  zoomControlExpanded: { bottom: 28, top: undefined },
   zoomButton: { alignItems: "center", borderBottomColor: "#BDC9C6", borderBottomWidth: 1, height: 34, justifyContent: "center", width: 34 },
   zoomButtonText: { color: "#005C55", fontSize: 21, fontWeight: "800", lineHeight: 24 }
 });
