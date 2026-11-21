@@ -85,7 +85,9 @@ export default function WorkerDashboardScreen() {
   const visibleFinishedTasks = finishedExpanded ? finishedTasks : finishedTasks.slice(0, 3);
   // Keep open work visible even when there are no eligible smart matches. The
   // ranked list places the strongest eligible match first when one exists.
-  const featuredJobs = rankedPostedTasks.slice(0, 2);
+  // Keep every open task visible. The shared ranking puts eligible Smart
+  // Matches first without hiding the rest of the marketplace.
+  const featuredJobs = rankedPostedTasks;
   const bestMatchId = smartMatches[0]?.task.id;
   const tabWidth = Math.max(0, (tabRowWidth - TAB_ROW_PADDING * 2 - TAB_ROW_GAP) / 2);
   const mapOverlayViewportWidth = mapOverlayViewport?.width ?? viewportWidth;
@@ -455,6 +457,7 @@ export default function WorkerDashboardScreen() {
         <View style={styles.sectionHeader}>
           <View style={styles.sectionCopy}>
             <Text style={styles.sectionTitle}>Top Opportunities</Text>
+            <Text style={styles.sectionSubtitle}>All open tasks, ranked with your best match first</Text>
           </View>
           <Pressable accessibilityRole="button" onPress={() => router.push("/jobs")} style={styles.viewAllButton}>
             <Text style={styles.viewAllText}>View All</Text>

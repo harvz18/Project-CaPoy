@@ -184,12 +184,16 @@ export default function JobsScreen() {
           </View>
         </View>
         {forYouJobs.length ? (
-          <View style={styles.forYouGrid}>
+          <View style={styles.jobGrid}>
             {forYouJobs.map(({ task, match }) => (
-              <ForYouJobCard
+              <JobCard
                 key={task.id}
+                employerName={getUserById(task.clientId)?.fullName ?? "TaskLink employer"}
                 match={match}
                 onOpen={() => router.push(`/task/${task.id}`)}
+                onQuickAccept={() => task.pricingMode === "bidding" ? router.push(`/task/${task.id}`) : handleQuickApply(task)}
+                applying={actionLoading}
+                hasApplied={task.applicantIds?.includes(currentUser?.id ?? "") ?? false}
                 task={task}
               />
             ))}
@@ -242,24 +246,6 @@ export default function JobsScreen() {
       </ScrollView>
 
     </SafeAreaView>
-  );
-}
-
-function ForYouJobCard({ task, match, onOpen }: { task: Task; match: MatchResult; onOpen: () => void }) {
-  return (
-    <View style={styles.forYouCard}>
-      <View style={styles.forYouCardHeader}>
-        <Text numberOfLines={1} style={styles.forYouTitle}>{task.title}</Text>
-        <Text style={styles.forYouPrice}>{formatTaskPrice(task)}</Text>
-      </View>
-      <Text numberOfLines={1} style={styles.forYouMeta}>{formatDistance(match.distanceKm)} · {task.locationAddress ?? task.location}</Text>
-      <View style={styles.forYouFooter}>
-        <SmartMatchBadge eligible={match.eligible} reasons={match.reasons} score={match.score} />
-        <Pressable accessibilityLabel={`View ${task.title}`} accessibilityRole="button" onPress={onOpen} style={styles.forYouDetailsButton}>
-          <Text style={styles.forYouDetailsText}>View Task</Text>
-        </Pressable>
-      </View>
-    </View>
   );
 }
 
@@ -390,15 +376,6 @@ const styles = StyleSheet.create({
   screenTitle: { color: palette.textStrong, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   screenSubtitle: { color: palette.muted, fontSize: 14, lineHeight: 20 },
   forYouHeader: { paddingHorizontal: 16, paddingBottom: 12 },
-  forYouGrid: { paddingHorizontal: 16, gap: 10 },
-  forYouCard: { gap: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: "#B8DDD7", backgroundColor: "#F6FFFC", ...interactiveCardShadow },
-  forYouCardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
-  forYouTitle: { flex: 1, minWidth: 0, color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
-  forYouPrice: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
-  forYouMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "700" },
-  forYouFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  forYouDetailsButton: { minHeight: 34, borderRadius: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  forYouDetailsText: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   forYouEmptyCard: { marginHorizontal: 16, marginBottom: 4, padding: 18, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 6 },
   liveBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#EAF8F1" },
   liveBadgeText: { color: "#0B7A52", fontSize: 12, fontWeight: "900" },
