@@ -63,8 +63,12 @@ export default function JobsScreen() {
       task.status !== "Archived"
   );
   const categories = getJobCategories(availableTasks);
+  const rankedAvailableJobs = currentUser ? rankTasksForWorker(availableTasks, currentUser) : [];
+  const forYouJobs = rankedAvailableJobs.filter(({ match }) => match.eligible).slice(0, 3);
+  const forYouTaskIds = new Set(forYouJobs.map(({ task }) => task.id));
   const rankedJobs = currentUser
-    ? filterAndSortRankedJobs(rankTasksForWorker(availableTasks, currentUser), { category: activeFilter, query, sort })
+    ? filterAndSortRankedJobs(rankedAvailableJobs, { category: activeFilter, query, sort })
+      .filter(({ task }) => !forYouTaskIds.has(task.id))
     : [];
   const visibleJobs = rankedJobs.slice(0, visibleJobCount);
   const discoveryLocationIssue = getDiscoveryLocationIssue(currentUser);
@@ -118,7 +122,7 @@ export default function JobsScreen() {
           <View style={styles.locationBadge}>
             <View style={styles.locationCopy}>
               <Text style={styles.locationTitle}>Nearby Jobs</Text>
-              <Text style={styles.locationText}>{discoveryLocationIssue ?? `${rankedJobs.filter(({ match }) => match.eligible).length} recommended jobs within your radius`}</Text>
+              <Text style={styles.locationText}>{discoveryLocationIssue ?? `${rankedAvailableJobs.filter(({ match }) => match.eligible).length} recommended jobs within your radius`}</Text>
             </View>
           </View>
           <Pressable accessibilityRole="button" disabled={actionLoading} onPress={refreshLocation} style={styles.refreshButton}>
@@ -188,6 +192,30 @@ export default function JobsScreen() {
           ) : null}
         </View>
 
+        <View style={styles.forYouHeader}>
+          <View>
+            <Text style={styles.screenTitle}>For You</Text>
+            <Text style={styles.screenSubtitle}>Smart matches based on your profile and service area</Text>
+          </View>
+        </View>
+        {forYouJobs.length ? (
+          <View style={styles.forYouGrid}>
+            {forYouJobs.map(({ task, match }) => (
+              <ForYouJobCard
+                key={task.id}
+                match={match}
+                onOpen={() => router.push(`/task/${task.id}`)}
+                task={task}
+              />
+            ))}
+          </View>
+        ) : (
+          <View style={styles.forYouEmptyCard}>
+            <Text style={styles.emptyTitle}>No smart matches yet</Text>
+            <Text style={styles.emptyText}>Refresh your location and complete your profile to see recommendations here.</Text>
+          </View>
+        )}
+
         <View style={styles.boardHeader}>
           <View>
             <Text style={styles.screenTitle}>Job Board</Text>
@@ -229,6 +257,24 @@ export default function JobsScreen() {
       </ScrollView>
 
     </SafeAreaView>
+  );
+}
+
+function ForYouJobCard({ task, match, onOpen }: { task: Task; match: MatchResult; onOpen: () => void }) {
+  return (
+    <View style={styles.forYouCard}>
+      <View style={styles.forYouCardHeader}>
+        <Text numberOfLines={1} style={styles.forYouTitle}>{task.title}</Text>
+        <Text style={styles.forYouPrice}>{formatTaskPrice(task)}</Text>
+      </View>
+      <Text numberOfLines={1} style={styles.forYouMeta}>{formatDistance(match.distanceKm)} · {task.locationAddress ?? task.location}</Text>
+      <View style={styles.forYouFooter}>
+        <SmartMatchBadge eligible={match.eligible} reasons={match.reasons} score={match.score} />
+        <Pressable accessibilityLabel={`View ${task.title}`} accessibilityRole="button" onPress={onOpen} style={styles.forYouDetailsButton}>
+          <Text style={styles.forYouDetailsText}>View Task</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -358,6 +404,17 @@ const styles = StyleSheet.create({
   emptyApplicationText: { color: palette.muted, fontSize: 13, lineHeight: 18, textAlign: "center" },
   screenTitle: { color: palette.textStrong, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   screenSubtitle: { color: palette.muted, fontSize: 14, lineHeight: 20 },
+  forYouHeader: { paddingHorizontal: 16, paddingBottom: 12 },
+  forYouGrid: { paddingHorizontal: 16, gap: 10 },
+  forYouCard: { gap: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: "#B8DDD7", backgroundColor: "#F6FFFC", ...interactiveCardShadow },
+  forYouCardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+  forYouTitle: { flex: 1, minWidth: 0, color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  forYouPrice: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  forYouMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "700" },
+  forYouFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  forYouDetailsButton: { minHeight: 34, borderRadius: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
+  forYouDetailsText: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  forYouEmptyCard: { marginHorizontal: 16, marginBottom: 4, padding: 18, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 6 },
   liveBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#EAF8F1" },
   liveBadgeText: { color: "#0B7A52", fontSize: 12, fontWeight: "900" },
   jobGrid: { paddingHorizontal: 16, gap: 12 },
