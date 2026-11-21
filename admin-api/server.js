@@ -189,6 +189,14 @@ async function startVonageVerification(phoneNumber) {
     workflow: [{ channel: "sms", to: phoneNumber }]
   });
   if (!response.ok || typeof body.request_id !== "string" || !body.request_id) {
+    // The app receives a useful, safe category rather than a provider payload.
+    // The server log has just the HTTP status and error code, never credentials.
+    const providerCode = typeof body?.type === "string" ? body.type : typeof body?.error_code === "string" ? body.error_code : "unknown";
+    console.warn("Vonage Verify start rejected", { status: response.status, providerCode });
+    if (response.status === 401) throw new ApiError(503, "SMS provider authentication failed. Please contact TaskLink support.");
+    if (response.status === 402) throw new ApiError(503, "SMS provider credit is unavailable. Please contact TaskLink support.");
+    if (response.status === 403) throw new ApiError(503, "SMS provider access is not enabled for this account. Please contact TaskLink support.");
+    if (response.status === 429) throw new ApiError(429, "SMS provider request limit reached. Please wait before requesting another code.");
     throw new ApiError(503, "Unable to send a verification code right now. Please try again shortly.");
   }
   return body.request_id;

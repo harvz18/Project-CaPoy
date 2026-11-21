@@ -189,7 +189,7 @@ export default function LoginScreen() {
       const user = await register({
         role: registerRole,
         fullName,
-        mobileNumber: `+63${registerMobileNumber}`,
+        mobileNumber: registrationPhoneNumber(registerMobileNumber),
         mobileVerificationId: registrationVerificationId,
         password: registerPassword,
         address: selectedBarangay,
@@ -221,7 +221,7 @@ export default function LoginScreen() {
   }
 
   async function requestRegistrationOtp() {
-    const normalizedNumber = normalizePhilippineMobileNumber(`+63${registerMobileNumber}`);
+    const normalizedNumber = normalizePhilippineMobileNumber(registrationPhoneNumber(registerMobileNumber));
     if (!normalizedNumber) {
       setRegisterError("Enter a valid 10-digit Philippine mobile number before requesting a code.");
       return;
@@ -594,7 +594,8 @@ function PhoneInput({ mobileNumber, onChange, editable = true }: PhoneInputProps
       <TextInput
         editable={editable}
         keyboardType="phone-pad"
-        maxLength={10}
+        maxLength={11}
+        onBlur={() => onChange(mobileNumber.replace(/^0(?=9\d{9}$)/, ""))}
         onChangeText={(value) => onChange(value.replace(/\D/g, ""))}
         placeholder="917 000 0001"
         placeholderTextColor={palette.outline}
@@ -603,6 +604,12 @@ function PhoneInput({ mobileNumber, onChange, editable = true }: PhoneInputProps
       />
     </View>
   );
+}
+
+/** The registration field sits after a visible +63 prefix, but accepts the familiar 09XXXXXXXXX entry form. */
+function registrationPhoneNumber(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return `+63${digits.startsWith("0") ? digits.slice(1) : digits}`;
 }
 
 type PasswordFieldProps = {
