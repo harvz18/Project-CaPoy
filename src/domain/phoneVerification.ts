@@ -1,5 +1,6 @@
 const LOCAL_PHILIPPINE_MOBILE = /^09\d{9}$/;
 const E164_PHILIPPINE_MOBILE = /^\+639\d{9}$/;
+const LEGACY_PHILIPPINE_MOBILE = /^9\d{9}$/;
 
 /**
  * Converts only supported Philippine mobile-number formats to E.164.
@@ -11,6 +12,23 @@ export function normalizePhilippineMobileNumber(value: string) {
   if (LOCAL_PHILIPPINE_MOBILE.test(compact)) return `+63${compact.slice(1)}`;
   if (E164_PHILIPPINE_MOBILE.test(compact)) return compact;
   return undefined;
+}
+
+/**
+ * Earlier TaskLink profiles stored the ten digits after a fixed +63 UI prefix
+ * (for example 9927105318). This compatibility path is only for data already
+ * stored on a private profile; all new input remains strict.
+ */
+export function normalizeStoredPhilippineMobileNumber(value: string) {
+  const normalized = normalizePhilippineMobileNumber(value);
+  if (normalized) return normalized;
+  const compact = value.trim().replace(/[\s()-]/g, "");
+  return LEGACY_PHILIPPINE_MOBILE.test(compact) ? `+63${compact}` : undefined;
+}
+
+export function formatPhilippineMobileForInput(value: string) {
+  const normalized = normalizeStoredPhilippineMobileNumber(value);
+  return normalized ? `0${normalized.slice(3)}` : value;
 }
 
 export function isPhilippineMobileNumber(value: string) {

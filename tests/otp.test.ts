@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { canResendOtp, getOtpResendRemainingSeconds, isValidOtpCode, sanitizeOtpInput } from "../src/utils/otp";
-import { normalizePhilippineMobileNumber, phoneVerificationErrorMessage } from "../src/domain/phoneVerification";
+import { formatPhilippineMobileForInput, normalizePhilippineMobileNumber, normalizeStoredPhilippineMobileNumber, phoneVerificationErrorMessage } from "../src/domain/phoneVerification";
 
 test("OTP input is numeric and constrained to six digits", () => {
   assert.equal(sanitizeOtpInput("12a-34 5678"), "123456");
@@ -23,6 +23,8 @@ test("phone verification accepts only supported Philippine formats and keeps the
   assert.equal(normalizePhilippineMobileNumber("+639171234567"), "+639171234567");
   assert.equal(normalizePhilippineMobileNumber("9171234567"), undefined);
   assert.equal(normalizePhilippineMobileNumber("0917123456"), undefined);
+  assert.equal(normalizeStoredPhilippineMobileNumber("9171234567"), "+639171234567");
+  assert.equal(formatPhilippineMobileForInput("9171234567"), "09171234567");
   assert.match(phoneVerificationErrorMessage({ code: "auth/code-expired" }), /expired/i);
   assert.match(phoneVerificationErrorMessage({ code: "auth/credential-already-in-use" }), /another account/i);
 });

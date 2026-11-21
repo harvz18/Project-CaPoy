@@ -24,6 +24,7 @@ import {
   registerWithMobileNumber,
   subscribeToAuthState
 } from "../services/authService";
+import { completePhoneLogin } from "../services/phoneLoginService";
 import { assertCanApply, assertTaskTransition } from "../domain/taskWorkflow";
 import { getTaskTerms } from "../domain/taskTerms";
 import { workerCapabilities } from "../constants/capabilities";
@@ -82,7 +83,7 @@ import { getGeofenceCheck, hasValidCoordinates } from "../utils/location";
 import { toUserFacingError } from "../utils/userFacingError";
 import { AddressDetails } from "../utils/address";
 import { isMarketplaceVerified, verificationRequiredMessage } from "../domain/verificationPolicy";
-import { normalizePhilippineMobileNumber } from "../domain/phoneVerification";
+import { normalizePhilippineMobileNumber, phoneVerificationErrorMessage } from "../domain/phoneVerification";
 
 type RegisterInput = {
   fullName: string;
@@ -144,6 +145,7 @@ type AppContextValue = {
   error: string | null;
   actionErrorDialog: string | null;
   login: (input: LoginInput) => Promise<UserProfile>;
+  loginWithVerificationCode: (code: string) => Promise<UserProfile>;
   register: (input: RegisterInput) => Promise<UserProfile>;
   setRole: (role: PublicRole) => Promise<void>;
   logout: () => Promise<void>;
@@ -391,6 +393,49 @@ export function AppProvider({ children }: PropsWithChildren) {
       throw new Error("Unable to continue. Please try again.");
     }
 
+    return authenticatedUser;
+  }
+
+  /**
+   * The phone service has already limited this to a phone provider linked to
+   * an existing UID. From here onward, use the identical profile, authority,
+   * block, and role checks as the password login.
+   */
+  async function loginWithVerificationCode(code: string) {
+    let authenticatedUser: UserProfile | undefined;
+
+    await runAction(async () => {
+      let authSession;
+      try {
+        authSession = await completePhoneLogin(code);
+      } catch (error) {
+        throw new Error(phoneVerificationErrorMessage(error));
+      }
+      const [user, tokenAuthority] = await Promise.all([
+        getUserProfile(authSession.localId),
+        getCurrentAuthority(undefined, true)
+      ]);
+
+      if (!user) {
+        await logoutFromFirebase().catch(() => undefined);
+        throw new Error("This verified number is not linked to a TaskLink account. Use Password Login first, then verify your number from Profile.");
+      }
+      if (isBlockedAccount(user)) {
+        await logoutFromFirebase();
+        throw new Error(blockedAccountMessage(user));
+      }
+      if (user.role === "admin" && tokenAuthority === "user") {
+        await logoutFromFirebase();
+        throw new Error("Administrator access is not provisioned for this account.");
+      }
+
+      if (user.role !== "admin") await ensurePublicProfile(user);
+      setAuthority(user.role === "admin" ? tokenAuthority : "user");
+      setCurrentUser(user);
+      authenticatedUser = user;
+    });
+
+    if (!authenticatedUser) throw new Error("Unable to continue. Please try again.");
     return authenticatedUser;
   }
 
@@ -910,6 +955,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       error,
       actionErrorDialog,
       login,
+      loginWithVerificationCode,
       register,
       setRole,
       logout,

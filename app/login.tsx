@@ -1,6 +1,6 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Href, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Image,
   LayoutAnimation,
@@ -17,9 +17,12 @@ import { AppText as Text, AppTextInput as TextInput } from "../src/components/Ap
 import { BacolodBarangayPicker } from "../src/components/BacolodBarangayPicker";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
+import { normalizePhilippineMobileNumber, phoneVerificationErrorMessage } from "../src/domain/phoneVerification";
 import { pickProfilePhoto, SelectedFile, uploadProfilePhoto } from "../src/services/fileUploadService";
+import { phoneLoginRecaptchaContainerId, resetPhoneLogin, startPhoneLogin } from "../src/services/phoneLoginService";
 import { updateUserProfile } from "../src/services/userService";
 import { PublicRole, Role } from "../src/types";
+import { canResendOtp, getOtpResendRemainingSeconds, isValidOtpCode, sanitizeOtpInput } from "../src/utils/otp";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -43,6 +46,8 @@ const palette = {
   white: "#FFFFFF"
 };
 
+type LoginMethod = "verification-code" | "password";
+
 function getRoleRoute(role?: Role): Href {
   if (role === "admin") {
     return "/admin" as Href;
@@ -60,9 +65,16 @@ function getRoleRoute(role?: Role): Href {
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { actionLoading, error, login, register, usingFirebase } = useApp();
+  const { actionLoading, clearError, error, login, loginWithVerificationCode, register, usingFirebase } = useApp();
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>("verification-code");
   const [mobileNumber, setMobileNumber] = useState("");
   const [password, setPassword] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpRequestedAt, setOtpRequestedAt] = useState<number>();
+  const [otpNow, setOtpNow] = useState(Date.now());
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState("");
+  const [otpMessage, setOtpMessage] = useState("");
   const [registerVisible, setRegisterVisible] = useState(false);
   const [fullName, setFullName] = useState("");
   const [registerMobileNumber, setRegisterMobileNumber] = useState("");
@@ -75,6 +87,17 @@ export default function LoginScreen() {
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
   const [capabilityPickerOpen, setCapabilityPickerOpen] = useState(false);
   const [registerError, setRegisterError] = useState("");
+
+  const resendRemaining = getOtpResendRemainingSeconds(otpRequestedAt, otpNow);
+  const canResend = canResendOtp(otpRequestedAt, otpNow);
+
+  useEffect(() => {
+    if (!otpRequestedAt) return;
+    const timer = setInterval(() => setOtpNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [otpRequestedAt]);
+
+  useEffect(() => () => resetPhoneLogin(), []);
 
   function animateNext() {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -89,6 +112,51 @@ export default function LoginScreen() {
       router.replace(getRoleRoute(user.role));
     } catch {
       // AppContext exposes the readable error message.
+    }
+  }
+
+  function changeLoginMethod(method: LoginMethod) {
+    clearError();
+    setOtpError("");
+    setLoginMethod(method);
+  }
+
+  async function requestOtp() {
+    const normalizedNumber = normalizePhilippineMobileNumber(mobileNumber);
+    if (!normalizedNumber) {
+      setOtpError("Enter a Philippine mobile number as 09XXXXXXXXX or +639XXXXXXXXX.");
+      return;
+    }
+    if (otpRequestedAt && !canResend) return;
+
+    setOtpLoading(true);
+    setOtpError("");
+    setOtpMessage("");
+    clearError();
+    try {
+      await startPhoneLogin(normalizedNumber);
+      setOtpRequestedAt(Date.now());
+      setOtpNow(Date.now());
+      setOtpMessage("Verification code requested. Enter the six-digit code from Firebase to continue.");
+    } catch (requestError) {
+      setOtpError(phoneVerificationErrorMessage(requestError));
+    } finally {
+      setOtpLoading(false);
+    }
+  }
+
+  async function verifyOtpAndLogin() {
+    if (!isValidOtpCode(otpCode)) {
+      setOtpError("Enter the complete six-digit verification code.");
+      return;
+    }
+    setOtpError("");
+    setOtpMessage("");
+    try {
+      const user = await loginWithVerificationCode(otpCode);
+      router.replace(getRoleRoute(user.role));
+    } catch {
+      // AppContext displays the readable verification error.
     }
   }
 
@@ -176,35 +244,90 @@ export default function LoginScreen() {
           <Text style={screenStyles.authTitle}>Login</Text>
           <Text style={screenStyles.authNotice}>Employers and taskers use this same login. Your saved account type opens the correct dashboard.</Text>
 
+          <View style={screenStyles.loginMethodTabs}>
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: loginMethod === "verification-code" }}
+              onPress={() => changeLoginMethod("verification-code")}
+              style={[screenStyles.loginMethodTab, loginMethod === "verification-code" && screenStyles.loginMethodTabActive]}
+            >
+              <Text style={[screenStyles.loginMethodTabText, loginMethod === "verification-code" && screenStyles.loginMethodTabTextActive]}>Verification Code Login</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: loginMethod === "password" }}
+              onPress={() => changeLoginMethod("password")}
+              style={[screenStyles.loginMethodTab, loginMethod === "password" && screenStyles.loginMethodTabActive]}
+            >
+              <Text style={[screenStyles.loginMethodTabText, loginMethod === "password" && screenStyles.loginMethodTabTextActive]}>Password Login</Text>
+            </Pressable>
+          </View>
+
           <View style={screenStyles.section}>
             <Text style={screenStyles.label}>Mobile Number</Text>
-            <PhoneInput mobileNumber={mobileNumber} onChange={setMobileNumber} />
+            <LoginMobileNumberInput mobileNumber={mobileNumber} onChange={setMobileNumber} />
           </View>
 
-          {error ? <Text style={screenStyles.errorText}>{error}</Text> : null}
-
-          <View style={screenStyles.section}>
-            <Text style={screenStyles.label}>Password</Text>
-            <TextInput
-              onChangeText={setPassword}
-              placeholder="Enter your password"
-              placeholderTextColor={palette.outline}
-              secureTextEntry
-              style={screenStyles.textInput}
-              value={password}
-            />
-            <Pressable
-              accessibilityRole="button"
-              disabled={actionLoading}
-              onPress={handleLogin}
-              style={({ pressed }) => [screenStyles.secondaryButton, pressed && screenStyles.pressed]}
-            >
-              <Text style={screenStyles.secondaryButtonText}>{actionLoading ? "Logging in..." : "Login"}</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={() => router.push("/recover-account" as Href)} style={screenStyles.resendButton}>
-              <Text style={screenStyles.resendText}>Forgot password? Use an email reset link</Text>
-            </Pressable>
-          </View>
+          {loginMethod === "verification-code" ? (
+            <View style={screenStyles.section}>
+              {typeof phoneLoginRecaptchaContainerId === "string" ? <View nativeID={phoneLoginRecaptchaContainerId} style={screenStyles.recaptchaContainer} /> : null}
+              <Pressable
+                accessibilityRole="button"
+                disabled={otpLoading || Boolean(otpRequestedAt && !canResend)}
+                onPress={() => void requestOtp()}
+                style={({ pressed }) => [screenStyles.secondaryButton, (otpLoading || Boolean(otpRequestedAt && !canResend)) && screenStyles.disabledButton, pressed && screenStyles.pressed]}
+              >
+                <Text style={screenStyles.secondaryButtonText}>{otpLoading ? "Requesting code..." : "Get Code"}</Text>
+              </Pressable>
+              {otpRequestedAt ? (
+                <View style={screenStyles.otpResendRow}>
+                  <Text style={screenStyles.otpHint}>Didn't receive the code?</Text>
+                  <Pressable accessibilityRole="button" disabled={otpLoading || !canResend} onPress={() => void requestOtp()} style={screenStyles.resendButton}>
+                    <Text style={[screenStyles.resendText, (otpLoading || !canResend) && screenStyles.resendTextDisabled]}>{canResend ? "Resend" : `Resend in ${resendRemaining}s`}</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              <Text style={screenStyles.label}>Verification Code</Text>
+              <TextInput
+                editable={Boolean(otpRequestedAt) && !otpLoading && !actionLoading}
+                keyboardType="number-pad"
+                maxLength={6}
+                onChangeText={(value) => setOtpCode(sanitizeOtpInput(value))}
+                placeholder="Enter 6-digit code"
+                placeholderTextColor={palette.outline}
+                style={screenStyles.textInput}
+                value={otpCode}
+              />
+              <Pressable
+                accessibilityRole="button"
+                disabled={!otpRequestedAt || otpLoading || actionLoading}
+                onPress={() => void verifyOtpAndLogin()}
+                style={({ pressed }) => [screenStyles.primaryButton, (!otpRequestedAt || otpLoading || actionLoading) && screenStyles.disabledButton, pressed && screenStyles.pressed]}
+              >
+                <Text style={screenStyles.primaryButtonText}>{actionLoading ? "Verifying..." : "Verify & Continue"}</Text>
+              </Pressable>
+              {otpMessage ? <Text accessibilityRole="status" style={screenStyles.otpMessage}>{otpMessage}</Text> : null}
+              {otpError ? <Text accessibilityRole="alert" style={screenStyles.errorText}>{otpError}</Text> : null}
+              {error ? <Text accessibilityRole="alert" style={screenStyles.errorText}>{error}</Text> : null}
+              <Text style={screenStyles.otpHint}>Use Password Login first if this mobile number has not yet been verified from your profile.</Text>
+            </View>
+          ) : (
+            <View style={screenStyles.section}>
+              <PasswordField label="Password" onChangeText={setPassword} placeholder="Enter your password" value={password} />
+              <Pressable
+                accessibilityRole="button"
+                disabled={actionLoading}
+                onPress={handleLogin}
+                style={({ pressed }) => [screenStyles.secondaryButton, actionLoading && screenStyles.disabledButton, pressed && screenStyles.pressed]}
+              >
+                <Text style={screenStyles.secondaryButtonText}>{actionLoading ? "Logging in..." : "Login"}</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={() => router.push("/recover-account" as Href)} style={screenStyles.resendButton}>
+                <Text style={screenStyles.resendText}>Forgot password? Use an email reset link</Text>
+              </Pressable>
+              {error ? <Text accessibilityRole="alert" style={screenStyles.errorText}>{error}</Text> : null}
+            </View>
+          )}
 
           <View style={screenStyles.dividerRow}>
             <View style={screenStyles.divider} />
@@ -316,6 +439,21 @@ type PhoneInputProps = {
   mobileNumber: string;
   onChange: (value: string) => void;
 };
+
+/** Login accepts both canonical Philippine formats without changing the legacy registration control. */
+function LoginMobileNumberInput({ mobileNumber, onChange }: PhoneInputProps) {
+  return (
+    <TextInput
+      keyboardType="phone-pad"
+      maxLength={18}
+      onChangeText={(value) => onChange(value.replace(/[^\d+\s()-]/g, ""))}
+      placeholder="09XX XXX XXXX"
+      placeholderTextColor={palette.outline}
+      style={screenStyles.textInput}
+      value={mobileNumber}
+    />
+  );
+}
 
 function PhoneInput({ mobileNumber, onChange }: PhoneInputProps) {
   return (
@@ -459,9 +597,36 @@ const screenStyles = StyleSheet.create({
   },
   authTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
   authNotice: { color: palette.muted, fontSize: 13, lineHeight: 18 },
+  loginMethodTabs: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: palette.outlineVariant
+  },
+  loginMethodTab: {
+    flex: 1,
+    minHeight: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    borderBottomWidth: 3,
+    borderBottomColor: "transparent",
+    paddingHorizontal: 4
+  },
+  loginMethodTabActive: { borderBottomColor: palette.primary },
+  loginMethodTabText: {
+    color: palette.muted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "800",
+    textAlign: "center"
+  },
+  loginMethodTabTextActive: { color: palette.primary },
   section: {
     gap: 14
   },
+  recaptchaContainer: { minHeight: 1 },
+  otpResendRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
+  otpHint: { color: palette.muted, fontSize: 12, lineHeight: 17, textAlign: "center" },
+  otpMessage: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "700" },
   registerPanel: {
     gap: 14,
     paddingTop: 4
@@ -611,6 +776,7 @@ const screenStyles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: "800"
   },
+  resendTextDisabled: { color: palette.outline },
   profileRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -708,6 +874,7 @@ const screenStyles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: "800"
   },
+  disabledButton: { opacity: 0.5 },
   createAccountButton: {
     minHeight: 48,
     borderRadius: 8,

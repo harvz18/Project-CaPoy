@@ -7,7 +7,7 @@ import { AppInput } from "../src/components/AppInput";
 import { ScreenContainer } from "../src/components/ScreenContainer";
 import { AppText as Text } from "../src/components/AppText";
 import { useApp } from "../src/context/AppContext";
-import { normalizePhilippineMobileNumber, phoneVerificationErrorMessage } from "../src/domain/phoneVerification";
+import { formatPhilippineMobileForInput, normalizePhilippineMobileNumber, normalizeStoredPhilippineMobileNumber, phoneVerificationErrorMessage } from "../src/domain/phoneVerification";
 import {
   completePhoneVerification,
   phoneVerificationRecaptchaContainerId,
@@ -20,7 +20,7 @@ import { styles } from "../src/styles";
 export default function PhoneVerificationScreen() {
   const router = useRouter();
   const { currentUser } = useApp();
-  const [mobileNumber, setMobileNumber] = useState(currentUser?.mobileNumber ?? "");
+  const [mobileNumber, setMobileNumber] = useState(() => formatPhilippineMobileForInput(currentUser?.mobileNumber ?? ""));
   const [code, setCode] = useState("");
   const [requestedAt, setRequestedAt] = useState<number>();
   const [now, setNow] = useState(Date.now());
@@ -30,7 +30,7 @@ export default function PhoneVerificationScreen() {
   const [complete, setComplete] = useState(Boolean(currentUser?.phoneVerified));
 
   const normalizedProfileNumber = useMemo(
-    () => normalizePhilippineMobileNumber(currentUser?.mobileNumber ?? ""),
+    () => normalizeStoredPhilippineMobileNumber(currentUser?.mobileNumber ?? ""),
     [currentUser?.mobileNumber]
   );
   const resendRemaining = getOtpResendRemainingSeconds(requestedAt, now);

@@ -6,7 +6,7 @@ const { authorityFromClaims, buildAccountStatusChange, hasSuperadminAuthority, i
 const { buildIdentityReview } = require("../functions/identity");
 const { DEFAULT_RATE_BASIS_POINTS, buildFeeSnapshot } = require("../functions/revenue");
 const { DOCUMENT_KINDS, calculateVerificationProgress, documentReviewsForSubmission, requestFieldByKind } = require("../functions/verificationProgress");
-const { buildVerifiedPhoneUpdate } = require("./phoneAuth");
+const { buildVerifiedPhoneUpdate, hasMatchingVerifiedPhone, normalizePhilippineMobileNumber } = require("./phoneAuth");
 
 class ApiError extends Error {
   constructor(status, message) {
@@ -40,6 +40,13 @@ function allowedOrigins() {
     "https://tasklink-fb027.web.app",
     "https://tasklink-web-oeoo.onrender.com",
     "https://tasklink-web-ixue.onrender.com",
+    // Local Expo web sessions use the same authenticated API during final
+    // defense testing. These exact loopback origins do not broaden access to
+    // arbitrary websites.
+    "http://localhost:8081",
+    "http://127.0.0.1:8081",
+    "http://localhost:19006",
+    "http://127.0.0.1:19006",
     ...(process.env.ADMIN_PORTAL_ORIGINS || "").split(",")
   ].map((origin) => origin.trim()).filter(Boolean));
 }
@@ -78,6 +85,65 @@ function route(requiredAuthority, action) {
       next(error);
     }
   };
+}
+
+const phoneLoginAttemptWindowMs = 10 * 60 * 1000;
+const phoneLoginAttemptLimit = 5;
+const phoneLoginAttempts = new Map();
+
+function allowPhoneLoginAttempt(request) {
+  const now = Date.now();
+  const key = request.ip || "unknown";
+  const attempts = (phoneLoginAttempts.get(key) || []).filter((timestamp) => now - timestamp < phoneLoginAttemptWindowMs);
+  if (attempts.length >= phoneLoginAttemptLimit) {
+    throw new ApiError(429, "Too many verification-code requests. Please wait before trying again.");
+  }
+  attempts.push(now);
+  phoneLoginAttempts.set(key, attempts);
+}
+
+/**
+ * This anonymous endpoint intentionally returns no account/profile data. A
+ * valid response merely permits Firebase to authenticate a phone provider that
+ * is already attached to an existing TaskLink UID.
+ */
+async function assertPhoneLoginEligible({ request, db }) {
+  allowPhoneLoginAttempt(request);
+  const phoneNumber = normalizePhilippineMobileNumber(requiredBodyString(request, "phoneNumber"));
+  if (!phoneNumber) throw new ApiError(400, "Enter a Philippine mobile number as 09XXXXXXXXX or +639XXXXXXXXX.");
+
+  try {
+    const authUser = await services().auth.getUserByPhoneNumber(phoneNumber);
+    const profile = await db.collection("users").doc(authUser.uid).get();
+    if (!profile.exists || !hasMatchingVerifiedPhone(profile.data().mobileNumber, authUser.phoneNumber)) {
+      throw new Error("not eligible");
+    }
+  } catch {
+    // Unknown and unlinked numbers intentionally receive the same response.
+    // Do not turn this into an account-discovery endpoint.
+    throw new ApiError(403, "Verification-code login is not available for this number. Use Password Login first, then verify the number from your profile.");
+  }
+
+  return { ok: true };
+}
+
+/** Exchanges a Firebase Phone Auth token for the app's normal JS Auth session. */
+async function createPhoneLoginSession({ request, db }) {
+  const idToken = requiredBodyString(request, "idToken");
+  let claims;
+  try {
+    claims = await services().auth.verifyIdToken(idToken);
+    const [authUser, profile] = await Promise.all([
+      services().auth.getUser(claims.uid),
+      db.collection("users").doc(claims.uid).get()
+    ]);
+    if (!profile.exists || !hasMatchingVerifiedPhone(profile.data().mobileNumber, authUser.phoneNumber)) {
+      throw new Error("not eligible");
+    }
+  } catch {
+    throw new ApiError(403, "Verification-code login could not be completed. Use Password Login and verify this number from your profile.");
+  }
+  return { customToken: await services().auth.createCustomToken(claims.uid) };
 }
 
 function requestedIds(request) {
@@ -261,7 +327,9 @@ async function syncPhoneVerification({ db, claims }) {
   } catch (error) {
     throw new ApiError(409, error instanceof Error ? error.message : "Unable to confirm this phone number.");
   }
-  await userSnapshot.ref.update(update);
+  // Firebase's confirmed provider match is the safe point to migrate a legacy
+  // prefix-less stored number to its canonical E.164 value.
+  await userSnapshot.ref.update({ ...update, mobileNumber: update.verifiedPhoneNumber });
   return { phoneNumber: update.verifiedPhoneNumber };
 }
 
@@ -693,6 +761,9 @@ async function profileLookup({ request, db }) {
 
 function createServer() {
   const app = express();
+  // Render terminates TLS at one trusted proxy. This preserves a per-client
+  // request limit instead of rate-limiting every visitor as the proxy itself.
+  app.set("trust proxy", 1);
   app.disable("x-powered-by");
   app.use((request, response, next) => {
     const origin = request.get("origin");
@@ -733,6 +804,20 @@ function createServer() {
   app.post("/api/verification/submit", route("user", submitVerificationRequest));
   app.post("/api/verification/progress/refresh", route("user", refreshVerificationProgress));
   app.post("/api/verification/complete-missing", route("user", submitMissingVerificationDocuments));
+  app.post("/api/phone-login/eligible", async (request, response, next) => {
+    try {
+      response.json(await assertPhoneLoginEligible({ request, db: services().db }));
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post("/api/phone-login/session", async (request, response, next) => {
+    try {
+      response.json(await createPhoneLoginSession({ request, db: services().db }));
+    } catch (error) {
+      next(error);
+    }
+  });
   app.post("/api/phone-verification/native-session", route("user", createPhoneVerificationNativeSession));
   app.post("/api/phone-verification/sync", route("user", syncPhoneVerification));
   app.post("/api/admin/profiles/lookup", route("admin", profileLookup));
@@ -775,4 +860,4 @@ if (require.main === module) {
   createServer().listen(port, "0.0.0.0", () => console.log(`TaskLink admin API listening on ${port}`));
 }
 
-module.exports = { ApiError, createServer, firebaseOptions };
+module.exports = { ApiError, allowedOrigins, createServer, firebaseOptions };
