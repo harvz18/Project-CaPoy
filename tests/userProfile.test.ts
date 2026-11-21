@@ -48,4 +48,9 @@ test("task check-in is treated as a private location-only profile update", () =>
     locationSource: "device",
     preferredRadiusKm: 5
   }), false);
+  assert.equal(isPrivateLocationOnlyUpdate({
+    serviceAreaLatitude: 10.6765,
+    serviceAreaLongitude: 122.9509,
+    serviceAreaUpdatedAt: "2026-01-01T00:59:00.000Z"
+  }), false);
 });

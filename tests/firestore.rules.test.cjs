@@ -919,8 +919,20 @@ test("only a client can create an open task owned by that client", async () => {
   }));
 });
 
-test("workers can save valid private location metadata but invalid coordinates fail", async () => {
+test("workers can save a stable service area and private live location metadata", async () => {
   const workerDb = dbFor(WORKER_ID);
+  await assertSucceeds(updateDoc(doc(workerDb, "users", WORKER_ID), {
+    serviceAreaLatitude: 10.6765,
+    serviceAreaLongitude: 122.9509,
+    serviceAreaUpdatedAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.500Z"
+  }));
+  await assertFails(updateDoc(doc(workerDb, "users", WORKER_ID), {
+    serviceAreaLatitude: -100,
+    serviceAreaLongitude: 122.9509,
+    serviceAreaUpdatedAt: "2026-01-01T00:00:00.750Z",
+    updatedAt: "2026-01-01T00:00:00.750Z"
+  }));
   await assertSucceeds(updateDoc(doc(workerDb, "users", WORKER_ID), {
     currentLatitude: 10.6765,
     currentLongitude: 122.9509,

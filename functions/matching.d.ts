@@ -13,8 +13,6 @@ export type CoreMatchResult = {
   breakdown?: CoreMatchScoreBreakdown;
 };
 
-export const DISCOVERY_LOCATION_MAX_AGE_MS: number;
-export const DISCOVERY_MAX_DEVICE_ACCURACY_METERS: number;
 export const MATCH_POLICY_VERSION: number;
 export const MATCH_POLICY_WEIGHTS: Readonly<{
   skill: number;

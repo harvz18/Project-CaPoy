@@ -21,7 +21,8 @@ const task = (overrides: Partial<Task> = {}): Task => ({
 const worker = (overrides: Partial<UserProfile> = {}): UserProfile => ({
   id: "worker-1", role: "worker", fullName: "Worker", mobileNumber: "09999999999", address: "Bacolod",
   rating: 5, accountStatus: "active", capabilities: ["Cleaning"], availabilityStatus: "Available",
-  verificationStatus: "Verified", currentLatitude: 10.6766, currentLongitude: 122.9509,
+  verificationStatus: "Verified", serviceAreaLatitude: 10.6766, serviceAreaLongitude: 122.9509,
+  serviceAreaUpdatedAt: now, currentLatitude: 10.6766, currentLongitude: 122.9509,
   preferredRadiusKm: 5, locationSource: "device", locationUpdatedAt: now, locationAccuracyMeters: 12,
   completedTasks: 10, experienceDescription: "Five years", ...overrides
 });
@@ -82,11 +83,11 @@ test("an unverified account is excluded from marketplace recommendations", () =>
 });
 
 test("missing capability and coordinates fail closed", () => {
-  const result = scoreWorkerForTask(task(), worker({ capabilities: ["Basic repair"], skills: [], currentLatitude: undefined }), Date.parse(now));
+  const result = scoreWorkerForTask(task(), worker({ capabilities: ["Basic repair"], skills: [], serviceAreaLatitude: undefined, serviceAreaLongitude: undefined, currentLatitude: undefined }), Date.parse(now));
   assert.equal(result.eligible, false);
   assert.equal(result.score, 0);
   assert.ok(result.reasons.some((reason) => reason.includes("Missing required capability")));
-  assert.ok(result.reasons.some((reason) => reason.includes("valid worker location")));
+  assert.ok(result.reasons.some((reason) => reason.includes("saved service-area pin")));
 });
 
 test("all selected required capabilities must be present for a worker to match", () => {
@@ -149,26 +150,21 @@ test("check-in requires a fresh accurate device location", () => {
   assert.equal(getGeofenceCheck(worker(), task(), Date.parse(now)).allowed, true);
 });
 
-test("discovery accepts the radius boundary and rejects stale or inaccurate device locations", () => {
+test("saved service areas accept the radius boundary without live-device freshness", () => {
   const boundaryTask = task({ latitude: 10.721466 });
   const boundary = scoreWorkerForTask(boundaryTask, worker(), Date.parse(now));
   assert.equal(boundary.eligible, true);
   assert.ok((boundary.distanceKm ?? 0) <= 5);
   assert.equal(scoreWorkerForTask(task({ latitude: 10.7216 }), worker(), Date.parse(now)).eligible, false);
 
-  const stale = scoreWorkerForTask(task(), worker({ locationUpdatedAt: "2026-09-29T03:29:59.999Z" }), Date.parse(now));
-  assert.equal(stale.eligible, false);
-  assert.ok(stale.reasons.some((reason) => reason.includes("stale")));
-
-  const inaccurate = scoreWorkerForTask(task(), worker({ locationAccuracyMeters: 201 }), Date.parse(now));
-  assert.equal(inaccurate.eligible, false);
-  assert.ok(inaccurate.reasons.some((reason) => reason.includes("accuracy")));
+  const staleDevice = scoreWorkerForTask(task(), worker({ locationUpdatedAt: "2026-09-29T03:00:00.000Z", locationAccuracyMeters: 20_000 }), Date.parse(now));
+  assert.equal(staleDevice.eligible, true);
 });
 
-test("manual discovery pins are accepted but still require freshness", () => {
-  const manual = worker({ locationSource: "manual", locationAccuracyMeters: undefined });
+test("legacy saved pins are accepted until a dedicated service area is saved", () => {
+  const manual = worker({ serviceAreaLatitude: undefined, serviceAreaLongitude: undefined, locationSource: "manual", locationAccuracyMeters: undefined });
   assert.equal(scoreWorkerForTask(task(), manual, Date.parse(now)).eligible, true);
-  assert.equal(scoreWorkerForTask(task(), { ...manual, locationUpdatedAt: "2026-09-29T03:00:00.000Z" }, Date.parse(now)).eligible, false);
+  assert.equal(scoreWorkerForTask(task(), { ...manual, locationUpdatedAt: "2026-09-29T03:00:00.000Z" }, Date.parse(now)).eligible, true);
 });
 
 test("global busy state stays discoverable while restricted, closed, and expired matches fail closed", () => {

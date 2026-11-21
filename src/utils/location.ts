@@ -1,8 +1,4 @@
 import { Task, UserProfile } from "../types";
-import {
-  DISCOVERY_LOCATION_MAX_AGE_MS as CORE_DISCOVERY_LOCATION_MAX_AGE_MS,
-  DISCOVERY_MAX_DEVICE_ACCURACY_METERS as CORE_DISCOVERY_MAX_DEVICE_ACCURACY_METERS
-} from "../../functions/matching";
 
 export type Coordinates = {
   latitude?: number;
@@ -19,8 +15,6 @@ export type LocationReading = {
 const earthRadiusKm = 6371;
 export const CHECK_IN_LOCATION_MAX_AGE_MS = 10 * 60 * 1000;
 export const CHECK_IN_MAX_ACCURACY_METERS = 150;
-export const DISCOVERY_LOCATION_MAX_AGE_MS = CORE_DISCOVERY_LOCATION_MAX_AGE_MS;
-export const DISCOVERY_MAX_DEVICE_ACCURACY_METERS = CORE_DISCOVERY_MAX_DEVICE_ACCURACY_METERS;
 export const LIVE_LOCATION_MIN_INTERVAL_MS = 5 * 1000;
 export const LIVE_LOCATION_MIN_DISTANCE_METERS = 10;
 export const LIVE_LOCATION_STALE_AFTER_MS = 30 * 1000;
@@ -50,8 +44,8 @@ export function calculateDistanceKm(from: Coordinates, to: Coordinates) {
 export function getTaskDistanceKm(worker: UserProfile | null | undefined, task: Task) {
   return calculateDistanceKm(
     {
-      latitude: worker?.currentLatitude,
-      longitude: worker?.currentLongitude
+      latitude: worker?.serviceAreaLatitude ?? worker?.currentLatitude,
+      longitude: worker?.serviceAreaLongitude ?? worker?.currentLongitude
     },
     {
       latitude: task.latitude,
@@ -170,22 +164,12 @@ export function isLocationFresh(updatedAt: string | undefined, now = Date.now())
   return Number.isFinite(timestamp) && now - timestamp >= 0 && now - timestamp <= CHECK_IN_LOCATION_MAX_AGE_MS;
 }
 
-export function getDiscoveryLocationIssue(worker: UserProfile | null | undefined, now = Date.now()) {
-  if (!hasValidCoordinates({ latitude: worker?.currentLatitude, longitude: worker?.currentLongitude })) {
-    return "Set a valid discovery location to receive nearby job matches.";
-  }
-  const timestamp = worker?.locationUpdatedAt ? new Date(worker.locationUpdatedAt).getTime() : Number.NaN;
-  const age = now - timestamp;
-  if (!Number.isFinite(timestamp) || age < 0 || age > DISCOVERY_LOCATION_MAX_AGE_MS) {
-    return "Your discovery location is stale. Refresh it to receive nearby job matches.";
-  }
-  if (worker?.locationSource !== "manual" && (
-    worker?.locationSource !== "device" ||
-    !Number.isFinite(worker.locationAccuracyMeters) ||
-    (worker.locationAccuracyMeters as number) < 0 ||
-    (worker.locationAccuracyMeters as number) > DISCOVERY_MAX_DEVICE_ACCURACY_METERS
-  )) {
-    return `Refresh with device accuracy within ${DISCOVERY_MAX_DEVICE_ACCURACY_METERS} meters.`;
+export function getDiscoveryLocationIssue(worker: UserProfile | null | undefined) {
+  if (!hasValidCoordinates({
+    latitude: worker?.serviceAreaLatitude ?? worker?.currentLatitude,
+    longitude: worker?.serviceAreaLongitude ?? worker?.currentLongitude
+  })) {
+    return "Set a saved service-area pin to receive nearby job matches.";
   }
   if (!Number.isFinite(worker?.preferredRadiusKm) || (worker?.preferredRadiusKm as number) <= 0) {
     return "Choose a preferred discovery radius.";

@@ -237,6 +237,19 @@ service cloud.firestore {
           || (profileData.locationAccuracyMeters is number && profileData.locationAccuracyMeters >= 0));
     }
 
+    function validServiceArea(profileData) {
+      return (!('serviceAreaLatitude' in profileData)
+          && !('serviceAreaLongitude' in profileData)
+          && !('serviceAreaUpdatedAt' in profileData))
+        || (profileData.serviceAreaLatitude is number
+          && profileData.serviceAreaLatitude >= -90
+          && profileData.serviceAreaLatitude <= 90
+          && profileData.serviceAreaLongitude is number
+          && profileData.serviceAreaLongitude >= -180
+          && profileData.serviceAreaLongitude <= 180
+          && profileData.serviceAreaUpdatedAt is string);
+    }
+
     function validOwnPrivateLocationUpdate(userId) {
       return hasEnabledAccount()
         && request.auth.uid == userId
@@ -286,6 +299,9 @@ service cloud.firestore {
           'identityStatus',
           'availabilityStatus',
           'availability',
+          'serviceAreaLatitude',
+          'serviceAreaLongitude',
+          'serviceAreaUpdatedAt',
           'currentLatitude',
           'currentLongitude',
           'locationUpdatedAt',
@@ -296,6 +312,12 @@ service cloud.firestore {
         ])
         && validIdentityText(request.resource.data)
         && validPreferredDiscoveryRadius(request.resource.data)
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'serviceAreaLatitude', 'serviceAreaLongitude', 'serviceAreaUpdatedAt'
+          ])
+          || (request.resource.data.role == 'worker' && validServiceArea(request.resource.data))
+        )
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['fullName'])
           || (

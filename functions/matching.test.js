@@ -16,7 +16,8 @@ const task = (overrides = {}) => ({
 });
 const worker = (overrides = {}) => ({
   role: "worker", accountStatus: "active", capabilities: ["Cleaning"], availabilityStatus: "Available",
-  verificationStatus: "Verified", currentLatitude: 10.6766, currentLongitude: 122.9509,
+  verificationStatus: "Verified", serviceAreaLatitude: 10.6766, serviceAreaLongitude: 122.9509,
+  serviceAreaUpdatedAt: now, currentLatitude: 10.6766, currentLongitude: 122.9509,
   preferredRadiusKm: 5, locationSource: "device", locationUpdatedAt: now, locationAccuracyMeters: 12,
   rating: 5, completedTasks: 10, experienceDescription: "Five years", ...overrides
 });
@@ -112,20 +113,16 @@ test("worker outside their preferred radius is never notified", () => {
   assert.equal(result.eligible, false);
 });
 
-test("stale, inaccurate, and expired workers are never notified while availability stays a small signal", () => {
+test("saved service areas stay eligible while live device readings are reserved for check-in", () => {
   const busy = scoreWorkerForTask(task(), worker({ availabilityStatus: "Busy", activeTaskId: "active" }), Date.parse(now));
   assert.equal(busy.eligible, true);
   assert.equal(busy.score, 95);
-  const results = [
-    scoreWorkerForTask(task(), worker({ locationUpdatedAt: "2026-09-29T03:29:59.999Z" }), Date.parse(now)),
-    scoreWorkerForTask(task(), worker({ locationAccuracyMeters: 201 }), Date.parse(now)),
-    scoreWorkerForTask(task({ expiresAt: now }), worker(), Date.parse(now))
-  ];
-  assert.ok(results.every((result) => !result.eligible));
+  assert.equal(scoreWorkerForTask(task(), worker({ locationUpdatedAt: "2026-09-29T03:00:00.000Z", locationAccuracyMeters: 20_000 }), Date.parse(now)).eligible, true);
+  assert.equal(scoreWorkerForTask(task({ expiresAt: now }), worker(), Date.parse(now)).eligible, false);
 });
 
-test("manual pins can match for discovery but device accuracy is enforced", () => {
-  assert.equal(scoreWorkerForTask(task(), worker({ locationSource: "manual", locationAccuracyMeters: undefined }), Date.parse(now)).eligible, true);
+test("legacy saved pins keep working until a worker saves a dedicated service area", () => {
+  assert.equal(scoreWorkerForTask(task(), worker({ serviceAreaLatitude: undefined, serviceAreaLongitude: undefined, locationSource: "manual", locationAccuracyMeters: undefined }), Date.parse(now)).eligible, true);
 });
 
 test("matching notification policy is deterministic and independent from push opt-in", () => {

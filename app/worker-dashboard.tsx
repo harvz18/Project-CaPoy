@@ -265,9 +265,11 @@ export default function WorkerDashboardScreen() {
       mapOverlayClosingRef.current = false;
     });
   }
-  const workerMapCenter = currentUser?.currentLatitude !== undefined && currentUser.currentLongitude !== undefined
-    ? { latitude: currentUser.currentLatitude, longitude: currentUser.currentLongitude }
-    : undefined;
+  const workerMapCenter = currentUser?.serviceAreaLatitude !== undefined && currentUser.serviceAreaLongitude !== undefined
+    ? { latitude: currentUser.serviceAreaLatitude, longitude: currentUser.serviceAreaLongitude }
+    : currentUser?.currentLatitude !== undefined && currentUser.currentLongitude !== undefined
+      ? { latitude: currentUser.currentLatitude, longitude: currentUser.currentLongitude }
+      : undefined;
   const workerMapMarkers = postedTasks.flatMap((task) => task.latitude !== undefined && task.longitude !== undefined
     ? [{ id: task.id, latitude: task.latitude, longitude: task.longitude, title: task.title }]
     : []);
@@ -433,7 +435,6 @@ export default function WorkerDashboardScreen() {
             interactive
             markers={workerMapMarkers}
             onMarkerPress={(marker) => setSelectedMapTaskId(marker.id)}
-            showUserLocation
             showLayerSwitcher={false}
             height={208}
           />
@@ -572,7 +573,6 @@ export default function WorkerDashboardScreen() {
                     interactive
                     markers={workerMapMarkers}
                     onMarkerPress={(marker) => setSelectedMapTaskId(marker.id)}
-                    showUserLocation
                     expandedControls
                     height={mapOverlayTarget.height}
                   />

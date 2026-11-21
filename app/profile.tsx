@@ -12,7 +12,6 @@ import { useApp } from "../src/context/AppContext";
 import { getScheduleBasedAvailability, getUserTaskHistory } from "../src/domain/taskMarketplace";
 import { calculateVerificationProgress } from "../src/domain/verificationProgress";
 import { isIdentityLocked } from "../src/domain/profileIdentity";
-import { captureForegroundLocation } from "../src/services/locationService";
 import { pickAndUploadPrivateDocument, pickAndUploadProfilePhoto, UploadSource } from "../src/services/fileUploadService";
 import { AddressSearchResult, reverseGeocodeSelectedPin, searchAddressOnMap } from "../src/services/reverseGeocoding";
 import { refreshVerificationProgress, submitMissingVerificationDocuments, submitVerificationRequest, subscribeToVerificationRequest } from "../src/services/verificationService";
@@ -104,12 +103,11 @@ export default function ProfileScreen() {
   const [documentsChanged, setDocumentsChanged] = useState(false);
   const [uploadingField, setUploadingField] = useState<string>();
   const [uploadMessage, setUploadMessage] = useState("");
-  const [currentLatitude, setCurrentLatitude] = useState(String(currentUser?.currentLatitude ?? ""));
-  const [currentLongitude, setCurrentLongitude] = useState(String(currentUser?.currentLongitude ?? ""));
-  const [locationSource, setLocationSource] = useState(currentUser?.locationSource);
-  const [locationUpdatedAt, setLocationUpdatedAt] = useState(currentUser?.locationUpdatedAt);
-  const [locationAccuracyMeters, setLocationAccuracyMeters] = useState(currentUser?.locationAccuracyMeters);
-  const [locating, setLocating] = useState(false);
+  // Existing pins remain available until the user saves their first dedicated
+  // service area. Live device location is intentionally not used here.
+  const [serviceAreaLatitude, setServiceAreaLatitude] = useState(String(currentUser?.serviceAreaLatitude ?? currentUser?.currentLatitude ?? ""));
+  const [serviceAreaLongitude, setServiceAreaLongitude] = useState(String(currentUser?.serviceAreaLongitude ?? currentUser?.currentLongitude ?? ""));
+  const [serviceAreaUpdatedAt, setServiceAreaUpdatedAt] = useState(currentUser?.serviceAreaUpdatedAt ?? currentUser?.locationUpdatedAt);
   const [locationMessage, setLocationMessage] = useState("");
   const [preferredRadiusKm, setPreferredRadiusKm] = useState(String(currentUser?.preferredRadiusKm ?? 5));
   const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
@@ -149,8 +147,8 @@ export default function ProfileScreen() {
   const memberSince = currentUser?.createdAt && Number.isFinite(new Date(currentUser.createdAt).getTime())
     ? String(new Date(currentUser.createdAt).getFullYear())
     : "Not recorded";
-  const mapCenter = parseCoordinate(currentLatitude) !== undefined && parseCoordinate(currentLongitude) !== undefined
-    ? { latitude: parseCoordinate(currentLatitude) as number, longitude: parseCoordinate(currentLongitude) as number }
+  const mapCenter = parseCoordinate(serviceAreaLatitude) !== undefined && parseCoordinate(serviceAreaLongitude) !== undefined
+    ? { latitude: parseCoordinate(serviceAreaLatitude) as number, longitude: parseCoordinate(serviceAreaLongitude) as number }
     : undefined;
   const formattedAddress = formatAddressDetails(addressDetails) || currentUser?.address || "";
   const verificationProgress = currentUser ? calculateVerificationProgress(currentUser, verificationRequest) : undefined;
@@ -191,6 +189,9 @@ export default function ProfileScreen() {
   async function handleSave() {
     try {
       const detailedAddress = formatAddressDetails(addressDetails);
+      const savedServiceAreaLatitude = parseCoordinate(serviceAreaLatitude);
+      const savedServiceAreaLongitude = parseCoordinate(serviceAreaLongitude);
+      const hasSavedServiceArea = savedServiceAreaLatitude !== undefined && savedServiceAreaLongitude !== undefined;
       await updateProfile({
         fullName: fullNameLocked ? undefined : fullName,
         address: detailedAddress || currentUser?.address || "",
@@ -207,11 +208,11 @@ export default function ProfileScreen() {
         profilePhotoUrl,
         experienceDescription: currentUser?.role === "worker" ? experienceDescription : undefined,
         yearsOfExperience: currentUser?.role === "worker" ? yearsOfExperience : undefined,
-        currentLatitude: currentUser?.role === "worker" ? parseCoordinate(currentLatitude) : undefined,
-        currentLongitude: currentUser?.role === "worker" ? parseCoordinate(currentLongitude) : undefined,
-        locationSource: currentUser?.role === "worker" ? locationSource : undefined,
-        locationUpdatedAt: currentUser?.role === "worker" ? locationUpdatedAt : undefined,
-        locationAccuracyMeters: currentUser?.role === "worker" ? locationAccuracyMeters : undefined,
+        serviceAreaLatitude: currentUser?.role === "worker" ? savedServiceAreaLatitude : undefined,
+        serviceAreaLongitude: currentUser?.role === "worker" ? savedServiceAreaLongitude : undefined,
+        serviceAreaUpdatedAt: currentUser?.role === "worker" && hasSavedServiceArea
+          ? serviceAreaUpdatedAt ?? new Date().toISOString()
+          : undefined,
         preferredRadiusKm: currentUser?.role === "worker" ? Number(preferredRadiusKm) || 5 : undefined,
         businessName: currentUser?.role === "client" ? bio : undefined
       });
@@ -312,31 +313,11 @@ export default function ProfileScreen() {
     }
   }
 
-  async function useDeviceLocation() {
-    setLocating(true);
-    setLocationMessage("");
-    try {
-      const captured = await captureForegroundLocation();
-      setCurrentLatitude(String(captured.latitude));
-      setCurrentLongitude(String(captured.longitude));
-      setLocationSource(captured.source);
-      setLocationUpdatedAt(captured.capturedAt);
-      setLocationAccuracyMeters(captured.accuracyMeters);
-      setLocationMessage(`Device location captured${captured.accuracyMeters ? ` (about ${Math.round(captured.accuracyMeters)} m accuracy)` : ""}. Save changes to keep it.`);
-    } catch (locationError) {
-      setLocationMessage(locationError instanceof Error ? locationError.message : "Unable to capture location.");
-    } finally {
-      setLocating(false);
-    }
-  }
-
   function selectMapCoordinate(coordinate: { latitude: number; longitude: number }) {
-    setCurrentLatitude(String(coordinate.latitude));
-    setCurrentLongitude(String(coordinate.longitude));
-    setLocationSource("manual");
-    setLocationUpdatedAt(new Date().toISOString());
-    setLocationAccuracyMeters(undefined);
-    setLocationMessage("Location pin updated. Save changes to keep it.");
+    setServiceAreaLatitude(String(coordinate.latitude));
+    setServiceAreaLongitude(String(coordinate.longitude));
+    setServiceAreaUpdatedAt(new Date().toISOString());
+    setLocationMessage("Service-area pin updated. Save changes to use it for Smart Match.");
   }
 
   function updateAddressDetail(field: keyof AddressDetails, value: string) {
@@ -622,14 +603,10 @@ export default function ProfileScreen() {
                 markers={mapCenter ? [{ id: "selected", ...mapCenter, title: "Your saved location" }] : []}
                 onSelectCoordinate={selectMapCoordinate}
                 radiusMeters={(Number(preferredRadiusKm) || 0) * 1000}
-                showUserLocation
                 height={260}
               />
-              <Text style={styles.helperText}>Move or zoom the map, then tap or click to place your matching-area pin. Drag the pin to adjust it.</Text>
-              <Pressable accessibilityRole="button" disabled={locating} onPress={useDeviceLocation} style={styles.locationButton}>
-                <Text style={styles.locationButtonText}>{locating ? "Getting location..." : "Use current device location"}</Text>
-              </Pressable>
-              <Text style={styles.helperText}>Your saved pin stays in your private profile. Clients see only matching reasons and distance.</Text>
+              <Text style={styles.helperText}>Move or zoom the map, then tap or click to place your saved matching-area pin. Drag the pin to adjust it.</Text>
+              <Text style={styles.helperText}>Smart Match uses this saved pin, not your live device location. Live GPS is requested only when starting or tracking an accepted task.</Text>
               {locationMessage ? <Text style={styles.locationMessage}>{locationMessage}</Text> : null}
 
               <View style={styles.radiusGrid}>

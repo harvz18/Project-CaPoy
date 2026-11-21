@@ -128,6 +128,11 @@ export type UserProfile = {
   verifiedPhoneNumber?: string;
   phoneVerifiedAt?: string;
   thirdPartyProvider?: "none" | "google";
+  /** Stable private service-area pin used only for Smart Match distance checks. */
+  serviceAreaLatitude?: number;
+  serviceAreaLongitude?: number;
+  serviceAreaUpdatedAt?: string;
+  /** Short-lived device reading used only for check-in and active-task safety. */
   currentLatitude?: number;
   currentLongitude?: number;
   locationUpdatedAt?: string;

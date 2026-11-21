@@ -502,6 +502,9 @@ export function AppProvider({ children }: PropsWithChildren) {
         availability: role === "worker" ? "Available" : undefined,
         verificationStatus: role === "worker" ? currentUser.verificationStatus ?? "Pending Verification" : undefined,
         preferredRadiusKm: role === "worker" ? currentUser.preferredRadiusKm ?? 5 : undefined,
+        serviceAreaLatitude: role === "worker" ? currentUser.serviceAreaLatitude : undefined,
+        serviceAreaLongitude: role === "worker" ? currentUser.serviceAreaLongitude : undefined,
+        serviceAreaUpdatedAt: role === "worker" ? currentUser.serviceAreaUpdatedAt : undefined,
         currentLatitude: role === "worker" ? currentUser.currentLatitude : undefined,
         currentLongitude: role === "worker" ? currentUser.currentLongitude : undefined
       };
@@ -552,6 +555,9 @@ export function AppProvider({ children }: PropsWithChildren) {
         validIdUrl: updates.validIdUrl,
         medicalCertificateUrl: updates.medicalCertificateUrl,
         policeClearanceUrl: updates.policeClearanceUrl,
+        serviceAreaLatitude: updates.serviceAreaLatitude,
+        serviceAreaLongitude: updates.serviceAreaLongitude,
+        serviceAreaUpdatedAt: updates.serviceAreaUpdatedAt,
         currentLatitude: updates.currentLatitude,
         currentLongitude: updates.currentLongitude,
         locationUpdatedAt: updates.locationUpdatedAt,

@@ -248,8 +248,8 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
     batch.set(doc(firestore, "publicProfiles", userId), toPublicProfile(mergedUser));
   }
 
-  // The private users document is the source of truth for discovery and
-  // check-in coordinates. A location-only refresh must not create or update a
+  // The private users document is the source of truth for service-area and
+  // check-in coordinates. A live-location-only refresh must not create or update a
   // secondary workerProfiles document: older tasker accounts may not have one,
   // and its stricter create rules would reject the entire check-in batch.
   if (currentUser.role === "worker" && !isPrivateLocationOnlyUpdate(sanitizedUpdates) && (

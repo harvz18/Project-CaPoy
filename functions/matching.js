@@ -1,7 +1,5 @@
 const EARTH_RADIUS_KM = 6371;
 const MATCH_POLICY_VERSION = 7;
-const DISCOVERY_LOCATION_MAX_AGE_MS = 30 * 60 * 1000;
-const DISCOVERY_MAX_DEVICE_ACCURACY_METERS = 200;
 const MATCH_POLICY_WEIGHTS = Object.freeze({
   skill: 50,
   proximityMinimum: 15,
@@ -38,15 +36,13 @@ function scoreWorkerForTask(task, worker, now = Date.now()) {
   const openTask = ["Finding Workers", "Applied"].includes(task.status);
   const expiry = task.expiresAt ? new Date(task.expiresAt).getTime() : undefined;
   const unexpiredTask = expiry === undefined || (Number.isFinite(expiry) && expiry > now);
-  const locationTimestamp = worker.locationUpdatedAt ? new Date(worker.locationUpdatedAt).getTime() : Number.NaN;
-  const locationAge = now - locationTimestamp;
-  const freshLocation = Number.isFinite(locationTimestamp) && locationAge >= 0 &&
-    locationAge <= DISCOVERY_LOCATION_MAX_AGE_MS;
-  const accurateLocation = worker.locationSource === "manual" || (
-    worker.locationSource === "device" && Number.isFinite(worker.locationAccuracyMeters) &&
-    worker.locationAccuracyMeters >= 0 && worker.locationAccuracyMeters <= DISCOVERY_MAX_DEVICE_ACCURACY_METERS
-  );
-  const distance = distanceKm(worker.currentLatitude, worker.currentLongitude, task.latitude, task.longitude);
+  // Smart Match deliberately uses a stable saved service area, never a live
+  // check-in/device reading. Existing profiles retain a read-only fallback to
+  // their former saved location until they save their service area once.
+  const hasSavedServiceArea = validCoordinates(worker.serviceAreaLatitude, worker.serviceAreaLongitude);
+  const serviceLatitude = hasSavedServiceArea ? worker.serviceAreaLatitude : worker.currentLatitude;
+  const serviceLongitude = hasSavedServiceArea ? worker.serviceAreaLongitude : worker.currentLongitude;
+  const distance = distanceKm(serviceLatitude, serviceLongitude, task.latitude, task.longitude);
   const radius = worker.preferredRadiusKm || 0;
   const activeAccount = !["suspended", "deleted"].includes(worker.accountStatus);
   reasons.push(approvedIdentity ? "Verified account." : "Unverified account.");
@@ -55,13 +51,11 @@ function scoreWorkerForTask(task, worker, now = Date.now()) {
   if (!capabilityMatch) reasons.push(`Missing required capability: ${missingCapabilities.join(", ")}.`);
   if (!openTask) reasons.push("Task is not open for applications.");
   if (!unexpiredTask) reasons.push("Task has expired.");
-  if (distance === undefined || radius <= 0) reasons.push("A valid worker location and preferred radius are required.");
-  if (!freshLocation) reasons.push("Worker location is stale. Refresh it before matching.");
-  if (!accurateLocation) reasons.push(`Device location accuracy must be within ${DISCOVERY_MAX_DEVICE_ACCURACY_METERS} meters.`);
+  if (distance === undefined || radius <= 0) reasons.push("A saved service-area pin and preferred radius are required.");
   if (distance !== undefined && radius > 0 && distance > radius) reasons.push(`Task is outside the worker's ${radius} km preferred radius.`);
   const eligible = worker.role === "worker" && activeAccount &&
     approvedIdentity && capabilityMatch && openTask && unexpiredTask &&
-    freshLocation && accurateLocation && distance !== undefined && radius > 0 && distance <= radius;
+    distance !== undefined && radius > 0 && distance <= radius;
   if (!eligible) return { eligible: false, score: 0, distanceKm: distance, reasons };
   const proximityRatio = Math.max(0, Math.min(1, 1 - (distance / radius)));
   const proximity = MATCH_POLICY_WEIGHTS.proximityMinimum + Math.round(
@@ -107,8 +101,6 @@ function matchingNotificationsEnabled(preferences) {
 }
 
 module.exports = {
-  DISCOVERY_LOCATION_MAX_AGE_MS,
-  DISCOVERY_MAX_DEVICE_ACCURACY_METERS,
   MATCH_POLICY_VERSION,
   MATCH_POLICY_WEIGHTS,
   buildMatchSnapshot,

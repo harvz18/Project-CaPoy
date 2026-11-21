@@ -14,7 +14,6 @@ import { usePullToRefresh } from "../src/hooks/usePullToRefresh";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
 import { filterAndSortRankedJobs, getAvailableJobs, getJobCategories, JobSort } from "../src/domain/jobDiscovery";
 import { formatRequiredCapabilities, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../src/domain/taskMarketplace";
-import { captureForegroundLocation } from "../src/services/locationService";
 import { Task } from "../src/types";
 import { formatDistance, getDiscoveryLocationIssue } from "../src/utils/location";
 import { formatRelativeTime } from "../src/utils/relativeTime";
@@ -45,12 +44,11 @@ const JOB_PAGE_SIZE = 10;
 export default function JobsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { tasks, acceptTask, currentUser, getUserById, updateProfile, actionLoading, error, retryDataSync } = useApp();
+  const { tasks, acceptTask, currentUser, getUserById, actionLoading, error, retryDataSync } = useApp();
   const { onRefresh, refreshing } = usePullToRefresh(retryDataSync);
   const [activeFilter, setActiveFilter] = useState("");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<JobSort>("recommended");
-  const [locationMessage, setLocationMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [applicationsExpanded, setApplicationsExpanded] = useState(false);
   const [visibleJobCount, setVisibleJobCount] = useState(JOB_PAGE_SIZE);
@@ -91,23 +89,6 @@ export default function JobsScreen() {
     }
   }
 
-  async function refreshLocation() {
-    try {
-      setLocationMessage("");
-      const captured = await captureForegroundLocation();
-      await updateProfile({
-        currentLatitude: captured.latitude,
-        currentLongitude: captured.longitude,
-        locationUpdatedAt: captured.capturedAt,
-        locationAccuracyMeters: captured.accuracyMeters,
-        locationSource: captured.source
-      });
-      setLocationMessage("Location refreshed. Recommendations have been re-ranked.");
-    } catch (locationError) {
-      setLocationMessage(locationError instanceof Error ? locationError.message : "Unable to refresh location.");
-    }
-  }
-
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <AppHeader />
@@ -119,10 +100,13 @@ export default function JobsScreen() {
       >
         <View style={styles.mapPanel}>
           <LocationMap
-            center={currentUser?.currentLatitude !== undefined && currentUser.currentLongitude !== undefined ? { latitude: currentUser.currentLatitude, longitude: currentUser.currentLongitude } : undefined}
+            center={currentUser?.serviceAreaLatitude !== undefined && currentUser.serviceAreaLongitude !== undefined
+              ? { latitude: currentUser.serviceAreaLatitude, longitude: currentUser.serviceAreaLongitude }
+              : currentUser?.currentLatitude !== undefined && currentUser.currentLongitude !== undefined
+                ? { latitude: currentUser.currentLatitude, longitude: currentUser.currentLongitude }
+                : undefined}
             markers={mapTasks.map((task) => ({ id: task.id, latitude: task.latitude as number, longitude: task.longitude as number, title: task.title }))}
             onMarkerPress={(marker) => setSelectedMapTaskId(marker.id)}
-            showUserLocation
             height={250}
           />
           <View style={styles.locationBadge}>
@@ -131,9 +115,6 @@ export default function JobsScreen() {
               <Text style={styles.locationText}>{discoveryLocationIssue ?? `${rankedAvailableJobs.filter(({ match }) => match.eligible).length} recommended jobs within your radius`}</Text>
             </View>
           </View>
-          <Pressable accessibilityRole="button" disabled={actionLoading} onPress={refreshLocation} style={styles.refreshButton}>
-            <Text style={styles.refreshButtonText}>{actionLoading ? "Refreshing..." : "Refresh my location"}</Text>
-          </Pressable>
           <TaskMapPreview
             onDismiss={() => setSelectedMapTaskId(undefined)}
             onViewTask={(task) => router.push(`/task/${task.id}`)}
@@ -141,8 +122,6 @@ export default function JobsScreen() {
             task={selectedMapTask}
           />
         </View>
-        {locationMessage ? <Text style={styles.locationMessage}>{locationMessage}</Text> : null}
-
         <View style={styles.searchSection}>
           <TextInput
             accessibilityLabel="Search jobs"
