@@ -11,6 +11,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import LocationMap from "../src/components/LocationMap";
 import { SmartMatchBadge } from "../src/components/SmartMatchBadge";
 import { StatusBadge } from "../src/components/StatusBadge";
+import { TaskMapPreview } from "../src/components/TaskMapPreview";
 import { useApp } from "../src/context/AppContext";
 import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
@@ -51,6 +52,7 @@ export default function WorkerDashboardScreen() {
   const [mapOverlayMapReady, setMapOverlayMapReady] = useState(false);
   const [mapOverlayOrigin, setMapOverlayOrigin] = useState<MapOverlayRect>();
   const [mapOverlayViewport, setMapOverlayViewport] = useState<{ width: number; height: number }>();
+  const [selectedMapTaskId, setSelectedMapTaskId] = useState<string>();
   const [actionMessage, setActionMessage] = useState("");
   const [tabRowWidth, setTabRowWidth] = useState(0);
   const tabPosition = useRef(new Animated.Value(0)).current;
@@ -264,6 +266,7 @@ export default function WorkerDashboardScreen() {
   const workerMapMarkers = postedTasks.flatMap((task) => task.latitude !== undefined && task.longitude !== undefined
     ? [{ id: task.id, latitude: task.latitude, longitude: task.longitude, title: task.title }]
     : []);
+  const selectedMapTask = postedTasks.find((task) => task.id === selectedMapTaskId);
 
   async function handleQuickApply(task: Task) {
     try {
@@ -419,6 +422,7 @@ export default function WorkerDashboardScreen() {
             center={workerMapCenter}
             interactive
             markers={workerMapMarkers}
+            onMarkerPress={(marker) => setSelectedMapTaskId(marker.id)}
             showUserLocation
             showLayerSwitcher={false}
             height={208}
@@ -429,6 +433,12 @@ export default function WorkerDashboardScreen() {
           <Pressable accessibilityLabel="Open expanded map" accessibilityRole="button" onPress={openMapOverlay} style={styles.expandMapButton}>
             <Text style={styles.expandMapButtonText}>Expand map</Text>
           </Pressable>
+          <TaskMapPreview
+            onDismiss={() => setSelectedMapTaskId(undefined)}
+            onViewTask={(task) => router.push(`/task/${task.id}`)}
+            style={styles.mapTaskPreview}
+            task={selectedMapTask}
+          />
         </View>
 
         <View style={styles.sectionHeader}>
@@ -550,6 +560,7 @@ export default function WorkerDashboardScreen() {
                     fitToMarkers
                     interactive
                     markers={workerMapMarkers}
+                    onMarkerPress={(marker) => setSelectedMapTaskId(marker.id)}
                     showUserLocation
                     expandedControls
                     height={mapOverlayTarget.height}
@@ -564,6 +575,15 @@ export default function WorkerDashboardScreen() {
                       <Feather accessibilityElementsHidden color="#BA1A1A" name="x" size={25} />
                     </Pressable>
                   </View>
+                  <TaskMapPreview
+                    onDismiss={() => setSelectedMapTaskId(undefined)}
+                    onViewTask={(task) => {
+                      closeMapOverlay();
+                      router.push(`/task/${task.id}`);
+                    }}
+                    style={styles.mapOverlayTaskPreview}
+                    task={selectedMapTask}
+                  />
                 </>
               ) : (
                 <View accessibilityLabel="Expanding map" accessibilityRole="progressbar" style={styles.mapOverlayPlaceholder} />
@@ -843,13 +863,15 @@ const styles = StyleSheet.create({
   statCard: { flex: 1, borderRadius: 12, padding: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant },
   statValue: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   statLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 4 },
-  mapPanel: { height: 208, borderRadius: 12, overflow: "hidden", backgroundColor: "#DDEDEA", elevation: 2 },
+  mapPanel: { height: 208, borderRadius: 12, overflow: "hidden", position: "relative", backgroundColor: "#DDEDEA", elevation: 2 },
+  mapTaskPreview: { position: "absolute", left: 12, right: 116, top: 12, zIndex: 3 },
   mapOverlayRoot: { flex: 1 },
   mapOverlayFill: { position: "absolute", inset: 0 },
   mapOverlayBackdrop: { position: "absolute", inset: 0, backgroundColor: "rgba(35,43,48,0.14)" },
   mapOverlaySurface: { position: "absolute", overflow: "hidden", borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.72)", backgroundColor: "#FFFFFF", shadowColor: "#111827", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 10 },
   mapOverlayPlaceholder: { flex: 1, backgroundColor: "#FFFFFF" },
   mapOverlayCloseWrap: { position: "absolute", right: 12, top: 12 },
+  mapOverlayTaskPreview: { position: "absolute", bottom: 16, left: 16, right: 76, zIndex: 3 },
   mapGrid: { flex: 1, backgroundColor: "#E7F3F0" },
   mapLineHorizontal: { position: "absolute", left: -20, right: -20, top: 58, height: 14, backgroundColor: "#C8DBD7", transform: [{ rotate: "-10deg" }] },
   mapLineVertical: { position: "absolute", top: -20, bottom: -20, left: "56%", width: 16, backgroundColor: "#D6C29E", transform: [{ rotate: "18deg" }] },

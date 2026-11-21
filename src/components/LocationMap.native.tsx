@@ -61,7 +61,8 @@ function markerPin(
   ViewAnnotation: typeof import("@maplibre/maplibre-react-native").ViewAnnotation,
   marker: LocationMarker,
   interactive: boolean,
-  onSelectCoordinate?: (coordinate: MapCoordinate) => void
+  onSelectCoordinate?: (coordinate: MapCoordinate) => void,
+  onMarkerPress?: (marker: LocationMarker) => void
 ) {
   return (
     <ViewAnnotation
@@ -76,11 +77,22 @@ function markerPin(
       }) : undefined}
       title={marker.title ?? "Map pin"}
     >
-      <View
-        accessibilityLabel={marker.title ?? "Map pin"}
-        accessibilityRole="image"
-        style={[styles.pin, { backgroundColor: marker.color ?? "#005C55" }]}
-      />
+      {onMarkerPress ? (
+        <Pressable
+          accessibilityLabel={`Open ${marker.title ?? "task"}`}
+          accessibilityRole="button"
+          hitSlop={10}
+          onPress={() => onMarkerPress(marker)}
+        >
+          <View style={[styles.pin, { backgroundColor: marker.color ?? "#005C55" }]} />
+        </Pressable>
+      ) : (
+        <View
+          accessibilityLabel={marker.title ?? "Map pin"}
+          accessibilityRole="image"
+          style={[styles.pin, { backgroundColor: marker.color ?? "#005C55" }]}
+        />
+      )}
     </ViewAnnotation>
   );
 }
@@ -99,7 +111,7 @@ function safeJson(value: unknown) {
   return JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
 }
 
-function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers, connectMarkers, mapLayer, mapTilerApiKey, expandedControls = false }: LocationMapProps & { mapLayer: MapLayer; mapTilerApiKey?: string }) {
+function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers, connectMarkers, mapLayer, mapTilerApiKey, expandedControls = false, onMarkerPress }: LocationMapProps & { mapLayer: MapLayer; mapTilerApiKey?: string }) {
   const mapData = safeJson({
     center,
     connectMarkers,
@@ -109,7 +121,8 @@ function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers,
     radiusMeters,
     mapLayer,
     mapTilerApiKey,
-    expandedControls
+    expandedControls,
+    markerPressEnabled: Boolean(onMarkerPress)
   });
 
   return `<!doctype html>
@@ -152,6 +165,7 @@ function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers,
           color: '#FFFFFF', fillColor: marker.color || '#005C55', fillOpacity: 1, radius: 10, weight: 3
         }).addTo(map);
         if (marker.title) pin.bindTooltip(String(marker.title), { direction: 'top' });
+        if (data.markerPressEnabled) pin.on('click', () => sendMarker(marker));
         markerPoints.push([marker.latitude, marker.longitude]);
         if (Number.isFinite(marker.accuracyMeters) && marker.accuracyMeters > 0) {
           L.circle([marker.latitude, marker.longitude], { color: marker.color || '#2563EB', fillOpacity: 0.08, radius: marker.accuracyMeters, weight: 1 }).addTo(map);
@@ -178,17 +192,25 @@ function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers,
       function sendCoordinate(point) {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'coordinate', latitude: point.lat, longitude: point.lng }));
       }
+      function sendMarker(marker) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'marker', markerId: String(marker.id) }));
+      }
     </script>
   </body>
 </html>`;
 }
 
-function LeafletMapFallback({ center, markers = [], height, interactive = false, showLayerSwitcher = true, expandedControls = false, onSelectCoordinate, mapLayer, mapTilerApiKey, mapError, onMapError, onSelectMapLayer, ...mapProps }: LocationMapProps & { mapLayer: MapLayer; mapTilerApiKey?: string; mapError: string; onMapError: (message: string) => void; onSelectMapLayer: (layer: MapLayer) => void }) {
+function LeafletMapFallback({ center, markers = [], height, interactive = false, showLayerSwitcher = true, expandedControls = false, onSelectCoordinate, onMarkerPress, mapLayer, mapTilerApiKey, mapError, onMapError, onSelectMapLayer, ...mapProps }: LocationMapProps & { mapLayer: MapLayer; mapTilerApiKey?: string; mapError: string; onMapError: (message: string) => void; onSelectMapLayer: (layer: MapLayer) => void }) {
   const webViewRef = useRef<ComponentRef<typeof WebView>>(null);
+  const onMarkerPressRef = useRef(onMarkerPress);
   const html = useMemo(
-    () => leafletHtml({ center, expandedControls, interactive, markers, mapLayer: "street", mapTilerApiKey, ...mapProps }),
-    [center?.latitude, center?.longitude, expandedControls, interactive, JSON.stringify(markers), mapProps.connectMarkers, mapProps.fitToMarkers, mapProps.radiusMeters, mapTilerApiKey]
+    () => leafletHtml({ center, expandedControls, interactive, markers, mapLayer: "street", mapTilerApiKey, onMarkerPress, ...mapProps }),
+    [center?.latitude, center?.longitude, expandedControls, interactive, JSON.stringify(markers), Boolean(onMarkerPress), mapProps.connectMarkers, mapProps.fitToMarkers, mapProps.radiusMeters, mapTilerApiKey]
   );
+
+  useEffect(() => {
+    onMarkerPressRef.current = onMarkerPress;
+  }, [onMarkerPress]);
 
   useEffect(() => {
     webViewRef.current?.postMessage(JSON.stringify({ type: "set-map-layer", layer: mapLayer }));
@@ -203,9 +225,13 @@ function LeafletMapFallback({ center, markers = [], height, interactive = false,
         onLoadEnd={() => webViewRef.current?.postMessage(JSON.stringify({ type: "set-map-layer", layer: mapLayer }))}
         onMessage={(event) => {
           try {
-            const message = JSON.parse(event.nativeEvent.data) as { type?: string; layer?: string; latitude?: unknown; longitude?: unknown };
+            const message = JSON.parse(event.nativeEvent.data) as { type?: string; layer?: string; latitude?: unknown; longitude?: unknown; markerId?: unknown };
             if (message.type === "coordinate" && typeof message.latitude === "number" && typeof message.longitude === "number") {
               onSelectCoordinate?.({ latitude: message.latitude, longitude: message.longitude });
+            }
+            if (message.type === "marker" && typeof message.markerId === "string") {
+              const marker = markers.find((item) => item.id === message.markerId);
+              if (marker) onMarkerPressRef.current?.(marker);
             }
             if (message.type === "tile-error" && message.layer === "satellite") {
               onMapError("Satellite imagery could not load. You can return to Street view.");
@@ -235,7 +261,8 @@ export default function LocationMap({
   showUserLocation = false,
   showLayerSwitcher = true,
   expandedControls = false,
-  onSelectCoordinate
+  onSelectCoordinate,
+  onMarkerPress
 }: LocationMapProps) {
   const [mapLayer, setMapLayer] = useState<MapLayer>("street");
   const [mapError, setMapError] = useState("");
@@ -262,6 +289,7 @@ export default function LocationMap({
       mapTilerApiKey={mapTilerApiKey}
       mapError={mapError}
       onMapError={setMapError}
+      onMarkerPress={onMarkerPress}
       onSelectMapLayer={selectMapLayer}
       onSelectCoordinate={onSelectCoordinate}
       radiusMeters={radiusMeters}
@@ -377,7 +405,7 @@ export default function LocationMap({
             <Layer paint={{ "line-color": "#2563EB", "line-dasharray": [2, 2], "line-width": 3 }} type="line" />
           </GeoJSONSource>
         ) : null}
-        {markers.map((marker) => markerPin(ViewAnnotation, marker, interactive, onSelectCoordinate))}
+        {markers.map((marker) => markerPin(ViewAnnotation, marker, interactive, onSelectCoordinate, onMarkerPress))}
       </Map>
       <Text accessibilityElementsHidden pointerEvents="none" style={styles.attribution}>
         {mapTilerApiKey ? mapTilerAttribution : osmAttribution}

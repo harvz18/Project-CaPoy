@@ -32,7 +32,8 @@ export default function LocationMap({
   connectMarkers = false,
   showLayerSwitcher = true,
   expandedControls = false,
-  onSelectCoordinate
+  onSelectCoordinate,
+  onMarkerPress
 }: LocationMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -40,6 +41,7 @@ export default function LocationMap({
   const markerLayerRef = useRef<L.LayerGroup | null>(null);
   const radiusLayerRef = useRef<L.Circle | null>(null);
   const onSelectRef = useRef(onSelectCoordinate);
+  const onMarkerPressRef = useRef(onMarkerPress);
   const [mapLayer, setMapLayer] = useState<MapLayer>("street");
   const [mapError, setMapError] = useState("");
   const mapTilerApiKey = Constants.expoConfig?.extra?.mapTilerApiKey?.trim();
@@ -55,6 +57,10 @@ export default function LocationMap({
   useEffect(() => {
     onSelectRef.current = onSelectCoordinate;
   }, [onSelectCoordinate]);
+
+  useEffect(() => {
+    onMarkerPressRef.current = onMarkerPress;
+  }, [onMarkerPress]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -171,6 +177,9 @@ export default function LocationMap({
           const coordinate = pin.getLatLng();
           onSelectRef.current?.({ latitude: coordinate.lat, longitude: coordinate.lng });
         });
+      }
+      if (onMarkerPressRef.current) {
+        pin.on("click", () => onMarkerPressRef.current?.(marker));
       }
       pin.addTo(layer);
       if (Number.isFinite(marker.accuracyMeters) && (marker.accuracyMeters as number) > 0) {

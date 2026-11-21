@@ -6,6 +6,7 @@ import { AppHeader } from "../src/components/AppHeader";
 import { interactiveCardShadow } from "../src/styles";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import LocationMap from "../src/components/LocationMap";
+import { TaskMapPreview } from "../src/components/TaskMapPreview";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { SmartMatchBadge } from "../src/components/SmartMatchBadge";
 import { useApp } from "../src/context/AppContext";
@@ -51,6 +52,7 @@ export default function JobsScreen() {
   const [actionMessage, setActionMessage] = useState("");
   const [applicationsExpanded, setApplicationsExpanded] = useState(false);
   const [visibleJobCount, setVisibleJobCount] = useState(JOB_PAGE_SIZE);
+  const [selectedMapTaskId, setSelectedMapTaskId] = useState<string>();
   const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
   const availableTasks = getAvailableJobs(postedTasks, currentUser?.id ?? "");
   const appliedTasks = tasks.filter(
@@ -66,6 +68,8 @@ export default function JobsScreen() {
     : [];
   const visibleJobs = rankedJobs.slice(0, visibleJobCount);
   const discoveryLocationIssue = getDiscoveryLocationIssue(currentUser);
+  const mapTasks = availableTasks.filter((task) => task.latitude !== undefined && task.longitude !== undefined);
+  const selectedMapTask = mapTasks.find((task) => task.id === selectedMapTaskId);
 
   useEffect(() => {
     setVisibleJobCount(JOB_PAGE_SIZE);
@@ -106,7 +110,8 @@ export default function JobsScreen() {
         <View style={styles.mapPanel}>
           <LocationMap
             center={currentUser?.currentLatitude !== undefined && currentUser.currentLongitude !== undefined ? { latitude: currentUser.currentLatitude, longitude: currentUser.currentLongitude } : undefined}
-            markers={availableTasks.flatMap((task) => task.latitude !== undefined && task.longitude !== undefined ? [{ id: task.id, latitude: task.latitude, longitude: task.longitude, title: task.title }] : [])}
+            markers={mapTasks.map((task) => ({ id: task.id, latitude: task.latitude as number, longitude: task.longitude as number, title: task.title }))}
+            onMarkerPress={(marker) => setSelectedMapTaskId(marker.id)}
             showUserLocation
             height={250}
           />
@@ -119,6 +124,12 @@ export default function JobsScreen() {
           <Pressable accessibilityRole="button" disabled={actionLoading} onPress={refreshLocation} style={styles.refreshButton}>
             <Text style={styles.refreshButtonText}>{actionLoading ? "Refreshing..." : "Refresh my location"}</Text>
           </Pressable>
+          <TaskMapPreview
+            onDismiss={() => setSelectedMapTaskId(undefined)}
+            onViewTask={(task) => router.push(`/task/${task.id}`)}
+            style={styles.mapTaskPreview}
+            task={selectedMapTask}
+          />
         </View>
         {locationMessage ? <Text style={styles.locationMessage}>{locationMessage}</Text> : null}
 
@@ -301,7 +312,8 @@ function getApplicationMessage(status: Task["status"]) {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
   content: { paddingBottom: 104 },
-  mapPanel: { minHeight: 250, overflow: "hidden", backgroundColor: "#DDEDEA", elevation: 2 },
+  mapPanel: { minHeight: 250, overflow: "hidden", position: "relative", backgroundColor: "#DDEDEA", elevation: 2 },
+  mapTaskPreview: { position: "absolute", bottom: 12, left: 16, right: 132, zIndex: 3 },
   mapGrid: { flex: 1, backgroundColor: "#E7F3F0" },
   mapLineHorizontal: { position: "absolute", left: -20, right: -20, top: 92, height: 18, backgroundColor: "#C8DBD7", transform: [{ rotate: "-10deg" }] },
   mapLineVertical: { position: "absolute", top: -20, bottom: -20, left: "56%", width: 20, backgroundColor: "#D6C29E", transform: [{ rotate: "18deg" }] },

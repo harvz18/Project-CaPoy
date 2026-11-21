@@ -19,4 +19,6 @@ export type LocationMapProps = {
   showLayerSwitcher?: boolean;
   expandedControls?: boolean;
   onSelectCoordinate?: (coordinate: MapCoordinate) => void;
+  /** Called when a non-editing map pin is selected (for example, a nearby task). */
+  onMarkerPress?: (marker: LocationMarker) => void;
 };
