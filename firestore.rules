@@ -215,6 +215,15 @@ service cloud.firestore {
         && !('identityLockedAt' in profileData);
     }
 
+    // Firebase Authentication, not a client profile write, is the authority
+    // for phone ownership. The trusted callable Function may set the verified
+    // fields through the Admin SDK after inspecting Firebase Auth.
+    function validInitialPhoneVerificationState(profileData) {
+      return (!('phoneVerified' in profileData) || profileData.phoneVerified == false)
+        && !('verifiedPhoneNumber' in profileData)
+        && !('phoneVerifiedAt' in profileData);
+    }
+
     function validPrivateLocation(profileData) {
       return profileData.currentLatitude is number
         && profileData.currentLatitude >= -90
@@ -1189,6 +1198,7 @@ service cloud.firestore {
       allow create: if validOwnUserDocument(userId)
         && validIdentityText(request.resource.data)
         && validInitialIdentityState(request.resource.data)
+        && validInitialPhoneVerificationState(request.resource.data)
         && request.resource.data.accountStatus == 'active'
         && (
           (request.resource.data.role == 'worker'

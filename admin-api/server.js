@@ -6,6 +6,7 @@ const { authorityFromClaims, buildAccountStatusChange, hasSuperadminAuthority, i
 const { buildIdentityReview } = require("../functions/identity");
 const { DEFAULT_RATE_BASIS_POINTS, buildFeeSnapshot } = require("../functions/revenue");
 const { DOCUMENT_KINDS, calculateVerificationProgress, documentReviewsForSubmission, requestFieldByKind } = require("../functions/verificationProgress");
+const { buildVerifiedPhoneUpdate } = require("./phoneAuth");
 
 class ApiError extends Error {
   constructor(status, message) {
@@ -37,6 +38,7 @@ function withIds(snapshot) {
 function allowedOrigins() {
   return new Set([
     "https://tasklink-fb027.web.app",
+    "https://tasklink-web-oeoo.onrender.com",
     "https://tasklink-web-ixue.onrender.com",
     ...(process.env.ADMIN_PORTAL_ORIGINS || "").split(",")
   ].map((origin) => origin.trim()).filter(Boolean));
@@ -235,6 +237,32 @@ async function refreshVerificationProgress({ db, claims }) {
     transaction.set(db.collection("publicProfiles").doc(claims.uid), { ...progressFields, updatedAt: now }, { merge: true });
   });
   return { ok: true };
+}
+
+/** Creates a short-lived native Auth session for the already verified caller's UID. */
+async function createPhoneVerificationNativeSession({ claims }) {
+  const auth = services().auth;
+  const user = await auth.getUser(claims.uid);
+  if (user.disabled) throw new ApiError(403, "This account is disabled.");
+  return { customToken: await auth.createCustomToken(claims.uid) };
+}
+
+/** Derives the profile flag from Firebase Admin Auth, never client input. */
+async function syncPhoneVerification({ db, claims }) {
+  const [authUser, userSnapshot] = await Promise.all([
+    services().auth.getUser(claims.uid),
+    db.collection("users").doc(claims.uid).get()
+  ]);
+  if (!userSnapshot.exists) throw new ApiError(404, "User profile not found.");
+
+  let update;
+  try {
+    update = buildVerifiedPhoneUpdate(userSnapshot.data().mobileNumber, authUser.phoneNumber, nowIso());
+  } catch (error) {
+    throw new ApiError(409, error instanceof Error ? error.message : "Unable to confirm this phone number.");
+  }
+  await userSnapshot.ref.update(update);
+  return { phoneNumber: update.verifiedPhoneNumber };
 }
 
 /** Completes a legacy approval without allowing any approved evidence to change. */
@@ -705,6 +733,8 @@ function createServer() {
   app.post("/api/verification/submit", route("user", submitVerificationRequest));
   app.post("/api/verification/progress/refresh", route("user", refreshVerificationProgress));
   app.post("/api/verification/complete-missing", route("user", submitMissingVerificationDocuments));
+  app.post("/api/phone-verification/native-session", route("user", createPhoneVerificationNativeSession));
+  app.post("/api/phone-verification/sync", route("user", syncPhoneVerification));
   app.post("/api/admin/profiles/lookup", route("admin", profileLookup));
   app.get("/api/admin/verifications/pending", route("admin", async ({ db }) => {
     const snapshot = await db.collection("verificationRequests").where("status", "==", "Pending Verification").limit(100).get();

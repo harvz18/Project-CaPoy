@@ -372,6 +372,9 @@ test("users cannot forge ratings, verification, or private fields in public prof
     updateDoc(doc(workerDb, "users", WORKER_ID), { verificationStatus: "Rejected" })
   );
   await assertFails(
+    updateDoc(doc(workerDb, "users", WORKER_ID), { phoneVerified: true })
+  );
+  await assertFails(
     updateDoc(doc(workerDb, "publicProfiles", WORKER_ID), { address: "Private address" })
   );
   await assertFails(

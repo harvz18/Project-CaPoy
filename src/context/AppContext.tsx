@@ -82,6 +82,7 @@ import { getGeofenceCheck, hasValidCoordinates } from "../utils/location";
 import { toUserFacingError } from "../utils/userFacingError";
 import { AddressDetails } from "../utils/address";
 import { isMarketplaceVerified, verificationRequiredMessage } from "../domain/verificationPolicy";
+import { normalizePhilippineMobileNumber } from "../domain/phoneVerification";
 
 type RegisterInput = {
   fullName: string;
@@ -397,13 +398,14 @@ export function AppProvider({ children }: PropsWithChildren) {
     let createdUser: UserProfile | undefined;
     await runAction(async () => {
       validateRegistration(input);
-      const authSession = await registerWithMobileNumber(input.mobileNumber, input.password);
+      const mobileNumber = normalizePhilippineMobileNumber(input.mobileNumber)!;
+      const authSession = await registerWithMobileNumber(mobileNumber, input.password);
       try {
         const user = await saveUserProfile({
           id: authSession.localId,
           role: input.role,
           fullName: input.fullName.trim(),
-          mobileNumber: input.mobileNumber.trim(),
+          mobileNumber,
           address: input.address.trim(),
           region: input.addressDetails?.region,
           regionCode: input.addressDetails?.regionCode,
@@ -971,8 +973,8 @@ function validateRegistration(input: RegisterInput) {
     throw new Error("Full name is required.");
   }
 
-  if (input.mobileNumber.replace(/\D/g, "").length < 10) {
-    throw new Error("Enter a valid mobile number.");
+  if (!normalizePhilippineMobileNumber(input.mobileNumber)) {
+    throw new Error("Enter a Philippine mobile number as 09XXXXXXXXX or +639XXXXXXXXX.");
   }
 
   if (!input.address.trim()) {

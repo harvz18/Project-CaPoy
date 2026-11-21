@@ -124,6 +124,9 @@ export type UserProfile = {
   identityApprovedBy?: string;
   identityLockedAt?: string;
   phoneVerified?: boolean;
+  /** Written only by a trusted server after Firebase Auth confirms ownership. */
+  verifiedPhoneNumber?: string;
+  phoneVerifiedAt?: string;
   thirdPartyProvider?: "none" | "google";
   currentLatitude?: number;
   currentLongitude?: number;

@@ -443,7 +443,7 @@ export default function ProfileScreen() {
           />
           <Field
             editable={false}
-            label="Mobile Number (verified identity)"
+            label="Mobile Number"
             value={mobileNumber}
             onChangeText={setMobileNumber}
             keyboardType="phone-pad"
@@ -485,6 +485,21 @@ export default function ProfileScreen() {
           </Pressable>
           {currentUser?.activeTaskId ? <Text style={styles.helperText}>Finish the active task before switching account mode.</Text> : null}
         </SettingsCard>
+
+        {currentUser ? <SettingsCard title="Mobile Verification">
+          <View style={styles.verificationStatusRow}>
+            <Text style={styles.settingTitle}>Status</Text>
+            <View style={styles.verificationBadge}>
+              <Text style={styles.verificationBadgeText}>{currentUser.phoneVerified ? "Verified" : "Not verified"}</Text>
+            </View>
+          </View>
+          <Text style={styles.helperText}>{currentUser.phoneVerified
+            ? "Firebase has verified the mobile number linked to this account."
+            : "Verify your saved mobile number with Firebase to add account protection."}</Text>
+          <Pressable accessibilityRole="button" onPress={() => router.push("/phone-verification" as Href)} style={styles.locationButton}>
+            <Text style={styles.locationButtonText}>{currentUser.phoneVerified ? "View mobile verification" : "Verify mobile number"}</Text>
+          </Pressable>
+        </SettingsCard> : null}
 
         {currentUser?.role === "worker" ? (
           <View style={styles.section}>
