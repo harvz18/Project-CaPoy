@@ -3,7 +3,7 @@ import { httpsCallable } from "firebase/functions";
 import { getDownloadURL, ref } from "firebase/storage";
 import { db, functions, storage } from "./firebase";
 import { getAdminApi, postAdminApi } from "./adminApi";
-import { AuditLog, BasicDashboardCounts, ModerationUser, Payment, PlatformFee, PlatformRevenueOverview, Profile, Rating, SuperadminOverview, Task, TaskMatch, VerificationDocumentKind, VerificationRequest } from "./types";
+import { AuditLog, BasicDashboardCounts, ModerationUser, Payment, PlatformFee, PlatformRevenueOverview, Profile, Rating, RevenueAnalyticsRangePreset, RevenueAnalyticsReport, SuperadminOverview, Task, TaskMatch, VerificationDocumentKind, VerificationRequest } from "./types";
 
 function requireServices() { if (!db || !functions) throw new Error("Firebase is not configured."); return { db, functions }; }
 function records<T>(snapshot: { docs: QueryDocumentSnapshot<DocumentData>[] }) { return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as T); }
@@ -57,6 +57,10 @@ export async function reviewPlatformFee(taskId: string, decision: "verified" | "
 }
 export async function getPlatformRevenueOverview() {
   return getAdminApi<PlatformRevenueOverview>("/api/revenue/overview");
+}
+export async function getRevenueAnalytics(preset: RevenueAnalyticsRangePreset) {
+  const callable = httpsCallable<{ preset: RevenueAnalyticsRangePreset }, RevenueAnalyticsReport>(requireServices().functions, "getAdminAnalytics");
+  return (await callable({ preset })).data;
 }
 export async function getPlatformFeeReceiptUrl(taskId: string, path: string): Promise<VerificationDocumentPreview> {
   const [prefix, pathTaskId, party, ...extra] = path.split("/");

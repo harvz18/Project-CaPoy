@@ -53,7 +53,6 @@ import { addRatingToFirestore, subscribeToRatings } from "../services/ratingServ
 import {
   applyToTask,
   cancelTaskInFirestore,
-  confirmCashPaymentReceipt,
   confirmGcashPaymentReceived,
   confirmGcashPaymentSent,
   createTaskInFirestore,
@@ -86,6 +85,13 @@ import { isMarketplaceVerified, verificationRequiredMessage } from "../domain/ve
 import { normalizePhilippineMobileNumber, phoneVerificationErrorMessage } from "../domain/phoneVerification";
 import { claimSmsRegistrationVerification } from "../services/trustedApi";
 import { acceptTaskerApplication } from "../services/taskAcceptanceService";
+import { checkTaskFeeProgressionEligibility } from "../services/platformRevenueService";
+import {
+  acknowledgeCashPaymentReceived,
+  CashPinIssueResult,
+  markCashPaymentPaid as markCashPaymentPaidInApi,
+  verifyCashPaymentPin as verifyCashPaymentPinInApi
+} from "../services/cashPaymentService";
 
 type RegisterInput = {
   fullName: string;
@@ -164,7 +170,9 @@ type AppContextValue = {
   updateTaskStatus: (taskId: string, status: TaskStatus, workerId?: string, checkInLocation?: CapturedLocation) => Promise<void>;
   submitPaymentProof: (taskId: string, proofOfPaymentText: string, proofOfPaymentUrl?: string) => Promise<void>;
   submitWorkerPaymentProof: (taskId: string, proofOfPaymentText: string, proofOfPaymentUrl?: string) => Promise<void>;
-  confirmCashPayment: (taskId: string) => Promise<void>;
+  markCashPaymentPaid: (taskId: string) => Promise<void>;
+  acknowledgeCashPayment: (taskId: string) => Promise<CashPinIssueResult>;
+  verifyCashPaymentPin: (taskId: string, pin: string) => Promise<void>;
   submitGcashReceivingDetails: (taskId: string, mobileNumber: string, qrPath?: string, removeQr?: boolean) => Promise<void>;
   confirmGcashPaymentSent: (taskId: string, reference?: string, proofPath?: string) => Promise<void>;
   confirmGcashPaymentReceived: (taskId: string) => Promise<void>;
@@ -700,6 +708,19 @@ export function AppProvider({ children }: PropsWithChildren) {
       const nextWorkerId = workerId ?? task?.workerId ?? (currentUser?.role === "worker" ? currentUser.id : undefined);
       assertTaskTransition(task, status, currentUser, nextWorkerId);
 
+      if (status === "In Progress" || status === "Finished") {
+        // The Firestore rule remains the authority. This preflight improves the
+        // message when the trusted API is available, but a temporary API outage
+        // must not strand legacy/no-fee tasks that the rule can still allow.
+        try {
+          const eligibility = await checkTaskFeeProgressionEligibility(taskId);
+          if (!eligibility.allowed) throw new Error(eligibility.message);
+        } catch (eligibilityError) {
+          const message = eligibilityError instanceof Error ? eligibilityError.message : "";
+          if (message.includes("TASKLINK service fee")) throw eligibilityError;
+        }
+      }
+
       if (status === "Accepted") {
         if (!nextWorkerId) throw new Error("Choose an active applicant before accepting a worker.");
         await acceptTaskerApplication(taskId, nextWorkerId);
@@ -756,10 +777,27 @@ export function AppProvider({ children }: PropsWithChildren) {
     });
   }
 
-  async function confirmCashPayment(taskId: string) {
+  async function markCashPaymentPaid(taskId: string) {
     await runAction(async () => {
-      if (!currentUser || currentUser.role !== "worker") throw new Error("Only the assigned worker can confirm cash receipt.");
-      await confirmCashPaymentReceipt(taskId, currentUser);
+      if (!currentUser || currentUser.role !== "client") throw new Error("Only the employer can confirm paying cash.");
+      await markCashPaymentPaidInApi(taskId);
+    });
+  }
+
+  async function acknowledgeCashPayment(taskId: string) {
+    let result: CashPinIssueResult | undefined;
+    await runAction(async () => {
+      if (!currentUser || currentUser.role !== "worker") throw new Error("Only the assigned tasker can confirm receiving cash.");
+      result = await acknowledgeCashPaymentReceived(taskId);
+    });
+    if (!result) throw new Error("Cash confirmation PIN was not available. Please try again.");
+    return result;
+  }
+
+  async function verifyCashPaymentPin(taskId: string, pin: string) {
+    await runAction(async () => {
+      if (!currentUser || currentUser.role !== "client") throw new Error("Only the employer can enter the cash confirmation PIN.");
+      await verifyCashPaymentPinInApi(taskId, pin);
     });
   }
 
@@ -994,7 +1032,9 @@ export function AppProvider({ children }: PropsWithChildren) {
       updateTaskStatus,
       submitPaymentProof,
       submitWorkerPaymentProof,
-      confirmCashPayment,
+      markCashPaymentPaid,
+      acknowledgeCashPayment,
+      verifyCashPaymentPin,
       submitGcashReceivingDetails,
       confirmGcashPaymentSent: confirmGcashPaymentSentForTask,
       confirmGcashPaymentReceived: confirmGcashPaymentReceivedForTask,

@@ -30,6 +30,16 @@ test("health is public and protected API data requires a bearer token", async ()
     assert.equal(protectedAcceptanceEligibility.status, 401);
     const protectedTaskAcceptance = await fetch(`http://127.0.0.1:${port}/api/tasks/accept-application`, { method: "POST" });
     assert.equal(protectedTaskAcceptance.status, 401);
+    const protectedPostingEligibility = await fetch(`http://127.0.0.1:${port}/api/revenue/fees/posting-eligibility`, { method: "POST" });
+    assert.equal(protectedPostingEligibility.status, 401);
+    const protectedProgressionEligibility = await fetch(`http://127.0.0.1:${port}/api/revenue/fees/progression-eligibility`, { method: "POST" });
+    assert.equal(protectedProgressionEligibility.status, 401);
+    const protectedCashPaid = await fetch(`http://127.0.0.1:${port}/api/payments/cash/mark-paid`, { method: "POST" });
+    assert.equal(protectedCashPaid.status, 401);
+    const protectedCashReceipt = await fetch(`http://127.0.0.1:${port}/api/payments/cash/acknowledge-receipt`, { method: "POST" });
+    assert.equal(protectedCashReceipt.status, 401);
+    const protectedCashPin = await fetch(`http://127.0.0.1:${port}/api/payments/cash/verify-pin`, { method: "POST" });
+    assert.equal(protectedCashPin.status, 401);
     const preflight = await fetch(`http://127.0.0.1:${port}/api/revenue/config`, {
       method: "OPTIONS",
       headers: { Origin: "https://tasklink-fb027.web.app" }

@@ -39,7 +39,7 @@ import {
   getAdminModerationUsers,
   getBasicDashboardCounts,
   getFeedbackCount,
-  getPlatformRevenueOverview,
+  getRevenueAnalytics,
   getSuperadminOverview,
   getVerificationDocumentUrl,
   loadPage,
@@ -59,7 +59,8 @@ import {
   BasicDashboardCounts,
   Payment,
   PlatformFee,
-  PlatformRevenueOverview,
+  RevenueAnalyticsRangePreset,
+  RevenueAnalyticsReport,
   Profile,
   Rating,
   Task,
@@ -416,30 +417,35 @@ function php(centavos: number) {
 }
 
 function RevenuePage() {
-  const [overview, setOverview] = useState<PlatformRevenueOverview | null>(null);
+  const [analytics, setAnalytics] = useState<RevenueAnalyticsReport | null>(null);
+  const [preset, setPreset] = useState<RevenueAnalyticsRangePreset>("7d");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
     setLoading(true); setError("");
-    try { setOverview(await getPlatformRevenueOverview()); }
+    try { setAnalytics(await getRevenueAnalytics(preset)); }
     catch (failure) { setError(errorText(failure)); }
     finally { setLoading(false); }
-  }, []);
+  }, [preset]);
   useEffect(() => { void load(); }, [load]);
   return <div className="page-stack">
-    <div className="page-heading"><div><h2>TASKLINK service-fee overview</h2><p>Only verified receipts are counted as collected revenue.</p></div><button className="button secondary" onClick={() => void load()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
-    {loading && !overview ? <SkeletonCards /> : null}
-    {error && !overview ? <ErrorState message={error} retry={() => void load()} /> : null}
-    {overview ? <>
+    <div className="page-heading"><div><h2>TASKLINK service-fee revenue</h2><p>Only administrator-verified service fees count as collected revenue. Worker wages and unverified receipts are excluded.</p></div><button className="button secondary" onClick={() => void load()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
+    <div className="row-actions">{(["1d", "3d", "7d", "30d"] as RevenueAnalyticsRangePreset[]).map((value) => <button key={value} className={`button ${preset === value ? "primary" : "secondary"}`} onClick={() => setPreset(value)} disabled={loading}>{value === "1d" ? "1 day" : value === "3d" ? "3 days" : value === "7d" ? "1 week" : "1 month"}</button>)}</div>
+    {loading && !analytics ? <SkeletonCards /> : null}
+    {error && !analytics ? <ErrorState message={error} retry={() => void load()} /> : null}
+    {analytics ? <>
+      <p className="subtle">{analytics.range.label} · Asia/Manila · generated {date(analytics.generatedAt)}</p>
       <section className="metric-grid">
-        <Metric label="Verified collected" value={php(overview.totalCollectedCentavos)} icon={<CheckCircle2 />} />
-        <Metric label="Awaiting review" value={php(overview.submittedForReviewCentavos)} icon={<ClipboardCheck />} />
-        <Metric label="Pending employer payment" value={php(overview.pendingPaymentCentavos)} icon={<FileText />} />
-        <Metric label="Fee-bearing completed tasks" value={overview.revenueGeneratingCompletedTasks} icon={<ListChecks />} />
+        <Metric label="Net retained" value={php(analytics.revenue.netRetainedRevenueCentavos)} icon={<CheckCircle2 />} />
+        <Metric label="Gross verified" value={php(analytics.revenue.grossVerifiedCollectionsCentavos)} icon={<CheckCircle2 />} />
+        <Metric label="Awaiting review" value={php(analytics.revenue.submittedForReviewCentavos)} icon={<ClipboardCheck />} />
+        <Metric label="Outstanding obligations" value={php(analytics.revenue.outstandingFeeObligationsCentavos)} icon={<FileText />} />
       </section>
       <section className="dashboard-grid">
-        <Panel title="Collected by month" description="Verified TASKLINK service fees."><Table headers={["Month", "Collected"]}>{overview.monthlyCollected.map((item) => <tr key={item.month}><td>{item.month}</td><td>{php(item.feeCentavos)}</td></tr>)}</Table>{!overview.monthlyCollected.length ? <EmptyState title="No verified service fees yet" /> : null}</Panel>
-        <Panel title="Fee amount by category" description="All created service-fee obligations."><Table headers={["Category", "Service-fee amount"]}>{overview.byCategory.map((item) => <tr key={item.category}><td>{item.category}</td><td>{php(item.feeCentavos)}</td></tr>)}</Table>{!overview.byCategory.length ? <EmptyState title="No service-fee records yet" /> : null}</Panel>
+        <Panel title="Fee obligations" description="Selected-period obligations and their current review state."><Table headers={["Metric", "Amount / count"]}><tr><td>Pending employer payment</td><td>{php(analytics.revenue.pendingServiceFeesCentavos)}</td></tr><tr><td>Rejected fee submissions</td><td>{php(analytics.revenue.rejectedFeesCentavos)}</td></tr><tr><td>Outstanding fees</td><td>{analytics.revenue.outstandingFeeObligations} · {php(analytics.revenue.outstandingFeeObligationsCentavos)}</td></tr><tr><td>Tasks generating fees</td><td>{analytics.revenue.feeGeneratingTasks}</td></tr><tr><td>Refunds / credits</td><td>{php(analytics.revenue.refundsCentavos)}</td></tr></Table></Panel>
+        <Panel title="Verified revenue by category" description="Only verified fee collections in the selected period."><Table headers={["Category", "Revenue"]}>{analytics.revenue.byCategory.map((item) => <tr key={item.category}><td>{item.category}</td><td>{php(item.feeCentavos)}</td></tr>)}</Table>{!analytics.revenue.byCategory.length ? <EmptyState title="No verified service fees yet" /> : null}</Panel>
+        <Panel title="Revenue by month" description="Verified TASKLINK service fees in the selected period."><Table headers={["Month", "Revenue"]}>{analytics.revenue.byMonth.map((item) => <tr key={item.month}><td>{item.month}</td><td>{php(item.feeCentavos)}</td></tr>)}</Table>{!analytics.revenue.byMonth.length ? <EmptyState title="No verified service fees yet" /> : null}</Panel>
+        <Panel title="Revenue by day" description="Net retained verified revenue after any recorded refunds or credits."><Table headers={["Date", "Fee tasks", "Net revenue"]}>{analytics.daily.map((item) => <tr key={item.date}><td>{item.date}</td><td>{item.feeObligations}</td><td>{php(item.netRetainedRevenueCentavos)}</td></tr>)}</Table></Panel>
       </section>
     </> : null}
   </div>;

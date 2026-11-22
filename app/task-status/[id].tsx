@@ -11,7 +11,7 @@ import { useApp } from "../../src/context/AppContext";
 import { formatPaymentMethod, formatRequiredCapabilities, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
 import { useForegroundLocationWatch } from "../../src/hooks/useForegroundLocationWatch";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
-import { Payment, PaymentStatus, Task, TaskLiveLocation, TaskStatus } from "../../src/types";
+import { Payment, PaymentStatus, PlatformFee, Task, TaskLiveLocation, TaskStatus } from "../../src/types";
 import {
   calculateDistanceKm,
   formatDistance,
@@ -27,6 +27,7 @@ import { subscribeToPayment } from "../../src/services/taskRepository";
 import { hasPendingTaskChange, summarizeTaskTermChanges } from "../../src/domain/taskTerms";
 import { getCancellationEligibility } from "../../src/domain/cancellation";
 import { clearTaskLiveLocation, publishTaskLiveLocation, subscribeToTaskLiveLocation } from "../../src/services/taskLiveLocationService";
+import { subscribeToPlatformFee } from "../../src/services/platformRevenueService";
 
 const palette = {
   background: "#F7FAF8",
@@ -52,7 +53,7 @@ export default function TaskStatusScreen() {
   const router = useRouter();
   const goBack = useTasklinkBack();
   const insets = useSafeAreaInsets();
-  const { acceptTask, actionLoading, cancelTask, clearError, confirmCashPayment, confirmGcashPaymentReceived, confirmGcashPaymentSent, currentUser, getUserById, ratings, reportGcashPaymentNotReceived, respondToTaskChangeRequest, submitGcashReceivingDetails, tasks, submitPaymentProof, submitWorkerPaymentProof, updateTaskStatus, withdrawApplication } = useApp();
+  const { acceptTask, acknowledgeCashPayment, actionLoading, cancelTask, clearError, confirmGcashPaymentReceived, confirmGcashPaymentSent, currentUser, getUserById, markCashPaymentPaid, ratings, reportGcashPaymentNotReceived, respondToTaskChangeRequest, submitGcashReceivingDetails, tasks, verifyCashPaymentPin, updateTaskStatus, withdrawApplication } = useApp();
   const task = tasks.find((item) => item.id === id);
   const taskClient = getUserById(task?.clientId) ?? (currentUser?.id === task?.clientId ? currentUser : undefined);
   const [actionWarning, setActionWarning] = useState("");
@@ -68,6 +69,7 @@ export default function TaskStatusScreen() {
   const [cancellationReason, setCancellationReason] = useState("");
   const [sharedWorkerLocation, setSharedWorkerLocation] = useState<TaskLiveLocation>();
   const [payment, setPayment] = useState<Payment>();
+  const [platformFee, setPlatformFee] = useState<PlatformFee>();
   const [gcashDetailsOpen, setGcashDetailsOpen] = useState(false);
   const [gcashMobileNumber, setGcashMobileNumber] = useState("");
   const [gcashDetailsConfirmed, setGcashDetailsConfirmed] = useState(false);
@@ -81,6 +83,10 @@ export default function TaskStatusScreen() {
   const [gcashProofFileName, setGcashProofFileName] = useState("");
   const [uploadingGcashProof, setUploadingGcashProof] = useState(false);
   const [gcashQrPreviewUri, setGcashQrPreviewUri] = useState("");
+  const [cashPin, setCashPin] = useState("");
+  const [cashPinExpiresAt, setCashPinExpiresAt] = useState("");
+  const [cashPinInput, setCashPinInput] = useState("");
+  const [cashPinClock, setCashPinClock] = useState(Date.now());
 
   // Task data is delivered by a Firestore listener, so it can arrive after this
   // screen's first render. Keep an already-uploaded local receipt, while also
@@ -92,12 +98,34 @@ export default function TaskStatusScreen() {
   }, [task?.proofOfPaymentUrl]);
 
   useEffect(() => {
-    if (!task?.id || task.paymentMethod !== "GCash link") {
+    if (!task?.id) {
       setPayment(undefined);
       return;
     }
     return subscribeToPayment(task.id, setPayment, () => setPayment(undefined));
-  }, [task?.id, task?.paymentMethod]);
+  }, [task?.id]);
+
+  useEffect(() => {
+    if (!cashPinExpiresAt) return;
+    const timer = setInterval(() => setCashPinClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [cashPinExpiresAt]);
+
+  useEffect(() => {
+    if (task?.paymentStatus === "Awaiting Worker Confirmation") return;
+    setCashPin("");
+    setCashPinExpiresAt("");
+    setCashPinInput("");
+  }, [task?.paymentStatus]);
+
+  useEffect(() => {
+    const canViewFee = currentUser?.role === "client" && currentUser.id === task?.clientId;
+    if (!task?.id || !canViewFee) {
+      setPlatformFee(undefined);
+      return;
+    }
+    return subscribeToPlatformFee(task.id, setPlatformFee, () => setPlatformFee(undefined));
+  }, [currentUser?.id, currentUser?.role, task?.clientId, task?.id]);
 
   useEffect(() => {
     if (!task?.id || !payment?.gcashQrPath) {
@@ -221,6 +249,11 @@ export default function TaskStatusScreen() {
     task.paymentStatus !== "Verified";
   const cancellationEligibility = currentUser ? getCancellationEligibility(task, currentUser) : { allowed: false as const, reason: "Sign in to cancel a task." };
   const canCancelTask = cancellationEligibility.allowed;
+  const selectedWorker = task.workerId ? getUserById(task.workerId) : undefined;
+  const clientCanViewPlatformFee = currentUser?.role === "client" && currentUser.id === task.clientId && Boolean(task.workerId) && Boolean(platformFee);
+  const platformFeeRequiresPayment = platformFee ? ["pending_payment", "rejected", "overdue"].includes(platformFee.status) : false;
+  const cashPinSecondsRemaining = cashPinExpiresAt ? Math.max(0, Math.ceil((Date.parse(cashPinExpiresAt) - cashPinClock) / 1000)) : 0;
+  const cashPinCountdown = `${Math.floor(cashPinSecondsRemaining / 60)}:${String(cashPinSecondsRemaining % 60).padStart(2, "0")}`;
 
   async function handlePrimaryAction() {
     if (!task) {
@@ -283,19 +316,6 @@ export default function TaskStatusScreen() {
     );
   }
 
-  async function handleSubmitPaymentProof() {
-    if (!task) {
-      return;
-    }
-
-    try {
-      setActionWarning("");
-      await submitPaymentProof(task.id, proofOfPaymentText, clientProofPath || undefined);
-    } catch (error) {
-      setActionWarning(error instanceof Error ? error.message : "Unable to submit payment proof.");
-    }
-  }
-
   function choosePhotoSource(title: string, allowPdf: boolean, onChoose: (source: UploadSource) => void) {
     if (Platform.OS === "web") {
       onChoose("library");
@@ -325,30 +345,37 @@ export default function TaskStatusScreen() {
     }
   }
 
-  async function handleConfirmCashPayment() {
+  async function handleMarkCashPaymentPaid() {
     if (!task) return;
     try {
       setActionWarning("");
-      await confirmCashPayment(task.id);
+      await markCashPaymentPaid(task.id);
     } catch (error) {
-      setActionWarning(error instanceof Error ? error.message : "Unable to confirm cash payment.");
+      setActionWarning(error instanceof Error ? error.message : "Unable to mark the cash payment as paid.");
     }
   }
 
-  async function handleUploadWorkerPaymentProof(source: UploadSource = "library") {
+  async function handleAcknowledgeCashPayment() {
     if (!task) return;
-    setUploadingWorkerProof(true);
-    setActionWarning("");
     try {
-      const uploaded = await pickAndUploadPaymentProof(task.id, "worker", source);
-      if (!uploaded) return;
-      await submitWorkerPaymentProof(task.id, workerProofOfPaymentText, uploaded.path);
-      setWorkerProofOfPaymentUrl(uploaded.path);
-      setWorkerProofFileName(uploaded.name);
+      setActionWarning("");
+      const issued = await acknowledgeCashPayment(task.id);
+      setCashPin(issued.pin);
+      setCashPinExpiresAt(issued.expiresAt);
+      setCashPinClock(Date.now());
     } catch (error) {
-      setActionWarning(error instanceof Error ? error.message : "Unable to upload the tasker receipt.");
-    } finally {
-      setUploadingWorkerProof(false);
+      setActionWarning(error instanceof Error ? error.message : "Unable to issue the cash confirmation PIN.");
+    }
+  }
+
+  async function handleVerifyCashPin() {
+    if (!task) return;
+    try {
+      setActionWarning("");
+      await verifyCashPaymentPin(task.id, cashPinInput);
+      setCashPinInput("");
+    } catch (error) {
+      setActionWarning(error instanceof Error ? error.message : "Unable to verify the cash confirmation PIN.");
     }
   }
 
@@ -663,6 +690,7 @@ export default function TaskStatusScreen() {
               {task.paymentMethod === "GCash link" ? (
                 <>
                   <Text style={styles.geoHint}>TaskLink does not process GCash payments. The employer pays the worker directly, then both participants confirm manually.</Text>
+                  <Text style={styles.geoHint}>This section is for the tasker’s full agreed wage. Any separate TASKLINK 5% service fee is shown independently below for the employer.</Text>
                   {currentUser?.role === "client" ? (
                     <>
                       {task.status === "Pending Approval" && task.paymentStatus === "Pending" ? <Text style={styles.geoHint}>Review the worker's receiving details, then pay before confirming task completion. The details are private to assigned participants.</Text> : null}
@@ -696,129 +724,91 @@ export default function TaskStatusScreen() {
                     </>
                   )}
                 </>
-              ) : currentUser?.role === "client" ? (
-                <>
-                  <TextInput
-                    editable={task.paymentStatus !== "Submitted" && task.paymentStatus !== "Verified"}
-                    multiline
-                    onChangeText={setProofOfPaymentText}
-                    placeholder="Optional reference number or payment note"
-                    placeholderTextColor={palette.outline}
-                    style={styles.paymentInput}
-                    textAlignVertical="top"
-                    value={proofOfPaymentText}
-                  />
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={uploadingProof || actionLoading || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified"}
-                    onPress={() => choosePhotoSource("Upload receipt", true, (source) => void handleUploadPaymentProof(source))}
-                    style={styles.paymentOutlineButton}
-                  >
-                    <Text style={styles.paymentOutlineButtonText}>
-                      {uploadingProof ? "Uploading..." : proofFileName || "Upload receipt image or PDF (optional, max 5 MB)"}
-                    </Text>
-                  </Pressable>
-                  {!clientProofPath && task.paymentStatus !== "Submitted" && task.paymentStatus !== "Verified" ? <Text style={styles.geoHint}>Evidence is optional. Both participants still confirm the cash payment.</Text> : null}
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={uploadingProof || actionLoading || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified"}
-                    onPress={handleSubmitPaymentProof}
-                    style={({ pressed }) => [
-                      styles.paymentButton,
-                      (uploadingProof || actionLoading || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified") && styles.primaryActionDisabled,
-                      pressed && styles.pressed
-                    ]}
-                  >
-                    <Text style={styles.paymentButtonText}>
-                      {actionLoading
-                        ? "Submitting..."
-                        : task.paymentStatus === "Verified"
-                          ? "Payment Confirmed"
-                          : task.paymentStatus === "Submitted"
-                            ? task.paymentMethod === "COD"
-                              ? "Waiting for Tasker Confirmation"
-                              : "Waiting for Payment Review"
-                            : "Submit Payment Confirmation"}
-                    </Text>
-                  </Pressable>
-                  {task.workerProofOfPaymentUrl ? (
-                    <Pressable accessibilityRole="button" onPress={() => handleOpenPaymentProof(task.workerProofOfPaymentUrl)} style={styles.paymentOutlineButton}>
-                      <Text style={styles.paymentOutlineButtonText}>Open Tasker Uploaded Receipt</Text>
-                    </Pressable>
-                  ) : null}
-                </>
               ) : (
                 <>
-                  <Text style={styles.geoHint}>{task.proofOfPaymentText || "Waiting for client payment confirmation."}</Text>
-                  {task.proofOfPaymentUrl ? (
-                    <Pressable accessibilityRole="button" onPress={() => handleOpenPaymentProof(task.proofOfPaymentUrl)} style={styles.paymentOutlineButton}>
-                      <Text style={styles.paymentOutlineButtonText}>Open Employer Uploaded Receipt</Text>
-                    </Pressable>
-                  ) : null}
-                  {workerCanUploadPaymentEvidence ? (
+                  <Text style={styles.geoHint}>Cash is paid directly to the tasker. TaskLink records both authenticated acknowledgements; it does not hold or transfer funds.</Text>
+                  <Text style={styles.geoHint}>If there is a payment disagreement, use Report Safety or Conduct Issue below and select Payment. PIN entry does not resolve a dispute by itself.</Text>
+                  {currentUser?.role === "client" ? (
                     <>
-                      <TextInput
-                        multiline
-                        onChangeText={setWorkerProofOfPaymentText}
-                        placeholder="Optional tasker receipt note"
-                        placeholderTextColor={palette.outline}
-                        style={styles.paymentInput}
-                        textAlignVertical="top"
-                        value={workerProofOfPaymentText}
-                      />
-                      <Pressable
-                        accessibilityRole="button"
-                        disabled={uploadingWorkerProof || actionLoading}
-                        onPress={() => choosePhotoSource("Upload tasker receipt", true, (source) => void handleUploadWorkerPaymentProof(source))}
-                        style={styles.paymentOutlineButton}
-                      >
-                        <Text style={styles.paymentOutlineButtonText}>
-                          {uploadingWorkerProof
-                            ? "Uploading Tasker Receipt..."
-                            : workerProofFileName || "Upload Tasker Receipt Image or PDF (max 5 MB)"}
-                        </Text>
-                      </Pressable>
-                      <Text style={styles.geoHint}>
-                        {workerProofOfPaymentUrl || task.workerProofOfPaymentUrl
-                          ? "Your receipt is stored privately and attached to this payment."
-                          : "Evidence is optional before confirming a cash payment."}
-                      </Text>
-                      {workerProofOfPaymentUrl || task.workerProofOfPaymentUrl ? (
-                        <Pressable
-                          accessibilityRole="button"
-                          onPress={() => handleOpenPaymentProof(workerProofOfPaymentUrl || task.workerProofOfPaymentUrl)}
-                          style={styles.paymentOutlineButton}
-                        >
-                          <Text style={styles.paymentOutlineButtonText}>Open Your Uploaded Receipt</Text>
-                        </Pressable>
+                      {task.paymentStatus === "Pending" ? (
+                        <>
+                          <Text style={styles.geoHint}>Hand the agreed amount to the tasker first, then confirm only after you have paid in full.</Text>
+                          <Pressable accessibilityRole="button" disabled={actionLoading || task.status !== "Pending Approval"} onPress={handleMarkCashPaymentPaid} style={[styles.paymentButton, (actionLoading || task.status !== "Pending Approval") && styles.primaryActionDisabled]}>
+                            <Text style={styles.paymentButtonText}>{actionLoading ? "Saving..." : "I Have Paid"}</Text>
+                          </Pressable>
+                        </>
                       ) : null}
+                      {task.paymentStatus === "Awaiting Worker Confirmation" ? (
+                        <>
+                          {!payment?.cashPinIssuedAt ? <Text style={styles.geoHint}>Waiting for the worker to confirm receiving the cash.</Text> : null}
+                          {payment?.cashPinIssuedAt ? (
+                            <>
+                              <Text style={styles.geoHint}>Ask the worker for the 4-digit confirmation PIN. The code is shown only on the worker’s authenticated device.</Text>
+                              <TextInput
+                                accessibilityLabel="Cash confirmation PIN"
+                                keyboardType="number-pad"
+                                maxLength={4}
+                                onChangeText={(value) => setCashPinInput(value.replace(/\D/g, "").slice(0, 4))}
+                                placeholder="Enter 4-digit PIN"
+                                placeholderTextColor={palette.outline}
+                                style={styles.cashPinInput}
+                                value={cashPinInput}
+                              />
+                              <Pressable accessibilityRole="button" disabled={actionLoading || cashPinInput.length !== 4} onPress={handleVerifyCashPin} style={[styles.paymentButton, (actionLoading || cashPinInput.length !== 4) && styles.primaryActionDisabled]}>
+                                <Text style={styles.paymentButtonText}>{actionLoading ? "Verifying..." : "Confirm Cash Payment"}</Text>
+                              </Pressable>
+                            </>
+                          ) : null}
+                        </>
+                      ) : null}
+                      {task.paymentStatus === "Verified" ? <Text style={styles.geoHint}>The cash payment was mutually confirmed. You may now finish the task when the other requirements are complete.</Text> : null}
                     </>
-                  ) : null}
-                  {task.workerProofOfPaymentUrl && !workerCanUploadPaymentEvidence ? (
-                    <Pressable accessibilityRole="button" onPress={() => handleOpenPaymentProof(task.workerProofOfPaymentUrl)} style={styles.paymentOutlineButton}>
-                      <Text style={styles.paymentOutlineButtonText}>Open Your Uploaded Receipt</Text>
-                    </Pressable>
-                  ) : null}
-                  {currentUser?.id === task.workerId && task.status === "Pending Approval" && task.paymentMethod === "COD" && task.paymentStatus === "Submitted" ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      disabled={actionLoading}
-                      onPress={handleConfirmCashPayment}
-                      style={styles.paymentButton}
-                    >
-                      <Text style={styles.paymentButtonText}>{actionLoading ? "Confirming..." : "Confirm Cash Received"}</Text>
-                    </Pressable>
-                  ) : null}
+                  ) : (
+                    <>
+                      {task.paymentStatus === "Pending" ? <Text style={styles.geoHint}>Waiting for the employer to pay cash. Confirm only after you have received and counted the full cash payment.</Text> : null}
+                      {task.paymentStatus === "Awaiting Worker Confirmation" ? (
+                        <>
+                          {!cashPin || cashPinSecondsRemaining === 0 ? (
+                            <>
+                              <Text style={styles.geoHint}>Confirm only after you have received and counted the full cash payment.</Text>
+                              <Pressable accessibilityRole="button" disabled={actionLoading} onPress={handleAcknowledgeCashPayment} style={styles.paymentButton}>
+                                <Text style={styles.paymentButtonText}>{actionLoading ? "Preparing..." : payment?.cashPinIssuedAt ? "Show My 4-Digit PIN" : "I Received the Cash"}</Text>
+                              </Pressable>
+                            </>
+                          ) : (
+                            <View style={styles.cashPinCard}>
+                              <Text style={styles.cashPinLabel}>Your 4-digit confirmation PIN</Text>
+                              <Text accessibilityLabel="Your cash confirmation PIN" style={styles.cashPinValue}>{cashPin}</Text>
+                              <Text style={styles.geoHint}>Share this code with the employer to complete payment confirmation. Expires in {cashPinCountdown}.</Text>
+                            </View>
+                          )}
+                        </>
+                      ) : null}
+                      {task.paymentStatus === "Verified" ? <Text style={styles.geoHint}>The cash payment was mutually confirmed.</Text> : null}
+                    </>
+                  )}
                 </>
               )}
             </View>
 
-            {currentUser?.role === "client" && task.status === "Finished" && task.paymentStatus === "Verified" ? (
+            {clientCanViewPlatformFee && platformFee ? (
               <View style={styles.paymentPanel}>
-                <Text style={styles.sectionTitle}>TASKLINK Service Fee</Text>
-                <Text style={styles.geoHint}>Your worker's agreed wage remains separate. Review or submit the platform service fee after completion.</Text>
+                <View style={styles.geoHeader}>
+                  <Text style={styles.sectionTitle}>TASKLINK Service Fee</Text>
+                  <Text style={styles.paymentBadge}>{formatPlatformFeeStatus(platformFee.status)}</Text>
+                </View>
+                <View style={styles.platformFeeSummary}>
+                  <Text style={styles.platformFeeLabel}>Selected tasker</Text>
+                  <Text style={styles.platformFeeValue}>{selectedWorker?.fullName ?? "Assigned tasker"}</Text>
+                  <Text style={styles.platformFeeLabel}>Final agreed wage</Text>
+                  <Text style={styles.platformFeeValue}>₱{platformFee.workerWage}</Text>
+                  <Text style={styles.platformFeeLabel}>TASKLINK service fee ({(platformFee.rateBasisPoints / 100).toFixed(2)}%)</Text>
+                  <Text style={styles.platformFeeValue}>₱{platformFee.feeAmount}</Text>
+                  <Text style={styles.platformFeeTotal}>Total employer obligation: ₱{platformFee.totalEmployerObligation}</Text>
+                </View>
+                <Text style={styles.geoHint}>The worker receives the full agreed wage separately. This payment covers only the TASKLINK service fee.</Text>
                 <Pressable accessibilityRole="button" onPress={() => router.push(`/platform-fee/${task.id}` as Href)} style={styles.paymentButton}>
-                  <Text style={styles.paymentButtonText}>Pay TASKLINK Service Fee</Text>
+                  <Text style={styles.paymentButtonText}>{platformFeeRequiresPayment ? "Pay TASKLINK Fee" : "View TASKLINK Fee"}</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -1119,6 +1109,22 @@ function getPrimaryAction(
   return { label: "Status Updated", enabled: false };
 }
 
+function formatPlatformFeeStatus(status: PlatformFee["status"]) {
+  const labels: Record<PlatformFee["status"], string> = {
+    not_due: "Not due",
+    pending_payment: "Payment required",
+    submitted_for_review: "Under review",
+    verified: "Verified",
+    rejected: "Action needed",
+    overdue: "Overdue",
+    waived: "Waived",
+    cancelled: "Cancelled",
+    refund_pending: "Refund pending",
+    credited: "Credited"
+  };
+  return labels[status];
+}
+
 function liveLocationStatusLabel(status: "idle" | "starting" | "watching" | "paused" | "error", healthy: boolean) {
   if (status === "starting") return "Locating";
   if (status === "paused") return "Paused";
@@ -1406,8 +1412,16 @@ const styles = StyleSheet.create({
   retryLocationButton: { minHeight: 40, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", marginTop: 2 },
   retryLocationButtonText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   paymentPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.45)", backgroundColor: palette.surface, gap: 8 },
+  platformFeeSummary: { gap: 3, padding: 12, borderRadius: 8, backgroundColor: palette.surfaceLow },
+  platformFeeLabel: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  platformFeeValue: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "800", marginBottom: 4 },
+  platformFeeTotal: { color: palette.textStrong, fontSize: 14, lineHeight: 20, fontWeight: "900", marginTop: 2 },
   paymentBadge: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: "#FFF8EE", color: "#684000", fontSize: 11, lineHeight: 14, fontWeight: "900" },
   paymentInput: { minHeight: 82, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, color: palette.text, fontSize: 14, lineHeight: 20, padding: 12 },
+  cashPinInput: { minHeight: 50, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, backgroundColor: palette.surfaceLow, color: palette.textStrong, fontSize: 20, fontWeight: "900", letterSpacing: 8, paddingHorizontal: 16, textAlign: "center" },
+  cashPinCard: { alignItems: "center", backgroundColor: "#EAF8F1", borderColor: palette.primary, borderRadius: 10, borderWidth: 1, gap: 7, padding: 14 },
+  cashPinLabel: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  cashPinValue: { color: palette.textStrong, fontSize: 34, lineHeight: 40, fontWeight: "900", letterSpacing: 12, paddingLeft: 12 },
   paymentButton: { minHeight: 42, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   paymentButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   paymentOutlineButton: { minHeight: 42, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },

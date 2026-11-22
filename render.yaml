@@ -16,3 +16,5 @@ services:
         sync: false
       - key: ADMIN_PORTAL_ORIGINS
         sync: false
+      - key: CASH_PAYMENT_PIN_SECRET
+        sync: false

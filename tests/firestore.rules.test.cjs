@@ -919,6 +919,137 @@ test("only a client can create an open task owned by that client", async () => {
   }));
 });
 
+test("an unsettled TASKLINK fee lock blocks direct new-task creation", async () => {
+  const taskId = "fee-locked-task";
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), "users", CLIENT_ID), { unsettledPlatformFeeCount: 1 });
+  });
+  const clientDb = dbFor(CLIENT_ID);
+  const batch = writeBatch(clientDb);
+  batch.set(doc(clientDb, "tasks", taskId), taskData({ paymentStatus: "Pending" }));
+  batch.set(doc(clientDb, "payments", taskId), {
+    id: taskId,
+    taskId,
+    clientId: CLIENT_ID,
+    paymentMethod: "COD",
+    paymentStatus: "Pending",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  });
+  await assertFails(batch.commit());
+});
+
+test("platform-fee records are participant-private and immutable outside trusted payment backends", async () => {
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "platformFees", TASK_ID), {
+      taskId: TASK_ID,
+      employerId: CLIENT_ID,
+      workerId: WORKER_ID,
+      status: "submitted_for_review",
+      feeCentavos: 2500,
+      verifiedCollectedCentavos: 0
+    });
+  });
+  const clientDb = dbFor(CLIENT_ID);
+  const workerDb = dbFor(WORKER_ID);
+  const outsiderDb = dbFor(OUTSIDER_ID);
+  const adminDb = dbFor(ADMIN_ID, { admin: true });
+
+  await assertSucceeds(getDoc(doc(clientDb, "platformFees", TASK_ID)));
+  await assertSucceeds(getDoc(doc(adminDb, "platformFees", TASK_ID)));
+  await assertFails(getDoc(doc(workerDb, "platformFees", TASK_ID)));
+  await assertFails(getDoc(doc(outsiderDb, "platformFees", TASK_ID)));
+  await assertFails(updateDoc(doc(clientDb, "platformFees", TASK_ID), { status: "verified" }));
+  await assertFails(updateDoc(doc(workerDb, "platformFees", TASK_ID), { status: "verified" }));
+  await assertFails(updateDoc(doc(adminDb, "platformFees", TASK_ID), { status: "verified" }));
+});
+
+test("a pending TASKLINK fee prevents a direct active-work transition", async () => {
+  await seedWorkflowTask({
+    status: "Accepted",
+    workerId: WORKER_ID,
+    applicantIds: [WORKER_ID],
+    paymentStatus: "Pending"
+  });
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "platformFees", TASK_ID), {
+      taskId: TASK_ID,
+      employerId: CLIENT_ID,
+      workerId: WORKER_ID,
+      status: "pending_payment"
+    });
+  });
+  const workerDb = dbFor(WORKER_ID);
+  await assertFails(updateDoc(doc(workerDb, "tasks", TASK_ID), {
+    status: "In Progress",
+    startedAt: "2026-01-01T00:15:00.000Z",
+    updatedAt: "2026-01-01T00:15:00.000Z"
+  }));
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), "platformFees", TASK_ID), { status: "verified" });
+  });
+  await assertSucceeds(updateDoc(doc(workerDb, "tasks", TASK_ID), {
+    status: "In Progress",
+    startedAt: "2026-01-01T00:15:00.000Z",
+    updatedAt: "2026-01-01T00:15:00.000Z"
+  }));
+});
+
+test("direct worker GCash payment remains separate and completes only after both participants confirm", async () => {
+  const workerDb = dbFor(WORKER_ID);
+  const clientDb = dbFor(CLIENT_ID);
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      setDoc(doc(db, "tasks", TASK_ID), taskData({
+        status: "In Progress",
+        workerId: WORKER_ID,
+        applicantIds: [WORKER_ID],
+        selectedMatchId: `${TASK_ID}_${WORKER_ID}`,
+        agreedAmount: "1200",
+        paymentMethod: "GCash link",
+        paymentStatus: "Pending"
+      })),
+      setDoc(doc(db, "payments", TASK_ID), {
+        id: TASK_ID, taskId: TASK_ID, clientId: CLIENT_ID, workerId: WORKER_ID,
+        agreedAmount: "1200", paymentMethod: "GCash link", paymentStatus: "Pending",
+        createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z"
+      })
+    ]);
+  });
+
+  const detailsAt = "2026-01-01T01:00:00.000Z";
+  let batch = writeBatch(workerDb);
+  batch.update(doc(workerDb, "tasks", TASK_ID), { status: "Pending Approval", workerFinishedAt: detailsAt, updatedAt: detailsAt });
+  batch.update(doc(workerDb, "payments", TASK_ID), {
+    gcashRecipientMobile: "09171234567", gcashDetailsConfirmedAt: detailsAt, updatedAt: detailsAt
+  });
+  await assertSucceeds(batch.commit());
+
+  const sentAt = "2026-01-01T01:05:00.000Z";
+  batch = writeBatch(clientDb);
+  batch.update(doc(clientDb, "tasks", TASK_ID), { paymentStatus: "Awaiting Worker Confirmation", clientConfirmedAt: sentAt, updatedAt: sentAt });
+  batch.update(doc(clientDb, "payments", TASK_ID), {
+    paymentStatus: "Awaiting Worker Confirmation", clientConfirmedAt: sentAt,
+    gcashPaymentSentAt: sentAt, gcashTransactionReference: "GCASH-REFERENCE", updatedAt: sentAt
+  });
+  await assertSucceeds(batch.commit());
+
+  const receivedAt = "2026-01-01T01:10:00.000Z";
+  const outsiderDb = dbFor(OUTSIDER_ID);
+  await assertFails(updateDoc(doc(outsiderDb, "payments", TASK_ID), {
+    paymentStatus: "Verified", workerConfirmedAt: receivedAt, gcashPaymentReceivedAt: receivedAt, updatedAt: receivedAt
+  }));
+
+  batch = writeBatch(workerDb);
+  batch.update(doc(workerDb, "tasks", TASK_ID), { paymentStatus: "Verified", workerConfirmedAt: receivedAt, updatedAt: receivedAt });
+  batch.update(doc(workerDb, "payments", TASK_ID), {
+    paymentStatus: "Verified", workerConfirmedAt: receivedAt, gcashPaymentReceivedAt: receivedAt, updatedAt: receivedAt
+  });
+  await assertSucceeds(batch.commit());
+
+});
+
 test("workers can save a stable service area and private live location metadata", async () => {
   const workerDb = dbFor(WORKER_ID);
   await assertSucceeds(updateDoc(doc(workerDb, "users", WORKER_ID), {
@@ -1274,7 +1405,9 @@ test("assigned participants can store private receipt chunks in Firestore withou
     clientConfirmedAt: createdAt,
     updatedAt: createdAt
   });
-  await assertSucceeds(attachProof.commit());
+  // Cash payment state changes are now trusted-server-only. Uploaded evidence
+  // remains private above, but it cannot be used to bypass the PIN workflow.
+  await assertFails(attachProof.commit());
 
   const outsiderDb = dbFor(OUTSIDER_ID);
   await assertFails(setDoc(doc(outsiderDb, "paymentProofFiles", TASK_ID, "uploads", "worker"), {
@@ -1367,7 +1500,30 @@ test("client and worker accounts can complete the full canonical task lifecycle"
     availability: "Busy",
     updatedAt: now
   });
-  await assertSucceeds(batch.commit());
+  // Worker selection is handled by the trusted acceptance endpoint. A client
+  // batch must fail; then seed the trusted result to exercise the remaining
+  // client/worker lifecycle transitions below.
+  await assertFails(batch.commit());
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const trustedDb = context.firestore();
+    const trustedAcceptance = writeBatch(trustedDb);
+    trustedAcceptance.update(doc(trustedDb, "tasks", TASK_ID), {
+      status: "Accepted", workerId: WORKER_ID, applicantIds: [WORKER_ID], selectedMatchId: matchId,
+      agreedAmount: "1200", acceptedAt: now, updatedAt: now
+    });
+    trustedAcceptance.update(doc(trustedDb, "payments", TASK_ID), { workerId: WORKER_ID, agreedAmount: "1200", updatedAt: now });
+    trustedAcceptance.update(doc(trustedDb, "taskMatches", matchId), { acceptanceStatus: "Accepted", hiredAt: now, updatedAt: now });
+    trustedAcceptance.update(doc(trustedDb, "users", WORKER_ID), {
+      availabilityStatus: "Busy", availability: "Busy", activeTaskId: TASK_ID, updatedAt: now
+    });
+    trustedAcceptance.update(doc(trustedDb, "workerProfiles", WORKER_ID), {
+      availabilityStatus: "Busy", availability: "Busy", updatedAt: now
+    });
+    trustedAcceptance.update(doc(trustedDb, "publicProfiles", WORKER_ID), {
+      availabilityStatus: "Busy", availability: "Busy", updatedAt: now
+    });
+    await trustedAcceptance.commit();
+  });
 
   now = "2026-01-01T00:15:00.000Z";
   await assertSucceeds(updateDoc(doc(workerDb, "tasks", TASK_ID), {
@@ -1426,17 +1582,20 @@ test("client and worker accounts can complete the full canonical task lifecycle"
     clientConfirmedAt: now,
     updatedAt: now
   });
-  await assertSucceeds(textOnlyConfirmation.commit());
+  await assertFails(textOnlyConfirmation.commit());
 
-  // Reset the pending state so the optional-evidence path is independently tested.
+  // The trusted Cash PIN backend records the employer acknowledgement. Seed its
+  // result so the remainder of this lifecycle can cover final task completion.
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
     await Promise.all([
-      updateDoc(doc(db, "tasks", TASK_ID), { paymentStatus: "Pending", proofOfPaymentText: deleteField(), clientConfirmedAt: deleteField() }),
-      updateDoc(doc(db, "payments", TASK_ID), { paymentStatus: "Pending", proofOfPaymentText: deleteField(), clientConfirmedAt: deleteField() })
+      updateDoc(doc(db, "tasks", TASK_ID), { paymentStatus: "Awaiting Worker Confirmation", clientConfirmedAt: now, updatedAt: now }),
+      updateDoc(doc(db, "payments", TASK_ID), { paymentStatus: "Awaiting Worker Confirmation", clientConfirmedAt: now, cashPaymentMarkedPaidAt: now, updatedAt: now })
     ]);
   });
 
+  // A direct client receipt submission remains blocked after the trusted
+  // acknowledgement; it cannot create a competing Cash state.
   batch = writeBatch(clientDb);
   batch.update(taskRef, {
     paymentStatus: "Submitted",
@@ -1452,7 +1611,7 @@ test("client and worker accounts can complete the full canonical task lifecycle"
     clientConfirmedAt: now,
     updatedAt: now
   });
-  await assertSucceeds(batch.commit());
+  await assertFails(batch.commit());
 
   const workerConfirmedAt = "2026-01-01T01:22:00.000Z";
   const outsiderDb = dbFor(OUTSIDER_ID);
@@ -1480,7 +1639,14 @@ test("client and worker accounts can complete the full canonical task lifecycle"
     workerConfirmedAt,
     updatedAt: workerConfirmedAt
   });
-  await assertSucceeds(batch.commit());
+  await assertFails(batch.commit());
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      updateDoc(doc(db, "tasks", TASK_ID), { paymentStatus: "Verified", workerConfirmedAt, updatedAt: workerConfirmedAt }),
+      updateDoc(doc(db, "payments", TASK_ID), { paymentStatus: "Verified", workerConfirmedAt, cashPinConfirmedAt: workerConfirmedAt, cashPinUsedAt: workerConfirmedAt, updatedAt: workerConfirmedAt })
+    ]);
+  });
 
   now = "2026-01-01T01:25:00.000Z";
   batch = writeBatch(clientDb);
@@ -1512,14 +1678,14 @@ test("client and worker accounts can complete the full canonical task lifecycle"
   assert.equal((await getDoc(doc(workerDb, "users", WORKER_ID))).data().completedTasks, 1);
 });
 
-test("acceptance atomically selects one worker, rejects the rest, links payment, and marks the worker busy", async () => {
+test("clients cannot bypass the trusted worker-selection transaction", async () => {
   await seedWorkflowTask();
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
     await updateDoc(doc(context.firestore(), "users", WORKER_ID), { activeTaskId: null });
   });
   const db = dbFor(CLIENT_ID);
   const now = "2026-01-01T01:00:00.000Z";
-  await assertSucceeds(runTransaction(db, async (transaction) => {
+  await assertFails(runTransaction(db, async (transaction) => {
     const taskRef = doc(db, "tasks", TASK_ID);
     const selectedMatchRef = doc(db, "taskMatches", `${TASK_ID}_${WORKER_ID}`);
     const rejectedMatchRef = doc(db, "taskMatches", `${TASK_ID}_${OUTSIDER_ID}`);
@@ -1586,10 +1752,9 @@ test("acceptance atomically selects one worker, rejects the rest, links payment,
     getDoc(doc(dbFor(WORKER_ID), "users", WORKER_ID)),
     getDoc(doc(db, "taskMatches", `${TASK_ID}_${OUTSIDER_ID}`))
   ]);
-  assert.equal(taskSnapshot.data().workerId, WORKER_ID);
-  assert.deepEqual(taskSnapshot.data().applicantIds, [WORKER_ID]);
-  assert.equal(workerSnapshot.data().activeTaskId, TASK_ID);
-  assert.equal(rejectedMatchSnapshot.data().acceptanceStatus, "Rejected");
+  assert.equal(taskSnapshot.data().status, "Applied");
+  assert.notEqual(workerSnapshot.data().activeTaskId, TASK_ID);
+  assert.equal(rejectedMatchSnapshot.data().acceptanceStatus, "Applied");
 });
 
 test("acceptance is denied when its required worker and payment writes are omitted", async () => {
@@ -2010,7 +2175,32 @@ test("a worker dispute atomically releases the tasker so another assignment can 
   batch.update(doc(clientDb, "publicProfiles", WORKER_ID), {
     availabilityStatus: "Busy", availability: "Busy", updatedAt: acceptedAt
   });
-  await assertSucceeds(batch.commit());
+  // Direct selection is blocked; model the server-side acceptance result.
+  await assertFails(batch.commit());
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const trustedDb = context.firestore();
+    const trustedAcceptance = writeBatch(trustedDb);
+    trustedAcceptance.update(doc(trustedDb, "tasks", nextTaskId), {
+      status: "Accepted", workerId: WORKER_ID, applicantIds: [WORKER_ID], selectedMatchId: nextMatchId,
+      agreedAmount: "1200", acceptedAt, updatedAt: acceptedAt
+    });
+    trustedAcceptance.update(doc(trustedDb, "payments", nextTaskId), {
+      workerId: WORKER_ID, agreedAmount: "1200", updatedAt: acceptedAt
+    });
+    trustedAcceptance.update(doc(trustedDb, "taskMatches", nextMatchId), {
+      acceptanceStatus: "Accepted", hiredAt: acceptedAt, updatedAt: acceptedAt
+    });
+    trustedAcceptance.update(doc(trustedDb, "users", WORKER_ID), {
+      availabilityStatus: "Busy", availability: "Busy", activeTaskId: nextTaskId, updatedAt: acceptedAt
+    });
+    trustedAcceptance.update(doc(trustedDb, "workerProfiles", WORKER_ID), {
+      availabilityStatus: "Busy", availability: "Busy", updatedAt: acceptedAt
+    });
+    trustedAcceptance.update(doc(trustedDb, "publicProfiles", WORKER_ID), {
+      availabilityStatus: "Busy", availability: "Busy", updatedAt: acceptedAt
+    });
+    await trustedAcceptance.commit();
+  });
   assert.equal((await getDoc(doc(workerDb, "users", WORKER_ID))).data().activeTaskId, nextTaskId);
 });
 

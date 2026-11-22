@@ -254,6 +254,10 @@ function optionalMetric(value: number | null, suffix = "") {
   return value === null ? "Unavailable" : `${value}${suffix}`;
 }
 
+function formatCentavos(value: number) {
+  return `₱${(value / 100).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 function AnalyticsPanel({
   analytics,
   endDate,
@@ -292,7 +296,7 @@ function AnalyticsPanel({
       </View>
 
       <View style={styles.filterRow}>
-        {(["today", "7d", "30d", "custom"] as AdminAnalyticsRangePreset[]).map((value) => (
+        {(["1d", "3d", "7d", "30d", "custom"] as AdminAnalyticsRangePreset[]).map((value) => (
           <Pressable
             accessibilityRole="button"
             key={value}
@@ -300,7 +304,7 @@ function AnalyticsPanel({
             style={[styles.filterButton, preset === value && styles.filterButtonActive]}
           >
             <Text style={[styles.filterButtonText, preset === value && styles.filterButtonTextActive]}>
-              {value === "today" ? "Today" : value === "7d" ? "7 days" : value === "30d" ? "30 days" : "Custom"}
+              {value === "1d" ? "1 day" : value === "3d" ? "3 days" : value === "7d" ? "1 week" : value === "30d" ? "1 month" : "Custom"}
             </Text>
           </Pressable>
         ))}
@@ -375,6 +379,31 @@ function AnalyticsPanel({
             <Stat label="Unresolved GCash reviews" value={analytics.payments.unresolvedReviews} />
           </MetricGroup>
 
+          <MetricGroup title={`TASKLINK service-fee revenue · ${analytics.range.label}`} note="Only administrator-verified service fees count as collected revenue. Worker wages and unverified receipts are excluded.">
+            <Stat label="Net retained" value={formatCentavos(analytics.revenue.netRetainedRevenueCentavos)} />
+            <Stat label="Gross verified" value={formatCentavos(analytics.revenue.grossVerifiedCollectionsCentavos)} />
+            <Stat label="Refunds / credits" value={formatCentavos(analytics.revenue.refundsCentavos)} />
+            <Stat label="Pending fees" value={formatCentavos(analytics.revenue.pendingServiceFeesCentavos)} />
+            <Stat label="Awaiting review" value={formatCentavos(analytics.revenue.submittedForReviewCentavos)} />
+            <Stat label="Rejected fees" value={formatCentavos(analytics.revenue.rejectedFeesCentavos)} />
+            <Stat label="Outstanding obligations" value={`${analytics.revenue.outstandingFeeObligations} · ${formatCentavos(analytics.revenue.outstandingFeeObligationsCentavos)}`} />
+            <Stat label="Fee-bearing tasks" value={analytics.revenue.feeGeneratingTasks} />
+          </MetricGroup>
+
+          <View style={styles.analyticsCard}>
+            <Text style={styles.cardTitle}>Verified revenue by category · {analytics.range.label}</Text>
+            {analytics.revenue.byCategory.length
+              ? analytics.revenue.byCategory.map((item) => <BreakdownRow key={item.category} label={item.category} value={formatCentavos(item.feeCentavos)} />)
+              : <Text style={styles.emptyInline}>No verified service-fee revenue in this period.</Text>}
+          </View>
+
+          <View style={styles.analyticsCard}>
+            <Text style={styles.cardTitle}>Revenue by month · {analytics.range.label}</Text>
+            {analytics.revenue.byMonth.length
+              ? analytics.revenue.byMonth.map((item) => <BreakdownRow key={item.month} label={item.month} value={formatCentavos(item.feeCentavos)} />)
+              : <Text style={styles.emptyInline}>No verified service-fee revenue in this period.</Text>}
+          </View>
+
           <MetricGroup title="Matching and geofence funnel" note={analytics.matching.telemetryAvailable
             ? "Notification metrics use matching notifications created in the selected period."
             : "Matching notification telemetry has not been materialized, so notification metrics are unavailable rather than assumed to be zero."}>
@@ -444,7 +473,7 @@ function MetricGroup({ title, note, children }: { title: string; note?: string; 
   );
 }
 
-function BreakdownRow({ label, value }: { label: string; value: number }) {
+function BreakdownRow({ label, value }: { label: string; value: number | string }) {
   return <View style={styles.breakdownRow}><Text style={styles.meta}>{label}</Text><Text style={styles.breakdownValue}>{value}</Text></View>;
 }
 

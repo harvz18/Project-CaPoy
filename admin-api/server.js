@@ -4,10 +4,27 @@ const { getAuth } = require("firebase-admin/auth");
 const { FieldValue, getFirestore } = require("firebase-admin/firestore");
 const { authorityFromClaims, buildAccountStatusChange, hasSuperadminAuthority, isIdentityLocked, toModerationUser } = require("../functions/authority");
 const { buildIdentityReview } = require("../functions/identity");
-const { DEFAULT_RATE_BASIS_POINTS, buildFeeSnapshot } = require("../functions/revenue");
+const {
+  DEFAULT_RATE_BASIS_POINTS,
+  buildFeeAuditEntry,
+  buildFeeSnapshot,
+  isPostingBlockedByPlatformFee,
+  normalizeOptionalHttpsUrl,
+  shouldCreatePlatformFeeForSelection
+} = require("../functions/revenue");
 const { DOCUMENT_KINDS, calculateVerificationProgress, documentReviewsForSubmission, requestFieldByKind } = require("../functions/verificationProgress");
 const { buildVerifiedPhoneUpdate, hasMatchingVerifiedPhone, normalizePhilippineMobileNumber, normalizeStoredPhilippineMobileNumber } = require("./phoneAuth");
 const { findConflictingAssignment, validSchedule } = require("../functions/marketplace");
+const {
+  CASH_PIN_MAX_ATTEMPTS,
+  CASH_PIN_MAX_GENERATIONS,
+  CASH_PIN_RETRY_COOLDOWN_MS,
+  decryptCashPin,
+  generateCashPinRecord,
+  hasActiveCashPin,
+  requireCashPinSecret,
+  verifyCashPin
+} = require("../functions/cashPin");
 
 class ApiError extends Error {
   constructor(status, message) {
@@ -75,6 +92,294 @@ function writeAudit(transaction, db, { actorId, action, targetType, targetId, re
   transaction.set(db.collection("auditLogs").doc(), {
     actorId, action, targetType, targetId, reason, metadata, createdAt: nowIso()
   });
+}
+
+function feeProgressionMessage(status) {
+  if (status === "pending_payment") return "The employer must pay the TASKLINK service fee before active work can begin.";
+  if (status === "submitted_for_review") return "The TASKLINK service-fee payment is awaiting administrator verification.";
+  if (status === "rejected") return "The employer must resubmit the TASKLINK service-fee payment before work can continue.";
+  return "The TASKLINK service fee must be verified before this task can continue.";
+}
+
+async function reconcileEmployerPostingEligibility(db, employerId) {
+  const feeSnapshot = await db.collection("platformFees").where("employerId", "==", employerId).get();
+  const outstanding = feeSnapshot.docs
+    .map((document) => ({ id: document.id, ...document.data() }))
+    .filter((fee) => isPostingBlockedByPlatformFee(fee.status));
+  await db.collection("users").doc(employerId).set({ unsettledPlatformFeeCount: outstanding.length }, { merge: true });
+  const fee = outstanding[0];
+  return {
+    allowed: !fee,
+    message: fee ? "You have an unsettled TASKLINK service fee. Please complete your payment before posting another task." : "You can post a new task.",
+    outstandingFee: fee ? { taskId: fee.taskId || fee.id, taskTitle: fee.taskTitle || "TASKLINK service fee", status: fee.status, feeAmount: fee.feeAmount || "" } : null
+  };
+}
+
+async function getTaskPostingEligibility({ db, claims }) {
+  return reconcileEmployerPostingEligibility(db, claims.uid);
+}
+
+async function getTaskFeeProgressionEligibility({ request, db, claims }) {
+  const taskId = requiredBodyString(request, "taskId");
+  const [taskSnapshot, feeSnapshot] = await Promise.all([
+    db.collection("tasks").doc(taskId).get(),
+    db.collection("platformFees").doc(taskId).get()
+  ]);
+  if (!taskSnapshot.exists) throw new ApiError(404, "Task not found.");
+  const task = taskSnapshot.data();
+  if (claims.uid !== task.clientId && claims.uid !== task.workerId) {
+    throw new ApiError(403, "Only task participants can check this task's payment requirement.");
+  }
+  if (!feeSnapshot.exists) return { allowed: true, message: "No TASKLINK service fee is required for this task." };
+  const fee = feeSnapshot.data();
+  return fee.status === "verified"
+    ? { allowed: true, message: "TASKLINK service fee verified." }
+    : { allowed: false, message: feeProgressionMessage(fee.status), status: fee.status };
+}
+
+function cashPinSecret() {
+  try {
+    return requireCashPinSecret();
+  } catch (error) {
+    throw new ApiError(503, error instanceof Error ? error.message : "Cash payment confirmation is not configured.");
+  }
+}
+
+function cashPaymentAmount(task, payment) {
+  const taskAmount = typeof task.agreedAmount === "string" ? task.agreedAmount.trim() : "";
+  const paymentAmount = typeof payment.agreedAmount === "string" ? payment.agreedAmount.trim() : "";
+  if (!taskAmount || !paymentAmount || taskAmount !== paymentAmount) {
+    throw new ApiError(409, "The agreed task payment amount is missing or no longer matches its payment record.");
+  }
+  return paymentAmount;
+}
+
+function clearCashPinFields() {
+  return {
+    cashPinHash: FieldValue.delete(),
+    cashPinCiphertext: FieldValue.delete(),
+    cashPinIv: FieldValue.delete(),
+    cashPinTag: FieldValue.delete()
+  };
+}
+
+function assertCashPaymentParticipants(task, payment, claims, actor) {
+  if (task.status !== "Pending Approval" || task.paymentMethod !== "COD" || payment.paymentMethod !== "COD") {
+    throw new ApiError(409, "Cash confirmation is available after completed work is awaiting employer approval.");
+  }
+  if (actor === "client" && (task.clientId !== claims.uid || payment.clientId !== claims.uid)) {
+    throw new ApiError(403, "Only the employer who posted this task can confirm paying cash.");
+  }
+  if (actor === "worker" && (task.workerId !== claims.uid || payment.workerId !== claims.uid)) {
+    throw new ApiError(403, "Only the assigned tasker can confirm receiving cash.");
+  }
+  if (!task.workerId || !payment.workerId || task.workerId !== payment.workerId) {
+    throw new ApiError(409, "This task does not have a valid assigned tasker payment record.");
+  }
+}
+
+async function markCashPaymentPaid({ request, db, claims }) {
+  const taskId = requiredBodyString(request, "taskId");
+  const taskRef = db.collection("tasks").doc(taskId);
+  const paymentRef = db.collection("payments").doc(taskId);
+  const now = nowIso();
+  let alreadyMarked = false;
+  await db.runTransaction(async (transaction) => {
+    const [taskSnapshot, paymentSnapshot] = await Promise.all([transaction.get(taskRef), transaction.get(paymentRef)]);
+    if (!taskSnapshot.exists || !paymentSnapshot.exists) throw new ApiError(404, "Task payment record not found.");
+    const task = taskSnapshot.data();
+    const payment = paymentSnapshot.data();
+    assertCashPaymentParticipants(task, payment, claims, "client");
+    cashPaymentAmount(task, payment);
+    if (task.paymentStatus === "Awaiting Worker Confirmation" && payment.paymentStatus === "Awaiting Worker Confirmation") {
+      alreadyMarked = true;
+      return;
+    }
+    if (task.paymentStatus !== "Pending" || payment.paymentStatus !== "Pending") {
+      throw new ApiError(409, "This cash payment is already being confirmed or has already been completed.");
+    }
+    transaction.update(taskRef, { paymentStatus: "Awaiting Worker Confirmation", clientConfirmedAt: now, updatedAt: now });
+    transaction.update(paymentRef, {
+      paymentStatus: "Awaiting Worker Confirmation",
+      clientConfirmedAt: now,
+      cashPaymentMarkedPaidAt: now,
+      updatedAt: now
+    });
+    transaction.set(db.collection("notifications").doc(`${taskId}_cash-awaiting_${task.workerId}`), {
+      userId: task.workerId,
+      taskId,
+      createdBy: claims.uid,
+      notificationType: "Cash payment awaiting confirmation",
+      message: `The employer marked the cash payment for ${task.title || "this task"} as paid. Confirm only after you have received and counted the full amount.`,
+      readStatus: false,
+      createdAt: now
+    }, { merge: true });
+    writeAudit(transaction, db, {
+      actorId: claims.uid,
+      action: "cash_payment_marked_paid",
+      targetType: "payment",
+      targetId: taskId,
+      metadata: { paymentMethod: "COD", agreedAmount: payment.agreedAmount }
+    });
+  });
+  return { ok: true, status: "Awaiting Worker Confirmation", alreadyMarked };
+}
+
+async function acknowledgeCashPaymentReceived({ request, db, claims }) {
+  const taskId = requiredBodyString(request, "taskId");
+  const secret = cashPinSecret();
+  const taskRef = db.collection("tasks").doc(taskId);
+  const paymentRef = db.collection("payments").doc(taskId);
+  const now = new Date();
+  let response;
+  await db.runTransaction(async (transaction) => {
+    const [taskSnapshot, paymentSnapshot] = await Promise.all([transaction.get(taskRef), transaction.get(paymentRef)]);
+    if (!taskSnapshot.exists || !paymentSnapshot.exists) throw new ApiError(404, "Task payment record not found.");
+    const task = taskSnapshot.data();
+    const payment = paymentSnapshot.data();
+    assertCashPaymentParticipants(task, payment, claims, "worker");
+    const agreedAmount = cashPaymentAmount(task, payment);
+    if (task.paymentStatus !== "Awaiting Worker Confirmation" || payment.paymentStatus !== "Awaiting Worker Confirmation") {
+      throw new ApiError(409, "Wait for the employer to mark the cash payment as paid.");
+    }
+    if (hasActiveCashPin(payment, now)) {
+      if (payment.cashPinEmployerId !== task.clientId || payment.cashPinWorkerId !== task.workerId || payment.cashPinAgreedAmount !== agreedAmount) {
+        throw new ApiError(409, "The cash confirmation session no longer matches this task.");
+      }
+      response = { ok: true, pin: decryptCashPin(payment, secret), expiresAt: payment.cashPinExpiresAt, reused: true };
+      return;
+    }
+    const previousGenerations = Number.isInteger(payment.cashPinGenerationCount) ? payment.cashPinGenerationCount : 0;
+    const retryAt = Date.parse(payment.cashPinRetryAvailableAt || "");
+    if (previousGenerations > 0 && Number.isFinite(retryAt) && now.getTime() < retryAt) {
+      throw new ApiError(429, "Wait briefly before requesting another cash confirmation PIN.");
+    }
+    if (previousGenerations >= CASH_PIN_MAX_GENERATIONS) {
+      throw new ApiError(429, "The cash confirmation PIN limit has been reached. Please contact TaskLink support.");
+    }
+    const generated = generateCashPinRecord({
+      taskId,
+      clientId: task.clientId,
+      workerId: task.workerId,
+      agreedAmount,
+      now,
+      generationCount: previousGenerations + 1,
+      secret
+    });
+    const retryAvailableAt = new Date(Date.parse(generated.record.cashPinExpiresAt) + CASH_PIN_RETRY_COOLDOWN_MS).toISOString();
+    transaction.update(paymentRef, {
+      ...generated.record,
+      cashPinRetryAvailableAt: retryAvailableAt,
+      cashPinLockedAt: FieldValue.delete(),
+      cashPinInvalidatedAt: FieldValue.delete(),
+      cashPinInvalidationReason: FieldValue.delete(),
+      updatedAt: now.toISOString()
+    });
+    transaction.set(db.collection("notifications").doc(`${taskId}_cash-pin-ready_${task.clientId}`), {
+      userId: task.clientId,
+      taskId,
+      createdBy: claims.uid,
+      notificationType: "Cash confirmation PIN ready",
+      message: `The tasker is ready to confirm the cash payment for ${task.title || "this task"}. Ask them for the 4-digit confirmation PIN.`,
+      readStatus: false,
+      createdAt: now.toISOString()
+    }, { merge: true });
+    writeAudit(transaction, db, {
+      actorId: claims.uid,
+      action: "cash_payment_pin_issued",
+      targetType: "payment",
+      targetId: taskId,
+      metadata: { paymentMethod: "COD", generation: previousGenerations + 1, agreedAmount }
+    });
+    response = { ok: true, pin: generated.pin, expiresAt: generated.record.cashPinExpiresAt, reused: false };
+  });
+  return response;
+}
+
+async function verifyCashPaymentPin({ request, db, claims }) {
+  const taskId = requiredBodyString(request, "taskId");
+  const pin = requiredBodyString(request, "pin");
+  if (!/^\d{4}$/.test(pin)) throw new ApiError(400, "Enter the four-digit confirmation PIN from the tasker.");
+  const secret = cashPinSecret();
+  const taskRef = db.collection("tasks").doc(taskId);
+  const paymentRef = db.collection("payments").doc(taskId);
+  const now = new Date();
+  let failureMessage = "";
+  await db.runTransaction(async (transaction) => {
+    const [taskSnapshot, paymentSnapshot] = await Promise.all([transaction.get(taskRef), transaction.get(paymentRef)]);
+    if (!taskSnapshot.exists || !paymentSnapshot.exists) throw new ApiError(404, "Task payment record not found.");
+    const task = taskSnapshot.data();
+    const payment = paymentSnapshot.data();
+    assertCashPaymentParticipants(task, payment, claims, "client");
+    const agreedAmount = cashPaymentAmount(task, payment);
+    if (task.paymentStatus !== "Awaiting Worker Confirmation" || payment.paymentStatus !== "Awaiting Worker Confirmation") {
+      throw new ApiError(409, "This cash payment is not awaiting PIN confirmation.");
+    }
+    if (!hasActiveCashPin(payment, now)) {
+      transaction.update(paymentRef, {
+        ...clearCashPinFields(),
+        cashPinInvalidatedAt: now.toISOString(),
+        cashPinInvalidationReason: payment.cashPinLockedAt ? "attempt_limit" : "expired",
+        updatedAt: now.toISOString()
+      });
+      failureMessage = payment.cashPinLockedAt
+        ? "This cash confirmation PIN has been locked after too many attempts."
+        : "This cash confirmation PIN has expired. Ask the tasker to generate a new one.";
+      return;
+    }
+    const matches = payment.cashPinEmployerId === task.clientId
+      && payment.cashPinWorkerId === task.workerId
+      && payment.cashPinAgreedAmount === agreedAmount
+      && verifyCashPin({ record: payment, taskId, clientId: task.clientId, workerId: task.workerId, agreedAmount, pin, secret });
+    if (!matches) {
+      const attempts = (Number.isInteger(payment.cashPinAttempts) ? payment.cashPinAttempts : 0) + 1;
+      const locked = attempts >= CASH_PIN_MAX_ATTEMPTS;
+      transaction.update(paymentRef, {
+        cashPinAttempts: attempts,
+        ...(locked ? { ...clearCashPinFields(), cashPinLockedAt: now.toISOString(), cashPinInvalidatedAt: now.toISOString(), cashPinInvalidationReason: "attempt_limit" } : {}),
+        updatedAt: now.toISOString()
+      });
+      writeAudit(transaction, db, {
+        actorId: claims.uid,
+        action: "cash_payment_pin_failed",
+        targetType: "payment",
+        targetId: taskId,
+        metadata: { paymentMethod: "COD", attempts, locked }
+      });
+      failureMessage = locked
+        ? "This cash confirmation PIN has been locked after three incorrect attempts."
+        : "The cash confirmation PIN is incorrect. Please try again.";
+      return;
+    }
+    const confirmedAt = now.toISOString();
+    transaction.update(taskRef, { paymentStatus: "Verified", workerConfirmedAt: confirmedAt, updatedAt: confirmedAt });
+    transaction.update(paymentRef, {
+      ...clearCashPinFields(),
+      paymentStatus: "Verified",
+      workerConfirmedAt: confirmedAt,
+      cashPinConfirmedAt: confirmedAt,
+      cashPinUsedAt: confirmedAt,
+      updatedAt: confirmedAt
+    });
+    transaction.set(db.collection("notifications").doc(`${taskId}_cash-confirmed_${task.workerId}`), {
+      userId: task.workerId,
+      taskId,
+      createdBy: claims.uid,
+      notificationType: "Cash payment confirmed",
+      message: `Cash payment for ${task.title || "this task"} was mutually confirmed.`,
+      readStatus: false,
+      createdAt: confirmedAt
+    }, { merge: true });
+    writeAudit(transaction, db, {
+      actorId: claims.uid,
+      action: "cash_payment_pin_verified",
+      targetType: "payment",
+      targetId: taskId,
+      metadata: { paymentMethod: "COD", agreedAmount }
+    });
+  });
+  if (failureMessage) throw new ApiError(400, failureMessage);
+  return { ok: true, status: "Verified" };
 }
 
 function route(requiredAuthority, action) {
@@ -481,10 +786,13 @@ async function acceptTaskApplication({ request, db, claims }) {
     const taskRef = db.collection("tasks").doc(taskId);
     const matchRef = db.collection("taskMatches").doc(`${taskId}_${workerId}`);
     const paymentRef = db.collection("payments").doc(taskId);
+    const feeRef = db.collection("platformFees").doc(taskId);
+    const revenueConfigRef = db.collection("platformRevenue").doc("config");
     const workerRef = db.collection("users").doc(workerId);
     const assignmentsQuery = db.collection("tasks").where("workerId", "==", workerId);
-    const [taskSnapshot, matchSnapshot, paymentSnapshot, clientSnapshot, workerSnapshot, assignmentsSnapshot, allMatchesSnapshot] = await Promise.all([
+    const [taskSnapshot, matchSnapshot, paymentSnapshot, feeSnapshot, revenueConfigSnapshot, clientSnapshot, workerSnapshot, assignmentsSnapshot, allMatchesSnapshot] = await Promise.all([
       transaction.get(taskRef), transaction.get(matchRef), transaction.get(paymentRef),
+      transaction.get(feeRef), transaction.get(revenueConfigRef),
       transaction.get(db.collection("users").doc(claims.uid)), transaction.get(workerRef),
       transaction.get(assignmentsQuery), transaction.get(db.collection("taskMatches").where("taskId", "==", taskId))
     ]);
@@ -507,6 +815,35 @@ async function acceptTaskApplication({ request, db, claims }) {
       agreedAmount, acceptedAt, updatedAt: acceptedAt
     });
     transaction.update(paymentRef, { workerId, agreedAmount, updatedAt: acceptedAt });
+    const revenueConfig = revenueConfigSnapshot.exists ? revenueConfigSnapshot.data() : undefined;
+    if (shouldCreatePlatformFeeForSelection({ task, config: revenueConfig, hasExistingFee: feeSnapshot.exists })) {
+      let fee;
+      try {
+        fee = buildFeeSnapshot({ task: { ...task, id: taskId, workerId, agreedAmount }, config: revenueConfig, now: acceptedAt });
+      } catch (error) {
+        throw new ApiError(409, error instanceof Error ? error.message : "The agreed worker wage cannot create a service fee.");
+      }
+      transaction.create(feeRef, fee);
+      transaction.update(db.collection("users").doc(claims.uid), {
+        unsettledPlatformFeeCount: FieldValue.increment(1)
+      });
+      transaction.set(db.collection("notifications").doc(`${taskId}_platform-fee-payable_${claims.uid}`), {
+        userId: claims.uid,
+        taskId,
+        createdBy: claims.uid,
+        notificationType: "TASKLINK service fee payable",
+        message: `A TASKLINK service fee is now payable for ${task.title || "this task"}. New task posts stay restricted until the fee is verified.`,
+        readStatus: false,
+        createdAt: acceptedAt
+      }, { merge: true });
+      writeAudit(transaction, db, {
+        actorId: claims.uid,
+        action: "create_platform_fee_obligation",
+        targetType: "payment",
+        targetId: taskId,
+        metadata: { feeCentavos: fee.feeCentavos, workerWageCentavos: fee.workerWageCentavos, rateBasisPoints: fee.rateBasisPoints }
+      });
+    }
     transaction.update(matchRef, { acceptanceStatus: "Accepted", hiredAt: acceptedAt, updatedAt: acceptedAt });
     allMatchesSnapshot.docs.forEach((document) => {
       const candidate = document.data();
@@ -828,39 +1165,17 @@ async function ensurePlatformFee({ request, db, claims }) {
   const taskId = requiredBodyString(request, "taskId");
   const feeRef = db.collection("platformFees").doc(taskId);
   const taskRef = db.collection("tasks").doc(taskId);
-  const configRef = db.collection("platformRevenue").doc("config");
-  const now = nowIso();
-  let created = false;
   await db.runTransaction(async (transaction) => {
-    const [existing, taskSnapshot, configSnapshot] = await Promise.all([
-      transaction.get(feeRef), transaction.get(taskRef), transaction.get(configRef)
+    const [existing, taskSnapshot] = await Promise.all([
+      transaction.get(feeRef), transaction.get(taskRef)
     ]);
     if (existing.exists) return;
     if (!taskSnapshot.exists) throw new ApiError(404, "Task not found.");
     const task = taskSnapshot.data();
     if (task.clientId !== claims.uid) throw new ApiError(403, "Only the employer can prepare this service fee.");
-    if (!['Finished', 'Archived'].includes(task.status) || task.paymentStatus !== "Verified" || !task.agreedAmount) {
-      throw new ApiError(409, "A service fee is available after a paid task is finished.");
-    }
-    const config = configSnapshot.data();
-    if (!config?.enabled || !config.gcashAccountName || !config.gcashNumber || !config.activatedAt || String(task.createdAt || "") < String(config.activatedAt)) {
-      throw new ApiError(409, "Service-fee payment is not configured for this task.");
-    }
-    let fee;
-    try {
-      fee = buildFeeSnapshot({ task: { ...task, id: taskId }, config, now });
-    } catch (error) {
-      throw new ApiError(409, error instanceof Error ? error.message : "The task wage is invalid.");
-    }
-    transaction.create(feeRef, fee);
-    transaction.set(db.collection("notifications").doc(`${taskId}_platform-fee-due`), {
-      userId: task.clientId, taskId, createdBy: "system", notificationType: "TASKLINK service fee due",
-      message: `Your TASKLINK service fee of ₱${fee.feeAmount} for ${fee.taskTitle} is now payable.`,
-      route: "task", readStatus: false, createdAt: now
-    });
-    created = true;
+    throw new ApiError(409, "A TASKLINK service fee is created only when a worker is selected. Historical tasks are not charged retroactively.");
   });
-  return { ok: true, created };
+  return { ok: true, created: false };
 }
 
 async function submitPlatformFee({ request, db, claims }) {
@@ -879,7 +1194,20 @@ async function submitPlatformFee({ request, db, claims }) {
     if (!(await hasStoredPlatformFeeReceipt(transaction, db, claims.uid, taskId, receiptPath))) {
       throw new ApiError(409, "Upload a complete private receipt before submitting.");
     }
-    transaction.update(feeRef, { status: "submitted_for_review", receiptPath, transactionReference, submittedAt: now, updatedAt: now, rejectionReason: null });
+    transaction.update(feeRef, {
+      status: "submitted_for_review",
+      receiptPath,
+      transactionReference,
+      submittedAt: now,
+      updatedAt: now,
+      rejectionReason: null,
+      auditHistory: FieldValue.arrayUnion(buildFeeAuditEntry({
+        action: "payment_submitted",
+        status: "submitted_for_review",
+        at: now,
+        actorId: claims.uid
+      }))
+    });
     transaction.set(db.collection("notifications").doc(), { userId: claims.uid, taskId, createdBy: claims.uid, notificationType: "TASKLINK fee submitted", message: `Your TASKLINK service-fee payment for ${fee.taskTitle} was submitted for administrator review.`, readStatus: false, createdAt: now });
     writeAudit(transaction, db, { actorId: claims.uid, action: "submit_platform_fee_payment", targetType: "payment", targetId: taskId, metadata: { feeCentavos: fee.feeCentavos } });
   });
@@ -899,11 +1227,26 @@ async function reviewPlatformFee({ request, db, claims }) {
     if (!snapshot.exists) throw new ApiError(404, "Service-fee record not found.");
     const fee = snapshot.data();
     if (fee.status !== "submitted_for_review") throw new ApiError(409, "Only a submitted service fee can be reviewed.");
+    const employerRef = decision === "verified" ? db.collection("users").doc(fee.employerId) : undefined;
+    const employerSnapshot = employerRef ? await transaction.get(employerRef) : undefined;
+    const currentCount = employerSnapshot?.exists && Number.isInteger(employerSnapshot.data().unsettledPlatformFeeCount)
+      ? employerSnapshot.data().unsettledPlatformFeeCount
+      : 0;
     const update = decision === "verified"
       ? { status: "verified", verifiedAt: now, reviewedAt: now, reviewedBy: claims.uid, verifiedCollectedCentavos: fee.feeCentavos, updatedAt: now }
       : { status: "rejected", reviewedAt: now, reviewedBy: claims.uid, rejectionReason: reason, updatedAt: now };
+    update.auditHistory = FieldValue.arrayUnion(buildFeeAuditEntry({
+      action: decision === "verified" ? "payment_verified" : "payment_rejected",
+      status: decision,
+      at: now,
+      actorId: claims.uid,
+      reason: reason || null
+    }));
     transaction.update(feeRef, update);
-    transaction.set(db.collection("notifications").doc(), { userId: fee.employerId, taskId, createdBy: claims.uid, notificationType: "TASKLINK fee review", message: decision === "verified" ? `Your TASKLINK service fee for ${fee.taskTitle} was verified.` : `Your TASKLINK service fee was rejected: ${reason}`, readStatus: false, createdAt: now });
+    if (decision === "verified" && employerRef) {
+      transaction.set(employerRef, { unsettledPlatformFeeCount: Math.max(0, currentCount - 1) }, { merge: true });
+    }
+    transaction.set(db.collection("notifications").doc(), { userId: fee.employerId, taskId, createdBy: claims.uid, notificationType: "TASKLINK fee review", message: decision === "verified" ? `Your TASKLINK service fee for ${fee.taskTitle} was verified. Your posting restriction has been removed.` : `Your TASKLINK service fee was rejected: ${reason}`, readStatus: false, createdAt: now });
     writeAudit(transaction, db, { actorId: claims.uid, action: decision === "verified" ? "verify_platform_fee_payment" : "reject_platform_fee_payment", targetType: "payment", targetId: taskId, reason, metadata: { feeCentavos: fee.feeCentavos } });
   });
   return { ok: true, status: decision };
@@ -1154,19 +1497,30 @@ function createServer() {
     const value = request.body?.rateBasisPoints === undefined ? DEFAULT_RATE_BASIS_POINTS : Number(request.body.rateBasisPoints);
     if (!Number.isInteger(value) || value < 0 || value > 10_000) throw new ApiError(400, "Service fee rate must be between 0% and 100%.");
     const instructions = optionalBodyString(request, "instructions").slice(0, 1000);
+    let gcashQrImageUrl;
+    try {
+      gcashQrImageUrl = normalizeOptionalHttpsUrl(request.body?.gcashQrImageUrl);
+    } catch (error) {
+      throw new ApiError(400, error instanceof Error ? error.message : "GCash QR image URL is invalid.");
+    }
     const now = nowIso();
     await db.runTransaction(async (transaction) => {
       const ref = db.collection("platformRevenue").doc("config");
       const existing = await transaction.get(ref);
-      transaction.set(ref, { enabled: true, gcashAccountName, gcashNumber, rateBasisPoints: value, instructions, activatedAt: existing.data()?.activatedAt || now, updatedAt: now, updatedBy: claims.uid }, { merge: true });
+      transaction.set(ref, { enabled: true, gcashAccountName, gcashNumber, gcashQrImageUrl, rateBasisPoints: value, instructions, activatedAt: existing.data()?.activatedAt || now, updatedAt: now, updatedBy: claims.uid }, { merge: true });
       writeAudit(transaction, db, { actorId: claims.uid, action: "update_platform_revenue_config", targetType: "payment", targetId: "platformRevenue/config", metadata: { rateBasisPoints: value } });
     });
     return { ok: true, rateBasisPoints: value };
   }));
   app.post("/api/revenue/fees/ensure", route("user", ensurePlatformFee));
+  app.post("/api/revenue/fees/posting-eligibility", route("user", getTaskPostingEligibility));
+  app.post("/api/revenue/fees/progression-eligibility", route("user", getTaskFeeProgressionEligibility));
   app.post("/api/revenue/fees/submit", route("user", submitPlatformFee));
   app.post("/api/revenue/fees/review", route("admin", reviewPlatformFee));
   app.get("/api/revenue/overview", route("superadmin", platformRevenueOverview));
+  app.post("/api/payments/cash/mark-paid", route("user", markCashPaymentPaid));
+  app.post("/api/payments/cash/acknowledge-receipt", route("user", acknowledgeCashPaymentReceived));
+  app.post("/api/payments/cash/verify-pin", route("user", verifyCashPaymentPin));
   app.post("/api/tasks/acceptance-eligibility", route("user", getTaskerScheduleAvailability));
   app.post("/api/tasks/accept-application", route("user", acceptTaskApplication));
   app.post("/api/verification/submit", route("user", submitVerificationRequest));

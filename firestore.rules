@@ -52,6 +52,17 @@ service cloud.firestore {
       return getAfter(/databases/$(database)/documents/tasks/$(taskId)).data;
     }
 
+    function taskFeeAllowsProgression(taskId) {
+      return !exists(/databases/$(database)/documents/platformFees/$(taskId))
+        || get(/databases/$(database)/documents/platformFees/$(taskId)).data.status == 'verified';
+    }
+
+    // This value is maintained only by trusted fee workflows. It prevents a
+    // direct client task write from bypassing the posting restriction.
+    function hasNoUnsettledPlatformFee() {
+      return currentUser().get('unsettledPlatformFeeCount', 0) == 0;
+    }
+
     function matchAfter(matchId) {
       return getAfter(/databases/$(database)/documents/taskMatches/$(matchId)).data;
     }
@@ -731,6 +742,7 @@ service cloud.firestore {
         && (
           (resource.data.status == 'Accepted'
             && request.resource.data.status == 'In Progress'
+            && taskFeeAllowsProgression(taskId)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'startedAt', 'updatedAt']))
           ||
           (resource.data.status == 'In Progress'
@@ -760,28 +772,6 @@ service cloud.firestore {
             && request.resource.data.status == 'Disputed'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'disputedAt', 'updatedAt']))
         );
-    }
-
-    function validAssignedWorkerPaymentConfirmation(taskId) {
-      return hasRole('worker')
-        && resource.data.workerId == request.auth.uid
-        && request.resource.data.workerId == request.auth.uid
-        && resource.data.status == 'Pending Approval'
-        && request.resource.data.status == 'Pending Approval'
-        && resource.data.paymentMethod == 'COD'
-        && resource.data.paymentStatus == 'Submitted'
-        && request.resource.data.paymentStatus == 'Verified'
-        && request.resource.data.workerConfirmedAt is string
-        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentMethod == 'COD'
-        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentStatus == 'Verified'
-        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.workerId == request.auth.uid
-        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.workerConfirmedAt
-          == request.resource.data.workerConfirmedAt
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'paymentStatus',
-          'workerConfirmedAt',
-          'updatedAt'
-        ]);
     }
 
     function validAssignedWorkerGcashPaymentConfirmation(taskId) {
@@ -958,37 +948,10 @@ service cloud.firestore {
         && resource.data.clientId == request.auth.uid
         && request.resource.data.clientId == request.auth.uid
         && (
-          (resource.data.status == 'Applied'
-            && request.resource.data.status == 'Accepted'
-            && request.resource.data.workerId in resource.data.applicantIds
-            && request.resource.data.applicantIds == [request.resource.data.workerId]
-            && request.resource.data.selectedMatchId
-              == taskId + '_' + request.resource.data.workerId
-            && matchAfter(request.resource.data.selectedMatchId).acceptanceStatus == 'Accepted'
-            && request.resource.data.agreedAmount is string
-            && request.resource.data.agreedAmount
-              == (resource.data.get('pricingMode', 'fixed') == 'bidding'
-                ? matchAfter(request.resource.data.selectedMatchId).proposedAmount
-                : resource.data.wage)
-            && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.workerId
-              == request.resource.data.workerId
-            && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.agreedAmount
-              == request.resource.data.agreedAmount
-            && getAfter(/databases/$(database)/documents/users/$(request.resource.data.workerId)).data.activeTaskId
-              == taskId
-            && getAfter(/databases/$(database)/documents/users/$(request.resource.data.workerId)).data.availabilityStatus
-              == 'Busy'
-            && getAfter(/databases/$(database)/documents/workerProfiles/$(request.resource.data.workerId)).data.availabilityStatus
-              == 'Busy'
-            && getAfter(/databases/$(database)/documents/publicProfiles/$(request.resource.data.workerId)).data.availabilityStatus
-              == 'Busy'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'status', 'workerId', 'applicantIds', 'selectedMatchId', 'agreedAmount', 'acceptedAt', 'updatedAt'
-            ]))
-          ||
           (resource.data.status == 'Pending Approval'
             && request.resource.data.status == 'Finished'
             && resource.data.paymentStatus == 'Verified'
+            && taskFeeAllowsProgression(taskId)
             && !('activeTaskId' in getAfter(/databases/$(database)/documents/users/$(resource.data.workerId)).data)
             && getAfter(/databases/$(database)/documents/users/$(resource.data.workerId)).data.completedTasks
               == get(/databases/$(database)/documents/users/$(resource.data.workerId)).data.get('completedTasks', 0) + 1
@@ -1016,28 +979,6 @@ service cloud.firestore {
           (resource.data.status == 'Finished'
             && request.resource.data.status == 'Disputed'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'disputedAt', 'updatedAt']))
-          ||
-          (request.resource.data.status == resource.data.status
-            && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentStatus
-              == request.resource.data.paymentStatus
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'paymentStatus',
-              'proofOfPaymentText',
-              'proofOfPaymentUrl',
-              'clientConfirmedAt',
-              'updatedAt'
-            ])
-            && request.resource.data.paymentStatus == 'Submitted'
-            && (!('proofOfPaymentUrl' in request.resource.data)
-              || validClientPaymentProofPath(taskId, request.resource.data.proofOfPaymentUrl))
-            && (!('proofOfPaymentText' in request.resource.data)
-              || (request.resource.data.proofOfPaymentText is string
-                && request.resource.data.proofOfPaymentText.size() > 0))
-            && (
-              getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentMethod == 'COD'
-                ? request.resource.data.clientConfirmedAt is string
-                : true
-            ))
           || validClientGcashPaymentSent(taskId)
           ||
           (resource.data.acceptanceStatus == 'Accepted'
@@ -1322,6 +1263,7 @@ service cloud.firestore {
       allow read: if hasEnabledAccount() && request.auth.uid in resource.data.applicantIds;
       allow create: if hasRole('client')
         && hasMarketplaceVerification()
+        && hasNoUnsettledPlatformFee()
         && request.resource.data.clientId == request.auth.uid
         && request.resource.data.status == 'Finding Workers'
         && validTaskTerms(request.resource.data)
@@ -1375,7 +1317,6 @@ service cloud.firestore {
           || validApplicationUpdate(taskId)
           || validApplicationRemoval(taskId)
           || validAssignedWorkerUpdate(taskId)
-          || validAssignedWorkerPaymentConfirmation(taskId)
           || validAssignedWorkerGcashPaymentConfirmation(taskId)
           || validAssignedWorkerPaymentProof(taskId)));
       allow delete: if false;
@@ -1642,41 +1583,8 @@ service cloud.firestore {
               && taskAfter(taskId).status == 'Accepted'
               && request.resource.data.workerId == taskAfter(taskId).workerId
               && request.resource.data.agreedAmount == taskAfter(taskId).agreedAmount)
-            ||
-            (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                'paymentStatus',
-                'proofOfPaymentText',
-                'proofOfPaymentUrl',
-                'clientConfirmedAt',
-                'updatedAt'
-              ])
-              && request.resource.data.paymentStatus == 'Submitted'
-              && taskAfter(taskId).paymentStatus == 'Submitted'
-              && taskAfter(taskId).get('proofOfPaymentText', null)
-                == request.resource.data.get('proofOfPaymentText', null)
-              && taskAfter(taskId).get('proofOfPaymentUrl', null)
-                == request.resource.data.get('proofOfPaymentUrl', null)
-              && taskAfter(taskId).get('clientConfirmedAt', null)
-                == request.resource.data.get('clientConfirmedAt', null))
             || validGcashClientPaymentSentUpdate(taskId)
           )
-        ) || (
-          hasRole('worker')
-          && task(taskId).workerId == request.auth.uid
-          && task(taskId).status == 'Pending Approval'
-          && task(taskId).paymentMethod == 'COD'
-          && resource.data.workerId == request.auth.uid
-          && resource.data.paymentMethod == 'COD'
-          && resource.data.paymentStatus == 'Submitted'
-          && request.resource.data.paymentStatus == 'Verified'
-          && request.resource.data.workerConfirmedAt is string
-          && taskAfter(taskId).paymentStatus == 'Verified'
-          && taskAfter(taskId).workerConfirmedAt == request.resource.data.workerConfirmedAt
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'paymentStatus',
-            'workerConfirmedAt',
-            'updatedAt'
-          ])
         ) || validGcashReceivingDetailsUpdate(taskId)
           || validGcashWorkerPaymentReceivedUpdate(taskId)
           || validGcashWorkerNotReceivedUpdate(taskId));

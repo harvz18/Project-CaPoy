@@ -129,6 +129,14 @@ test("requires verified payment before completion", () => {
     )
   );
 
+  assert.doesNotThrow(() =>
+    assertTaskTransition(
+      task("Pending Approval", { workerId: WORKER.id, paymentMethod: "GCash link", paymentStatus: "Verified" }),
+      "Finished",
+      CLIENT
+    )
+  );
+
   assert.throws(() =>
     assertTaskTransition(
       task("Pending Approval", { workerId: WORKER.id, paymentMethod: "GCash link", paymentStatus: "Pending" }),

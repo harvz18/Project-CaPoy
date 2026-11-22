@@ -140,6 +140,8 @@ export type UserProfile = {
   locationSource?: Extract<LocationSource, "device" | "manual">;
   preferredRadiusKm?: number;
   completedTasks?: number;
+  /** Maintained only by trusted fee workflows; Firestore rules use it to guard new task posts. */
+  unsettledPlatformFeeCount?: number;
   activeTaskId?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -320,6 +322,18 @@ export type Payment = {
   workerProofSubmittedAt?: string;
   clientConfirmedAt?: string;
   workerConfirmedAt?: string;
+  /** Server-owned cash-confirmation metadata. The four-digit PIN itself is never stored in plaintext. */
+  cashPaymentMarkedPaidAt?: string;
+  cashPinIssuedAt?: string;
+  cashPinExpiresAt?: string;
+  cashPinRetryAvailableAt?: string;
+  cashPinAttempts?: number;
+  cashPinGenerationCount?: number;
+  cashPinLockedAt?: string;
+  cashPinInvalidatedAt?: string;
+  cashPinInvalidationReason?: "expired" | "attempt_limit" | "task_state_changed";
+  cashPinConfirmedAt?: string;
+  cashPinUsedAt?: string;
   reviewedAt?: string;
   reviewedBy?: string;
   reviewReason?: string;
@@ -327,14 +341,24 @@ export type Payment = {
   updatedAt?: string;
 };
 
-export type PlatformFeeStatus = "not_due" | "pending_payment" | "submitted_for_review" | "verified" | "rejected" | "overdue" | "waived";
+export type PlatformFeeStatus = "not_due" | "pending_payment" | "submitted_for_review" | "verified" | "rejected" | "overdue" | "waived" | "cancelled" | "refund_pending" | "credited";
+export type PlatformFeeAuditEvent = {
+  action: "obligation_created" | "payment_submitted" | "payment_verified" | "payment_rejected" | "task_cancelled";
+  status: PlatformFeeStatus;
+  at: string;
+  actorId: string;
+  reason?: string | null;
+};
 export type PlatformFee = {
   id: string; taskId: string; employerId: string; workerId?: string; taskTitle: string; taskCategory: string;
   currency: "PHP"; workerWageCentavos: number; workerWage: string; rateBasisPoints: number; feeCentavos: number; feeAmount: string;
   totalEmployerObligationCentavos: number; totalEmployerObligation: string; status: PlatformFeeStatus;
-  destination: { gcashAccountName: string; gcashNumber: string; instructions: string };
+  destination: { gcashAccountName: string; gcashNumber: string; gcashQrImageUrl?: string; instructions: string };
   receiptPath?: string; transactionReference?: string; submittedAt?: string; reviewedAt?: string; reviewedBy?: string;
-  verifiedAt?: string; verifiedCollectedCentavos?: number; rejectionReason?: string | null; createdAt: string; updatedAt: string; dueAt?: string | null;
+  verifiedAt?: string; verifiedCollectedCentavos?: number; rejectionReason?: string | null;
+  feeLifecycleVersion?: number; obligationCreatedAt?: string; auditHistory?: PlatformFeeAuditEvent[];
+  cancelledAt?: string; cancellationReason?: string | null; cancellationReviewRequired?: boolean;
+  createdAt: string; updatedAt: string; dueAt?: string | null;
 };
 
 export type VerificationRequest = {
@@ -370,7 +394,7 @@ export type AuditLog = {
   metadata?: Record<string, unknown>;
 };
 
-export type AdminAnalyticsRangePreset = "today" | "7d" | "30d" | "custom";
+export type AdminAnalyticsRangePreset = "today" | "1d" | "3d" | "7d" | "30d" | "custom";
 
 export type AdminAnalyticsRangeInput = {
   preset: AdminAnalyticsRangePreset;
@@ -419,6 +443,20 @@ export type AdminAnalyticsReport = {
     byCategory: Array<{ category: string; count: number }>;
   };
   payments: Record<PaymentStatus, number> & { unresolvedReviews: number };
+  revenue: {
+    feeGeneratingTasks: number;
+    grossVerifiedCollectionsCentavos: number;
+    refundsCentavos: number;
+    netRetainedRevenueCentavos: number;
+    verifiedPlatformRevenueCentavos: number;
+    pendingServiceFeesCentavos: number;
+    submittedForReviewCentavos: number;
+    rejectedFeesCentavos: number;
+    outstandingFeeObligationsCentavos: number;
+    outstandingFeeObligations: number;
+    byCategory: Array<{ category: string; feeCentavos: number }>;
+    byMonth: Array<{ month: string; feeCentavos: number }>;
+  };
   matching: {
     telemetryAvailable: boolean;
     notificationsSent: number;
@@ -438,6 +476,10 @@ export type AdminAnalyticsReport = {
     completed: number;
     notifications: number;
     converted: number;
+    feeObligations: number;
+    verifiedPlatformRevenueCentavos: number;
+    refundsCentavos: number;
+    netRetainedRevenueCentavos: number;
   }>;
 };
 

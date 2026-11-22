@@ -26,6 +26,7 @@ export default function SuperadminScreen() {
   const [revenueOverview, setRevenueOverview] = useState<PlatformRevenueOverview>();
   const [gcashAccountName, setGcashAccountName] = useState("");
   const [gcashNumber, setGcashNumber] = useState("");
+  const [gcashQrImageUrl, setGcashQrImageUrl] = useState("");
   const [feePercent, setFeePercent] = useState("5");
   const [feeInstructions, setFeeInstructions] = useState("");
 
@@ -35,6 +36,7 @@ export default function SuperadminScreen() {
       const [overview, config, revenue] = await Promise.all([loadSuperadminOverview(), loadPlatformRevenueConfig(), loadPlatformRevenueOverview()]);
       setData(overview); setRevenueConfig(config); setRevenueOverview(revenue);
       setGcashAccountName(config?.gcashAccountName ?? ""); setGcashNumber(config?.gcashNumber ?? "");
+      setGcashQrImageUrl(config?.gcashQrImageUrl ?? "");
       setFeePercent(String((config?.rateBasisPoints ?? 500) / 100)); setFeeInstructions(config?.instructions ?? "");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to load account controls.");
@@ -70,7 +72,7 @@ export default function SuperadminScreen() {
     router.replace("/login");
   }
   async function saveRevenueConfig() {
-    await run("revenue-config", () => savePlatformRevenueConfig({ gcashAccountName: gcashAccountName.trim(), gcashNumber: gcashNumber.trim(), rateBasisPoints: Math.round(Number(feePercent) * 100), instructions: feeInstructions.trim() }));
+    await run("revenue-config", () => savePlatformRevenueConfig({ gcashAccountName: gcashAccountName.trim(), gcashNumber: gcashNumber.trim(), gcashQrImageUrl: gcashQrImageUrl.trim(), rateBasisPoints: Math.round(Number(feePercent) * 100), instructions: feeInstructions.trim() }));
   }
 
   return (
@@ -106,7 +108,7 @@ export default function SuperadminScreen() {
             <Stat label="Awaiting review" value={formatCentavos(revenueOverview?.submittedForReviewCentavos ?? 0)} />
             <Stat label="Pending employer payment" value={formatCentavos(revenueOverview?.pendingPaymentCentavos ?? 0)} />
           </View>
-          <Text style={styles.meta}>{revenueOverview?.revenueGeneratingCompletedTasks ?? 0} completed task{(revenueOverview?.revenueGeneratingCompletedTasks ?? 0) === 1 ? "" : "s"} with service-fee records</Text>
+          <Text style={styles.meta}>{revenueOverview?.revenueGeneratingCompletedTasks ?? 0} task{(revenueOverview?.revenueGeneratingCompletedTasks ?? 0) === 1 ? "" : "s"} with service-fee obligations</Text>
         </View>
 
         <View style={styles.notice}>
@@ -126,9 +128,10 @@ export default function SuperadminScreen() {
 
         <View style={styles.notice}>
           <Text style={styles.cardTitle}>TASKLINK service-fee destination</Text>
-          <Text style={styles.help}>Only Superadmins can set this. It creates future 5% employer-fee obligations after completed, worker-paid tasks; it never deducts worker wages.</Text>
+          <Text style={styles.help}>Only Superadmins can set this. It creates future 5% employer-fee obligations when an employer selects a tasker; it never deducts worker wages.</Text>
           <TextInput value={gcashAccountName} onChangeText={setGcashAccountName} placeholder="GCash account name" style={styles.input} />
           <TextInput value={gcashNumber} onChangeText={setGcashNumber} placeholder="GCash number" keyboardType="phone-pad" style={styles.input} />
+          <TextInput value={gcashQrImageUrl} onChangeText={setGcashQrImageUrl} autoCapitalize="none" autoCorrect={false} placeholder="GCash QR image HTTPS URL (optional)" style={styles.input} />
           <TextInput value={feePercent} onChangeText={setFeePercent} placeholder="Service fee percent" keyboardType="decimal-pad" style={styles.input} />
           <TextInput value={feeInstructions} onChangeText={setFeeInstructions} placeholder="Payment instructions (optional)" multiline style={[styles.input, styles.multiline]} />
           <Action label={revenueConfig?.enabled ? "Update service-fee settings" : "Activate service-fee settings"} tone="positive" disabled={Boolean(busyKey)} onPress={() => void saveRevenueConfig()} />

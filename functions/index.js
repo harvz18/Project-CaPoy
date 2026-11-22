@@ -14,7 +14,14 @@ const {
 const { buildExpoPushMessage, isExpoPushToken, isNotificationCategoryEnabled } = require("./push");
 const { buildIdentityReview } = require("./identity");
 const { findConflictingAssignment } = require("./marketplace");
-const { DEFAULT_RATE_BASIS_POINTS, buildFeeSnapshot } = require("./revenue");
+const {
+  DEFAULT_RATE_BASIS_POINTS,
+  buildFeeAuditEntry,
+  buildFeeSnapshot,
+  isPostingBlockedByPlatformFee,
+  normalizeOptionalHttpsUrl,
+  shouldCreatePlatformFeeForSelection
+} = require("./revenue");
 const {
   authorityFromClaims,
   buildAccountStatusChange,
@@ -23,6 +30,16 @@ const {
   hasSuperadminAuthority,
   toModerationUser
 } = require("./authority");
+const {
+  CASH_PIN_MAX_ATTEMPTS,
+  CASH_PIN_MAX_GENERATIONS,
+  CASH_PIN_RETRY_COOLDOWN_MS,
+  decryptCashPin,
+  generateCashPinRecord,
+  hasActiveCashPin,
+  requireCashPinSecret,
+  verifyCashPin
+} = require("./cashPin");
 
 initializeApp();
 
@@ -126,6 +143,8 @@ exports.acceptTaskApplication = onCall({ region: REGION }, async (request) => {
   const taskRef = db.collection("tasks").doc(taskId);
   const matchRef = db.collection("taskMatches").doc(`${taskId}_${workerId}`);
   const paymentRef = db.collection("payments").doc(taskId);
+  const feeRef = db.collection("platformFees").doc(taskId);
+  const revenueConfigRef = db.collection("platformRevenue").doc("config");
   const workerRef = db.collection("users").doc(workerId);
   const workerProfileRef = db.collection("workerProfiles").doc(workerId);
   const publicProfileRef = db.collection("publicProfiles").doc(workerId);
@@ -133,8 +152,9 @@ exports.acceptTaskApplication = onCall({ region: REGION }, async (request) => {
 
   await db.runTransaction(async (transaction) => {
     const assignedQuery = db.collection("tasks").where("workerId", "==", workerId);
-    const [taskSnapshot, matchSnapshot, paymentSnapshot, clientSnapshot, workerSnapshot, assignedSnapshot] = await Promise.all([
+    const [taskSnapshot, matchSnapshot, paymentSnapshot, feeSnapshot, revenueConfigSnapshot, clientSnapshot, workerSnapshot, assignedSnapshot] = await Promise.all([
       transaction.get(taskRef), transaction.get(matchRef), transaction.get(paymentRef),
+      transaction.get(feeRef), transaction.get(revenueConfigRef),
       transaction.get(db.collection("users").doc(clientId)), transaction.get(workerRef),
       transaction.get(assignedQuery)
     ]);
@@ -166,6 +186,36 @@ exports.acceptTaskApplication = onCall({ region: REGION }, async (request) => {
       agreedAmount: String(agreedAmount), acceptedAt, updatedAt: acceptedAt
     });
     transaction.update(paymentRef, { workerId, agreedAmount: String(agreedAmount), updatedAt: acceptedAt });
+    const revenueConfig = revenueConfigSnapshot.exists ? revenueConfigSnapshot.data() : undefined;
+    if (shouldCreatePlatformFeeForSelection({ task, config: revenueConfig, hasExistingFee: feeSnapshot.exists })) {
+      let fee;
+      try {
+        fee = buildFeeSnapshot({
+          task: { ...task, id: taskId, workerId, agreedAmount: String(agreedAmount) },
+          config: revenueConfig,
+          now: acceptedAt
+        });
+      } catch (error) {
+        throw new HttpsError("failed-precondition", error instanceof Error ? error.message : "The agreed worker wage cannot create a service fee.");
+      }
+      transaction.create(feeRef, fee);
+      transaction.update(db.collection("users").doc(clientId), {
+        unsettledPlatformFeeCount: FieldValue.increment(1)
+      });
+      transaction.set(db.collection("notifications").doc(`${taskId}_platform-fee-payable_${clientId}`), {
+        userId: clientId, taskId, createdBy: clientId,
+        notificationType: "TASKLINK service fee payable",
+        message: `A TASKLINK service fee is now payable for ${task.title || "this task"}. New task posts stay restricted until the fee is verified.`,
+        readStatus: false, createdAt: acceptedAt
+      }, { merge: true });
+      writeAudit(transaction, db, {
+        actorId: clientId,
+        action: "create_platform_fee_obligation",
+        targetType: "payment",
+        targetId: taskId,
+        metadata: { feeCentavos: fee.feeCentavos, workerWageCentavos: fee.workerWageCentavos, rateBasisPoints: fee.rateBasisPoints }
+      });
+    }
     allMatches.docs.forEach((document) => {
       const candidate = document.data();
       if (candidate.acceptanceStatus !== "Applied") return;
@@ -582,11 +632,12 @@ exports.getAdminAnalytics = onCall({ region: REGION }, async (request) => {
       startDate: request.data?.startDate,
       endDate: request.data?.endDate
     };
-    const [usersSnapshot, verificationSnapshot, tasksSnapshot, paymentsSnapshot, matchesSnapshot, notificationsSnapshot] = await Promise.all([
+    const [usersSnapshot, verificationSnapshot, tasksSnapshot, paymentsSnapshot, platformFeesSnapshot, matchesSnapshot, notificationsSnapshot] = await Promise.all([
       db.collection("users").where("role", "in", ["client", "worker"]).get(),
       db.collection("verificationRequests").get(),
       db.collection("tasks").get(),
       db.collection("payments").get(),
+      db.collection("platformFees").get(),
       db.collection("taskMatches").get(),
       db.collection("notifications").where("notificationType", "in", ["Matching task", "Smart Match"]).get()
     ]);
@@ -596,6 +647,7 @@ exports.getAdminAnalytics = onCall({ region: REGION }, async (request) => {
       verificationRequests: withIds(verificationSnapshot),
       tasks: withIds(tasksSnapshot),
       payments: withIds(paymentsSnapshot),
+      platformFees: withIds(platformFeesSnapshot),
       taskMatches: withIds(matchesSnapshot),
       notifications: withIds(notificationsSnapshot)
     }, rangeInput, nowIso());
@@ -612,62 +664,157 @@ exports.getAdminAnalytics = onCall({ region: REGION }, async (request) => {
   }
 });
 
-exports.confirmCashPaymentReceived = onCall({ region: REGION }, async (request) => {
-  const workerId = requireSignedIn(request);
+function cashPinSecretForCallable() {
+  try {
+    return requireCashPinSecret();
+  } catch (error) {
+    throw new HttpsError("failed-precondition", error instanceof Error ? error.message : "Cash payment confirmation is not configured.");
+  }
+}
+
+function cashPinAmount(task, payment) {
+  if (typeof task.agreedAmount !== "string" || typeof payment.agreedAmount !== "string" || task.agreedAmount !== payment.agreedAmount) {
+    throw new HttpsError("failed-precondition", "The agreed task payment amount is missing or no longer matches its payment record.");
+  }
+  return payment.agreedAmount;
+}
+
+function assertCashCallableParticipants(task, payment, uid, role) {
+  if (task.status !== "Pending Approval" || task.paymentMethod !== "COD" || payment.paymentMethod !== "COD") {
+    throw new HttpsError("failed-precondition", "Cash confirmation is unavailable for this task.");
+  }
+  if (role === "client" && (task.clientId !== uid || payment.clientId !== uid)) {
+    throw new HttpsError("permission-denied", "Only the task employer can confirm paying cash.");
+  }
+  if (role === "worker" && (task.workerId !== uid || payment.workerId !== uid)) {
+    throw new HttpsError("permission-denied", "Only the assigned tasker can confirm receiving cash.");
+  }
+}
+
+function clearCallableCashPin() {
+  return {
+    cashPinHash: FieldValue.delete(), cashPinCiphertext: FieldValue.delete(),
+    cashPinIv: FieldValue.delete(), cashPinTag: FieldValue.delete()
+  };
+}
+
+exports.markCashPaymentPaid = onCall({ region: REGION }, async (request) => {
+  const clientId = requireSignedIn(request);
   const taskId = requiredString(request.data?.taskId, "taskId");
   const db = getFirestore();
   const taskRef = db.collection("tasks").doc(taskId);
   const paymentRef = db.collection("payments").doc(taskId);
-  const confirmedAt = nowIso();
+  const markedAt = nowIso();
   await db.runTransaction(async (transaction) => {
-    const [taskSnapshot, paymentSnapshot, workerSnapshot] = await Promise.all([
-      transaction.get(taskRef),
-      transaction.get(paymentRef),
-      transaction.get(db.collection("users").doc(workerId))
-    ]);
-    if (!taskSnapshot.exists || !paymentSnapshot.exists) {
-      throw new HttpsError("not-found", "Task or payment record was not found.");
-    }
-    const task = taskSnapshot.data();
-    const payment = paymentSnapshot.data();
-    if (!workerSnapshot.exists
-      || !["active", "pending_verification"].includes(workerSnapshot.data().accountStatus ?? "active")) {
-      throw new HttpsError("permission-denied", "This worker account is not enabled.");
-    }
-    if (task.workerId !== workerId || payment.workerId !== workerId) {
-      throw new HttpsError("permission-denied", "Only the assigned worker can confirm receipt of cash.");
-    }
-    if (payment.paymentMethod !== "COD" || payment.paymentStatus !== "Submitted" || !payment.clientConfirmedAt) {
-      throw new HttpsError("failed-precondition", "The client must submit the cash-payment confirmation first.");
-    }
-
-    transaction.update(paymentRef, {
-      paymentStatus: "Verified",
-      workerConfirmedAt: confirmedAt,
-      updatedAt: confirmedAt
-    });
-    transaction.update(taskRef, {
-      paymentStatus: "Verified",
-      workerConfirmedAt: confirmedAt,
-      updatedAt: confirmedAt
-    });
-    transaction.set(db.collection("notifications").doc(), {
-      userId: task.clientId,
-      taskId,
-      createdBy: workerId,
-      notificationType: "Cash payment confirmed",
-      message: `Cash payment for ${task.title ?? "the task"} was confirmed by the worker.`,
-      readStatus: false,
-      createdAt: confirmedAt
-    });
-    writeAudit(transaction, db, {
-      actorId: workerId,
-      action: "confirm_cash_payment_received",
-      targetType: "payment",
-      targetId: taskId,
-      metadata: { paymentStatus: "Verified" }
-    });
+    const [taskSnapshot, paymentSnapshot] = await Promise.all([transaction.get(taskRef), transaction.get(paymentRef)]);
+    if (!taskSnapshot.exists || !paymentSnapshot.exists) throw new HttpsError("not-found", "Task payment record was not found.");
+    const task = taskSnapshot.data(); const payment = paymentSnapshot.data();
+    assertCashCallableParticipants(task, payment, clientId, "client");
+    cashPinAmount(task, payment);
+    if (payment.paymentStatus === "Awaiting Worker Confirmation" && task.paymentStatus === "Awaiting Worker Confirmation") return;
+    if (payment.paymentStatus !== "Pending" || task.paymentStatus !== "Pending") throw new HttpsError("failed-precondition", "This cash payment is already being confirmed or completed.");
+    transaction.update(taskRef, { paymentStatus: "Awaiting Worker Confirmation", clientConfirmedAt: markedAt, updatedAt: markedAt });
+    transaction.update(paymentRef, { paymentStatus: "Awaiting Worker Confirmation", clientConfirmedAt: markedAt, cashPaymentMarkedPaidAt: markedAt, updatedAt: markedAt });
+    transaction.set(db.collection("notifications").doc(`${taskId}_cash-awaiting_${task.workerId}`), {
+      userId: task.workerId, taskId, createdBy: clientId,
+      notificationType: "Cash payment awaiting confirmation",
+      message: `The employer marked the cash payment for ${task.title || "this task"} as paid. Confirm only after you have received and counted the full amount.`,
+      readStatus: false, createdAt: markedAt
+    }, { merge: true });
+    writeAudit(transaction, db, { actorId: clientId, action: "cash_payment_marked_paid", targetType: "payment", targetId: taskId, metadata: { paymentMethod: "COD" } });
   });
+  return { ok: true, status: "Awaiting Worker Confirmation" };
+});
+
+/** Worker-only: returns the code only after it has acknowledged receiving cash. */
+exports.confirmCashPaymentReceived = onCall({ region: REGION }, async (request) => {
+  const workerId = requireSignedIn(request);
+  const taskId = requiredString(request.data?.taskId, "taskId");
+  const secret = cashPinSecretForCallable();
+  const db = getFirestore();
+  const taskRef = db.collection("tasks").doc(taskId);
+  const paymentRef = db.collection("payments").doc(taskId);
+  const now = new Date();
+  let result;
+  await db.runTransaction(async (transaction) => {
+    const [taskSnapshot, paymentSnapshot] = await Promise.all([transaction.get(taskRef), transaction.get(paymentRef)]);
+    if (!taskSnapshot.exists || !paymentSnapshot.exists) throw new HttpsError("not-found", "Task payment record was not found.");
+    const task = taskSnapshot.data(); const payment = paymentSnapshot.data();
+    assertCashCallableParticipants(task, payment, workerId, "worker");
+    const agreedAmount = cashPinAmount(task, payment);
+    if (payment.paymentStatus !== "Awaiting Worker Confirmation" || task.paymentStatus !== "Awaiting Worker Confirmation") {
+      throw new HttpsError("failed-precondition", "Wait for the employer to mark the cash payment as paid.");
+    }
+    if (hasActiveCashPin(payment, now)) {
+      if (payment.cashPinEmployerId !== task.clientId || payment.cashPinWorkerId !== workerId || payment.cashPinAgreedAmount !== agreedAmount) {
+        throw new HttpsError("failed-precondition", "The cash confirmation session no longer matches this task.");
+      }
+      result = { ok: true, pin: decryptCashPin(payment, secret), expiresAt: payment.cashPinExpiresAt, reused: true };
+      return;
+    }
+    const generations = Number.isInteger(payment.cashPinGenerationCount) ? payment.cashPinGenerationCount : 0;
+    const retryAt = Date.parse(payment.cashPinRetryAvailableAt || "");
+    if (generations > 0 && Number.isFinite(retryAt) && now.getTime() < retryAt) throw new HttpsError("resource-exhausted", "Wait briefly before requesting another cash confirmation PIN.");
+    if (generations >= CASH_PIN_MAX_GENERATIONS) throw new HttpsError("resource-exhausted", "The cash confirmation PIN limit has been reached. Please contact TaskLink support.");
+    const generated = generateCashPinRecord({ taskId, clientId: task.clientId, workerId, agreedAmount, now, generationCount: generations + 1, secret });
+    const retryAvailableAt = new Date(Date.parse(generated.record.cashPinExpiresAt) + CASH_PIN_RETRY_COOLDOWN_MS).toISOString();
+    transaction.update(paymentRef, { ...generated.record, cashPinRetryAvailableAt: retryAvailableAt, cashPinLockedAt: FieldValue.delete(), cashPinInvalidatedAt: FieldValue.delete(), cashPinInvalidationReason: FieldValue.delete(), updatedAt: now.toISOString() });
+    transaction.set(db.collection("notifications").doc(`${taskId}_cash-pin-ready_${task.clientId}`), {
+      userId: task.clientId, taskId, createdBy: workerId,
+      notificationType: "Cash confirmation PIN ready",
+      message: `The tasker is ready to confirm the cash payment for ${task.title || "this task"}. Ask them for the 4-digit confirmation PIN.`,
+      readStatus: false, createdAt: now.toISOString()
+    }, { merge: true });
+    writeAudit(transaction, db, { actorId: workerId, action: "cash_payment_pin_issued", targetType: "payment", targetId: taskId, metadata: { paymentMethod: "COD", generation: generations + 1 } });
+    result = { ok: true, pin: generated.pin, expiresAt: generated.record.cashPinExpiresAt, reused: false };
+  });
+  return result;
+});
+
+exports.verifyCashPaymentPin = onCall({ region: REGION }, async (request) => {
+  const clientId = requireSignedIn(request);
+  const taskId = requiredString(request.data?.taskId, "taskId");
+  const pin = requiredString(request.data?.pin, "pin");
+  if (!/^\d{4}$/.test(pin)) throw new HttpsError("invalid-argument", "Enter the four-digit confirmation PIN from the tasker.");
+  const secret = cashPinSecretForCallable();
+  const db = getFirestore();
+  const taskRef = db.collection("tasks").doc(taskId);
+  const paymentRef = db.collection("payments").doc(taskId);
+  const now = new Date();
+  let failure;
+  await db.runTransaction(async (transaction) => {
+    const [taskSnapshot, paymentSnapshot] = await Promise.all([transaction.get(taskRef), transaction.get(paymentRef)]);
+    if (!taskSnapshot.exists || !paymentSnapshot.exists) throw new HttpsError("not-found", "Task payment record was not found.");
+    const task = taskSnapshot.data(); const payment = paymentSnapshot.data();
+    assertCashCallableParticipants(task, payment, clientId, "client");
+    const agreedAmount = cashPinAmount(task, payment);
+    if (payment.paymentStatus !== "Awaiting Worker Confirmation" || task.paymentStatus !== "Awaiting Worker Confirmation") throw new HttpsError("failed-precondition", "This cash payment is not awaiting PIN confirmation.");
+    if (!hasActiveCashPin(payment, now)) {
+      transaction.update(paymentRef, { ...clearCallableCashPin(), cashPinInvalidatedAt: now.toISOString(), cashPinInvalidationReason: payment.cashPinLockedAt ? "attempt_limit" : "expired", updatedAt: now.toISOString() });
+      failure = payment.cashPinLockedAt ? "This cash confirmation PIN has been locked after too many attempts." : "This cash confirmation PIN has expired. Ask the tasker to generate a new one.";
+      return;
+    }
+    const matches = payment.cashPinEmployerId === clientId && payment.cashPinWorkerId === task.workerId && payment.cashPinAgreedAmount === agreedAmount && verifyCashPin({ record: payment, taskId, clientId, workerId: task.workerId, agreedAmount, pin, secret });
+    if (!matches) {
+      const attempts = (Number.isInteger(payment.cashPinAttempts) ? payment.cashPinAttempts : 0) + 1;
+      const locked = attempts >= CASH_PIN_MAX_ATTEMPTS;
+      transaction.update(paymentRef, { cashPinAttempts: attempts, ...(locked ? { ...clearCallableCashPin(), cashPinLockedAt: now.toISOString(), cashPinInvalidatedAt: now.toISOString(), cashPinInvalidationReason: "attempt_limit" } : {}), updatedAt: now.toISOString() });
+      writeAudit(transaction, db, { actorId: clientId, action: "cash_payment_pin_failed", targetType: "payment", targetId: taskId, metadata: { attempts, locked } });
+      failure = locked ? "This cash confirmation PIN has been locked after three incorrect attempts." : "The cash confirmation PIN is incorrect. Please try again.";
+      return;
+    }
+    const confirmedAt = now.toISOString();
+    transaction.update(taskRef, { paymentStatus: "Verified", workerConfirmedAt: confirmedAt, updatedAt: confirmedAt });
+    transaction.update(paymentRef, { ...clearCallableCashPin(), paymentStatus: "Verified", workerConfirmedAt: confirmedAt, cashPinConfirmedAt: confirmedAt, cashPinUsedAt: confirmedAt, updatedAt: confirmedAt });
+    transaction.set(db.collection("notifications").doc(`${taskId}_cash-confirmed_${task.workerId}`), {
+      userId: task.workerId, taskId, createdBy: clientId,
+      notificationType: "Cash payment confirmed",
+      message: `Cash payment for ${task.title || "this task"} was mutually confirmed.`,
+      readStatus: false, createdAt: confirmedAt
+    }, { merge: true });
+    writeAudit(transaction, db, { actorId: clientId, action: "cash_payment_pin_verified", targetType: "payment", targetId: taskId, metadata: { paymentMethod: "COD", agreedAmount } });
+  });
+  if (failure) throw new HttpsError("failed-precondition", failure);
   return { ok: true, status: "Verified" };
 });
 
@@ -681,12 +828,18 @@ exports.updatePlatformRevenueConfig = onCall({ region: REGION }, async (request)
     throw new HttpsError("invalid-argument", "Service fee rate must be between 0% and 100%.");
   }
   const instructions = typeof data.instructions === "string" ? data.instructions.trim().slice(0, 1000) : "";
+  let gcashQrImageUrl;
+  try {
+    gcashQrImageUrl = normalizeOptionalHttpsUrl(data.gcashQrImageUrl);
+  } catch (error) {
+    throw new HttpsError("invalid-argument", error instanceof Error ? error.message : "GCash QR image URL is invalid.");
+  }
   const now = nowIso();
   const db = getFirestore();
   await db.runTransaction(async (transaction) => {
     const ref = db.collection("platformRevenue").doc("config");
     const existing = await transaction.get(ref);
-    const update = { enabled: true, gcashAccountName, gcashNumber, rateBasisPoints, instructions, activatedAt: existing.data()?.activatedAt || now, updatedAt: now, updatedBy: actorId };
+    const update = { enabled: true, gcashAccountName, gcashNumber, gcashQrImageUrl, rateBasisPoints, instructions, activatedAt: existing.data()?.activatedAt || now, updatedAt: now, updatedBy: actorId };
     transaction.set(ref, update, { merge: true });
     writeAudit(transaction, db, { actorId, action: "update_platform_revenue_config", targetType: "payment", targetId: "platformRevenue/config", metadata: { rateBasisPoints } });
   });
@@ -709,7 +862,20 @@ exports.submitPlatformFeePayment = onCall({ region: REGION }, async (request) =>
     if (!receiptPath.startsWith(`paymentProofs/${taskId}/`) && receiptPath !== `firestorePaymentProofs/${taskId}/platform-fee`) {
       throw new HttpsError("invalid-argument", "Upload a private receipt before submitting.");
     }
-    transaction.update(feeRef, { status: 'submitted_for_review', receiptPath, transactionReference, submittedAt: now, updatedAt: now, rejectionReason: null });
+    transaction.update(feeRef, {
+      status: 'submitted_for_review',
+      receiptPath,
+      transactionReference,
+      submittedAt: now,
+      updatedAt: now,
+      rejectionReason: null,
+      auditHistory: FieldValue.arrayUnion(buildFeeAuditEntry({
+        action: 'payment_submitted',
+        status: 'submitted_for_review',
+        at: now,
+        actorId: employerId
+      }))
+    });
     transaction.set(db.collection("notifications").doc(), { userId: employerId, taskId, createdBy: employerId, notificationType: "TASKLINK fee submitted", message: `Your TASKLINK service-fee payment for ${fee.taskTitle} was submitted for administrator review.`, readStatus: false, createdAt: now });
     writeAudit(transaction, db, { actorId: employerId, action: "submit_platform_fee_payment", targetType: "payment", targetId: taskId, metadata: { feeCentavos: fee.feeCentavos } });
   });
@@ -725,11 +891,24 @@ exports.reviewPlatformFeePayment = onCall({ region: REGION }, async (request) =>
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref); if (!snapshot.exists) throw new HttpsError('not-found', 'Service-fee record not found.');
     const fee = snapshot.data(); if (fee.status !== 'submitted_for_review') throw new HttpsError('failed-precondition', 'Only a submitted service fee can be reviewed.');
+    const employerRef = decision === 'verified' ? db.collection('users').doc(fee.employerId) : null;
+    const employerSnapshot = employerRef ? await transaction.get(employerRef) : null;
+    const currentCount = employerSnapshot?.exists && Number.isInteger(employerSnapshot.data().unsettledPlatformFeeCount)
+      ? employerSnapshot.data().unsettledPlatformFeeCount
+      : 0;
     const update = decision === 'verified'
       ? { status: 'verified', verifiedAt: now, reviewedAt: now, reviewedBy: adminId, verifiedCollectedCentavos: fee.feeCentavos, updatedAt: now }
       : { status: 'rejected', reviewedAt: now, reviewedBy: adminId, rejectionReason: reason, updatedAt: now };
+    update.auditHistory = FieldValue.arrayUnion(buildFeeAuditEntry({
+      action: decision === 'verified' ? 'payment_verified' : 'payment_rejected',
+      status: decision,
+      at: now,
+      actorId: adminId,
+      reason: reason || null
+    }));
     transaction.update(ref, update);
-    transaction.set(db.collection('notifications').doc(), { userId: fee.employerId, taskId, createdBy: adminId, notificationType: 'TASKLINK fee review', message: decision === 'verified' ? `Your TASKLINK service fee for ${fee.taskTitle} was verified.` : `Your TASKLINK service fee was rejected: ${reason}`, readStatus: false, createdAt: now });
+    if (employerRef) transaction.set(employerRef, { unsettledPlatformFeeCount: Math.max(0, currentCount - 1) }, { merge: true });
+    transaction.set(db.collection('notifications').doc(), { userId: fee.employerId, taskId, createdBy: adminId, notificationType: 'TASKLINK fee review', message: decision === 'verified' ? `Your TASKLINK service fee for ${fee.taskTitle} was verified. Your posting restriction has been removed.` : `Your TASKLINK service fee was rejected: ${reason}`, readStatus: false, createdAt: now });
     writeAudit(transaction, db, { actorId: adminId, action: decision === 'verified' ? 'verify_platform_fee_payment' : 'reject_platform_fee_payment', targetType: 'payment', targetId: taskId, reason, metadata: { feeCentavos: fee.feeCentavos } });
   });
   return { ok: true, status: decision };
@@ -773,19 +952,69 @@ exports.getPlatformRevenueOverview = onCall({ region: REGION }, async (request) 
   };
 });
 
+// Kept under its deployed export name so a Functions deployment safely replaces
+// the former post-completion fee creator. New obligations are created only in
+// the trusted acceptance transaction above. This trigger now preserves a fee
+// record when a selected task is cancelled without treating it as revenue.
 exports.createPlatformFeeOnCompletedTask = onDocumentUpdated({ document: 'tasks/{taskId}', region: REGION }, async (event) => {
-  const before = event.data?.before.data(); const task = event.data?.after.data();
-  if (!task || before?.status === 'Finished' || task.status !== 'Finished' || task.paymentStatus !== 'Verified' || !task.agreedAmount) return;
-  const db = getFirestore(); const configSnapshot = await db.collection('platformRevenue').doc('config').get(); const config = configSnapshot.data();
-  // No destination/no activation means no obligation: historical and unconfigured tasks remain untouched.
-  if (!config?.enabled || !config.gcashAccountName || !config.gcashNumber || !config.activatedAt || String(task.createdAt || '') < String(config.activatedAt)) return;
-  const feeRef = db.collection('platformFees').doc(event.params.taskId); const now = nowIso();
+  const before = event.data?.before.data();
+  const task = event.data?.after.data();
+  if (!task || before?.status === 'Cancelled' || task.status !== 'Cancelled') return;
+  const db = getFirestore();
+  const feeRef = db.collection('platformFees').doc(event.params.taskId);
+  const now = nowIso();
   await db.runTransaction(async (transaction) => {
-    const existing = await transaction.get(feeRef); if (existing.exists) return;
-    let fee; try { fee = buildFeeSnapshot({ task: { ...task, id: event.params.taskId }, config, now }); }
-    catch (error) { logger.error('TASKLINK fee snapshot failed', { taskId: event.params.taskId, error: error instanceof Error ? error.message : 'invalid wage' }); return; }
-    transaction.create(feeRef, fee);
-    transaction.set(db.collection('notifications').doc(`${event.params.taskId}_platform-fee-due`), { userId: task.clientId, taskId: event.params.taskId, createdBy: 'system', notificationType: 'TASKLINK service fee due', message: `Your TASKLINK service fee of ₱${fee.feeAmount} for ${fee.taskTitle} is now payable.`, route: 'task', readStatus: false, createdAt: now });
+    const snapshot = await transaction.get(feeRef);
+    if (!snapshot.exists) return;
+    const fee = snapshot.data();
+    if (['cancelled', 'credited'].includes(fee.status)) return;
+    const employerRef = db.collection('users').doc(fee.employerId);
+    const employerSnapshot = await transaction.get(employerRef);
+    const currentCount = employerSnapshot.exists && Number.isInteger(employerSnapshot.data().unsettledPlatformFeeCount)
+      ? employerSnapshot.data().unsettledPlatformFeeCount
+      : 0;
+    const releasesPostingLock = isPostingBlockedByPlatformFee(fee.status);
+    const requiresReview = ['submitted_for_review', 'verified', 'refund_pending'].includes(fee.status);
+    const status = requiresReview ? 'refund_pending' : 'cancelled';
+    transaction.update(feeRef, {
+      status,
+      cancelledAt: now,
+      cancellationReason: typeof task.cancellationReason === 'string' ? task.cancellationReason : null,
+      cancellationReviewRequired: requiresReview,
+      updatedAt: now,
+      auditHistory: FieldValue.arrayUnion(buildFeeAuditEntry({
+        action: 'task_cancelled',
+        status,
+        at: now,
+        actorId: typeof task.cancelledBy === 'string' ? task.cancelledBy : 'system',
+        reason: typeof task.cancellationReason === 'string' ? task.cancellationReason : null
+      }))
+    });
+    if (releasesPostingLock) transaction.set(employerRef, { unsettledPlatformFeeCount: Math.max(0, currentCount - 1) }, { merge: true });
+  });
+});
+
+// A Cash PIN is valid only while the same task is awaiting final employer
+// approval. This clears any recoverable encrypted PIN material if a task is
+// cancelled, disputed, or otherwise leaves that state outside the PIN route.
+exports.invalidateCashPinOnTaskStateChange = onDocumentUpdated({ document: 'tasks/{taskId}', region: REGION }, async (event) => {
+  const before = event.data?.before.data();
+  const after = event.data?.after.data();
+  if (!before || !after || after.status === "Pending Approval" || before.paymentMethod !== "COD") return;
+  const taskId = event.params.taskId;
+  const db = getFirestore();
+  const paymentRef = db.collection("payments").doc(taskId);
+  await db.runTransaction(async (transaction) => {
+    const paymentSnapshot = await transaction.get(paymentRef);
+    if (!paymentSnapshot.exists) return;
+    const payment = paymentSnapshot.data();
+    if (payment.paymentMethod !== "COD" || !payment.cashPinHash || payment.cashPinUsedAt || payment.cashPinInvalidatedAt) return;
+    transaction.update(paymentRef, {
+      ...clearCallableCashPin(),
+      cashPinInvalidatedAt: nowIso(),
+      cashPinInvalidationReason: "task_state_changed",
+      updatedAt: nowIso()
+    });
   });
 });
 

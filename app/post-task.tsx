@@ -25,7 +25,7 @@ import { AddressDetails, formatTaskAddressDetails } from "../src/utils/address";
 import { ReverseGeocodeResult, reverseGeocodeSelectedPin } from "../src/services/reverseGeocoding";
 import { getTaskPostingErrors, TaskPostingField } from "../src/domain/taskPosting";
 import { estimateServiceFee, formatCentavos } from "../src/domain/platformRevenue";
-import { loadPlatformRevenueConfig } from "../src/services/platformRevenueService";
+import { checkTaskPostingFeeEligibility, loadPlatformRevenueConfig, TaskPostingFeeEligibility } from "../src/services/platformRevenueService";
 
 const palette = {
   background: "#F7FAF8",
@@ -84,6 +84,7 @@ export default function PostTaskScreen() {
   const [wage, setWage] = useState("");
   const [pricingMode, setPricingMode] = useState<PricingMode>("fixed");
   const [serviceFeeBasisPoints, setServiceFeeBasisPoints] = useState(500);
+  const [postingFeeEligibility, setPostingFeeEligibility] = useState<TaskPostingFeeEligibility>();
   const estimatedServiceFee = pricingMode === "fixed" ? estimateServiceFee(wage, serviceFeeBasisPoints) : undefined;
   const [durationValue, setDurationValue] = useState("1");
   const [durationUnit, setDurationUnit] = useState<DurationUnit>("day");
@@ -113,6 +114,10 @@ export default function PostTaskScreen() {
         }
       })
       .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    void checkTaskPostingFeeEligibility().then(setPostingFeeEligibility).catch(() => undefined);
   }, []);
 
   async function useDeviceLocation() {
@@ -288,6 +293,18 @@ export default function PostTaskScreen() {
 
   async function handlePostTask() {
     try {
+      try {
+        const eligibility = await checkTaskPostingFeeEligibility();
+        setPostingFeeEligibility(eligibility);
+        if (!eligibility.allowed) {
+          setOverviewOpen(false);
+          return;
+        }
+      } catch {
+        // Firestore rules remain the final guard. If the advisory preflight is
+        // temporarily unavailable, preserve the existing post attempt rather
+        // than hiding a recoverable rules error from the employer.
+      }
       const input = buildTaskInput();
       const errors = getTaskPostingErrors(input);
       setFormErrors(errors);
@@ -328,6 +345,18 @@ export default function PostTaskScreen() {
           <Text style={styles.heroTitle}>Need a hand?</Text>
           <Text style={styles.heroText}>Describe what you need help with and find a neighbor to help you today.</Text>
         </View>
+
+        {postingFeeEligibility && !postingFeeEligibility.allowed ? (
+          <View style={styles.unsettledFeeNotice}>
+            <Text style={styles.unsettledFeeTitle}>Settle your TASKLINK service fee first</Text>
+            <Text style={styles.unsettledFeeText}>{postingFeeEligibility.message}</Text>
+            {postingFeeEligibility.outstandingFee ? (
+              <Pressable accessibilityRole="button" onPress={() => router.push(`/platform-fee/${postingFeeEligibility.outstandingFee?.taskId}`)} style={styles.unsettledFeeButton}>
+                <Text style={styles.unsettledFeeButtonText}>Open outstanding fee</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         <View style={styles.formCard}>
           <Field label="Task Category *" style={categoryOpen ? styles.dropdownFieldOpen : undefined}>
@@ -572,7 +601,7 @@ export default function PostTaskScreen() {
             <Text style={styles.serviceFeeText}>Worker pay: {formatCentavos(estimatedServiceFee.workerWageCentavos)}</Text>
             <Text style={styles.serviceFeeText}>TASKLINK service fee: {formatCentavos(estimatedServiceFee.feeCentavos)}</Text>
             <Text style={styles.serviceFeeTotal}>Total employer obligation: {formatCentavos(estimatedServiceFee.totalCentavos)}</Text>
-            <Text style={styles.helperText}>The worker still receives the full worker pay. The separate platform fee becomes payable only after completion and verified worker payment.</Text>
+            <Text style={styles.helperText}>The worker receives the full wage. The TASKLINK service fee is payable after selecting a worker.</Text>
           </View> : null}
 
           <View style={styles.twoColumn}>
@@ -1270,6 +1299,11 @@ const styles = StyleSheet.create({
   serviceFeeTitle: { color: palette.primary, fontSize: 14, fontWeight: "900" },
   serviceFeeText: { color: palette.text, fontSize: 13, fontWeight: "700" },
   serviceFeeTotal: { color: palette.textStrong, fontSize: 15, fontWeight: "900", marginTop: 2 },
+  unsettledFeeNotice: { backgroundColor: "#FFF8E7", borderColor: "#F7C66A", borderRadius: 12, borderWidth: 1, gap: 7, padding: 14 },
+  unsettledFeeTitle: { color: "#684000", fontSize: 15, fontWeight: "900" },
+  unsettledFeeText: { color: "#684000", fontSize: 13, lineHeight: 18 },
+  unsettledFeeButton: { alignSelf: "flex-start", borderColor: palette.primary, borderRadius: 8, borderWidth: 1, minHeight: 38, justifyContent: "center", paddingHorizontal: 12 },
+  unsettledFeeButtonText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
   disabled: { opacity: 0.55 },
   pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
 });

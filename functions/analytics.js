@@ -1,4 +1,4 @@
-const ANALYTICS_VERSION = 1;
+const ANALYTICS_VERSION = 2;
 const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TASK_STATUSES = [
@@ -7,6 +7,9 @@ const TASK_STATUSES = [
 ];
 const VERIFICATION_STATUSES = ["Pending Verification", "Verified", "Rejected", "Needs Resubmission"];
 const PAYMENT_STATUSES = ["Pending", "Submitted", "Verified", "Rejected"];
+const OUTSTANDING_PLATFORM_FEE_STATUSES = new Set([
+  "pending_payment", "submitted_for_review", "rejected", "overdue", "refund_pending"
+]);
 
 function manilaDateKey(value) {
   const timestamp = typeof value === "number" ? value : new Date(value).getTime();
@@ -33,12 +36,12 @@ function resolveAnalyticsRange(input = {}, now = Date.now()) {
   let endDate;
   let label;
 
-  if (preset === "today") {
+  if (preset === "today" || preset === "1d") {
     startDate = today;
     endDate = today;
-    label = "Today";
-  } else if (preset === "7d" || preset === "30d") {
-    const days = preset === "7d" ? 7 : 30;
+    label = "Last 1 day";
+  } else if (preset === "3d" || preset === "7d" || preset === "30d") {
+    const days = preset === "3d" ? 3 : preset === "7d" ? 7 : 30;
     startDate = manilaDateKey(dateStartUtc(today) - ((days - 1) * DAY_MS));
     endDate = today;
     label = `Last ${days} days`;
@@ -122,11 +125,57 @@ function percentage(numerator, denominator) {
   return denominator ? Math.round((numerator / denominator) * 1000) / 10 : null;
 }
 
+function feeAmountCentavos(fee) {
+  const value = Number(fee?.feeCentavos);
+  return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+function feeCreatedAt(fee) {
+  return fee?.obligationCreatedAt || fee?.createdAt;
+}
+
+function feeRefundAmountCentavos(fee) {
+  const explicit = Number(fee?.refundedCentavos ?? fee?.creditedCentavos);
+  if (Number.isSafeInteger(explicit) && explicit > 0) return explicit;
+  return ["credited", "refunded", "refund_completed"].includes(fee?.status)
+    ? feeAmountCentavos(fee)
+    : 0;
+}
+
+function feeRefundedAt(fee) {
+  return fee?.refundedAt || fee?.creditedAt || fee?.refundCompletedAt;
+}
+
+function feeCategoryBreakdown(fees) {
+  const totals = new Map();
+  fees.forEach((fee) => {
+    const category = String(fee.taskCategory || "Uncategorized").trim() || "Uncategorized";
+    totals.set(category, (totals.get(category) || 0) + feeAmountCentavos(fee));
+  });
+  return [...totals.entries()]
+    .map(([category, feeCentavos]) => ({ category, feeCentavos }))
+    .sort((left, right) => right.feeCentavos - left.feeCentavos || left.category.localeCompare(right.category));
+}
+
+function monthlyRevenueBreakdown(fees) {
+  const totals = new Map();
+  fees.forEach((fee) => {
+    const month = manilaDateKey(fee.verifiedAt)?.slice(0, 7);
+    if (month) totals.set(month, (totals.get(month) || 0) + feeAmountCentavos(fee));
+  });
+  return [...totals.entries()]
+    .map(([month, feeCentavos]) => ({ month, feeCentavos }))
+    .sort((left, right) => left.month.localeCompare(right.month));
+}
+
 function buildDailySeries(range, collections) {
   const rows = new Map();
   for (let day = range.startAtMs; day < range.endAtMs; day += DAY_MS) {
     const date = manilaDateKey(day);
-    rows.set(date, { date, posted: 0, applications: 0, accepted: 0, completed: 0, notifications: 0, converted: 0 });
+    rows.set(date, {
+      date, posted: 0, applications: 0, accepted: 0, completed: 0, notifications: 0, converted: 0,
+      feeObligations: 0, verifiedPlatformRevenueCentavos: 0, refundsCentavos: 0, netRetainedRevenueCentavos: 0
+    });
   }
   const increment = (value, field) => {
     if (!inRange(value, range)) return;
@@ -143,6 +192,20 @@ function buildDailySeries(range, collections) {
     increment(notification.createdAt, "notifications");
     increment(notification.applicationConvertedAt, "converted");
   });
+  collections.platformFees.forEach((fee) => {
+    if (inRange(feeCreatedAt(fee), range)) increment(feeCreatedAt(fee), "feeObligations");
+    if (inRange(fee.verifiedAt, range)) {
+      const row = rows.get(manilaDateKey(fee.verifiedAt));
+      if (row) row.verifiedPlatformRevenueCentavos += feeAmountCentavos(fee);
+    }
+    if (inRange(feeRefundedAt(fee), range)) {
+      const row = rows.get(manilaDateKey(feeRefundedAt(fee)));
+      if (row) row.refundsCentavos += feeRefundAmountCentavos(fee);
+    }
+  });
+  rows.forEach((row) => {
+    row.netRetainedRevenueCentavos = row.verifiedPlatformRevenueCentavos - row.refundsCentavos;
+  });
   return [...rows.values()];
 }
 
@@ -152,6 +215,7 @@ function buildAnalyticsReport(input, rangeInput = {}, generatedAt = new Date().t
   const verificationRequests = uniqueById(input.verificationRequests);
   const tasks = uniqueById(input.tasks);
   const payments = uniqueById(input.payments);
+  const platformFees = uniqueById(input.platformFees);
   const taskMatches = uniqueById(input.taskMatches);
   const matchingNotifications = uniqueById(input.notifications)
     .filter((notification) => ["Matching task", "Smart Match"].includes(notification.notificationType));
@@ -195,6 +259,15 @@ function buildAnalyticsReport(input, rangeInput = {}, generatedAt = new Date().t
   const accountStatuses = publicUsers.map((user) => user.accountStatus || "active");
   const verificationStatuses = verificationRequests.map((request) => request.status);
   const paymentStatuses = periodPayments.map((payment) => payment.paymentStatus);
+  const feeObligations = platformFees.filter((fee) => inRange(feeCreatedAt(fee), range));
+  const verifiedFees = platformFees.filter((fee) => inRange(fee.verifiedAt, range));
+  const submittedFees = platformFees.filter((fee) => fee.status === "submitted_for_review" && inRange(fee.submittedAt, range));
+  const rejectedFees = platformFees.filter((fee) => fee.status === "rejected" && inRange(fee.reviewedAt, range));
+  const pendingFees = platformFees.filter((fee) => fee.status === "pending_payment" && inRange(feeCreatedAt(fee), range));
+  const outstandingFees = feeObligations.filter((fee) => OUTSTANDING_PLATFORM_FEE_STATUSES.has(fee.status));
+  const refundedFees = platformFees.filter((fee) => inRange(feeRefundedAt(fee), range));
+  const grossVerifiedCollectionsCentavos = verifiedFees.reduce((sum, fee) => sum + feeAmountCentavos(fee), 0);
+  const refundsCentavos = refundedFees.reduce((sum, fee) => sum + feeRefundAmountCentavos(fee), 0);
 
   const report = {
     version: ANALYTICS_VERSION,
@@ -242,6 +315,20 @@ function buildAnalyticsReport(input, rangeInput = {}, generatedAt = new Date().t
         payment.paymentMethod === "GCash link" && payment.paymentStatus === "Submitted"
       ).length
     },
+    revenue: {
+      feeGeneratingTasks: feeObligations.length,
+      grossVerifiedCollectionsCentavos,
+      refundsCentavos,
+      netRetainedRevenueCentavos: grossVerifiedCollectionsCentavos - refundsCentavos,
+      verifiedPlatformRevenueCentavos: grossVerifiedCollectionsCentavos - refundsCentavos,
+      pendingServiceFeesCentavos: pendingFees.reduce((sum, fee) => sum + feeAmountCentavos(fee), 0),
+      submittedForReviewCentavos: submittedFees.reduce((sum, fee) => sum + feeAmountCentavos(fee), 0),
+      rejectedFeesCentavos: rejectedFees.reduce((sum, fee) => sum + feeAmountCentavos(fee), 0),
+      outstandingFeeObligationsCentavos: outstandingFees.reduce((sum, fee) => sum + feeAmountCentavos(fee), 0),
+      outstandingFeeObligations: outstandingFees.length,
+      byCategory: feeCategoryBreakdown(verifiedFees),
+      byMonth: monthlyRevenueBreakdown(verifiedFees)
+    },
     matching: {
       telemetryAvailable,
       notificationsSent: periodNotifications.length,
@@ -255,7 +342,7 @@ function buildAnalyticsReport(input, rangeInput = {}, generatedAt = new Date().t
       averageMinutesToFirstApplication: average(firstApplicationMinutes),
       averageMinutesToAcceptance: average(acceptanceMinutes)
     },
-    daily: buildDailySeries(range, { tasks, taskMatches, notifications: matchingNotifications })
+    daily: buildDailySeries(range, { tasks, taskMatches, notifications: matchingNotifications, platformFees })
   };
 
   return report;

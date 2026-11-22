@@ -26,6 +26,25 @@ export type VerificationRequest = { id: string; userId: string; validIdType?: st
 export type Payment = { id: string; taskId?: string; paymentMethod?: string; paymentStatus?: string; agreedAmount?: string; updatedAt?: string; createdAt?: string };
 export type PlatformFee = { id: string; taskId?: string; employerId?: string; taskTitle?: string; taskCategory?: string; workerWage?: string; feeAmount?: string; feeCentavos?: number; status?: "pending_payment" | "submitted_for_review" | "verified" | "rejected" | "overdue"; receiptPath?: string; transactionReference?: string; submittedAt?: string; reviewedAt?: string; rejectionReason?: string; createdAt?: string; updatedAt?: string };
 export type PlatformRevenueOverview = { revenueGeneratingCompletedTasks: number; totalCollectedCentavos: number; pendingPaymentCentavos: number; submittedForReviewCentavos: number; overdueCentavos: number; rejectedCentavos: number; byCategory: Array<{ category: string; feeCentavos: number }>; monthlyCollected: Array<{ month: string; feeCentavos: number }>; generatedAt: string };
+export type RevenueAnalyticsRangePreset = "1d" | "3d" | "7d" | "30d";
+export type RevenueAnalyticsReport = {
+  range: { label: string; timeZone: "Asia/Manila"; startDate: string; endDate: string };
+  generatedAt: string;
+  revenue: {
+    feeGeneratingTasks: number;
+    grossVerifiedCollectionsCentavos: number;
+    refundsCentavos: number;
+    netRetainedRevenueCentavos: number;
+    pendingServiceFeesCentavos: number;
+    submittedForReviewCentavos: number;
+    rejectedFeesCentavos: number;
+    outstandingFeeObligationsCentavos: number;
+    outstandingFeeObligations: number;
+    byCategory: Array<{ category: string; feeCentavos: number }>;
+    byMonth: Array<{ month: string; feeCentavos: number }>;
+  };
+  daily: Array<{ date: string; feeObligations: number; netRetainedRevenueCentavos: number }>;
+};
 export type Rating = { id: string; reviewerId?: string; targetUserId?: string; taskId?: string; score?: number; feedback?: string; createdAt?: string };
 export type AuditLog = { id: string; actorId?: string; action?: string; targetType?: string; targetId?: string; reason?: string; createdAt?: string };
 export type ViolationReport = { id: string; reporterId?: string; targetUserId?: string; category?: string; reason?: string; status?: string; createdAt?: string };

@@ -46,6 +46,12 @@ function fixtures() {
       { id: "payment-1", paymentMethod: "GCash link", paymentStatus: "Submitted", createdAt: "2026-09-30T00:00:00.000Z" },
       { id: "payment-2", paymentMethod: "COD", paymentStatus: "Verified", createdAt: "2026-09-25T00:00:00.000Z" }
     ],
+    platformFees: [
+      { id: "fee-1", status: "verified", feeCentavos: 2500, taskCategory: "Cleaning", obligationCreatedAt: "2026-09-30T02:00:00.000Z", verifiedAt: "2026-09-30T06:00:00.000Z" },
+      { id: "fee-2", status: "submitted_for_review", feeCentavos: 5000, taskCategory: "Plumbing", obligationCreatedAt: "2026-09-30T03:00:00.000Z", submittedAt: "2026-09-30T04:00:00.000Z" },
+      { id: "fee-3", status: "pending_payment", feeCentavos: 1500, taskCategory: "Delivery", obligationCreatedAt: "2026-09-29T18:00:00.000Z" },
+      { id: "fee-4", status: "rejected", feeCentavos: 1000, taskCategory: "Cleaning", obligationCreatedAt: "2026-09-29T18:00:00.000Z", reviewedAt: "2026-09-30T07:00:00.000Z" }
+    ],
     taskMatches: [
       { id: "match-1", taskId: "task-1", createdAt: "2026-09-30T01:00:00.000Z" },
       { id: "match-1", taskId: "task-1", createdAt: "2026-09-30T01:00:00.000Z" },
@@ -104,6 +110,21 @@ test("known beta fixtures produce reproducible account, funnel, payment, and mat
   assert.equal(report.payments.Submitted, 1);
   assert.equal(report.payments.Verified, 1);
   assert.equal(report.payments.unresolvedReviews, 1);
+  assert.deepEqual(report.revenue, {
+    feeGeneratingTasks: 4,
+    grossVerifiedCollectionsCentavos: 2500,
+    refundsCentavos: 0,
+    netRetainedRevenueCentavos: 2500,
+    verifiedPlatformRevenueCentavos: 2500,
+    pendingServiceFeesCentavos: 1500,
+    submittedForReviewCentavos: 5000,
+    rejectedFeesCentavos: 1000,
+    outstandingFeeObligationsCentavos: 7500,
+    outstandingFeeObligations: 3,
+    byCategory: [{ category: "Cleaning", feeCentavos: 2500 }],
+    byMonth: [{ month: "2026-09", feeCentavos: 2500 }]
+  });
+  assert.equal(report.daily.find((day) => day.date === "2026-09-30").verifiedPlatformRevenueCentavos, 2500);
   assert.equal(report.matching.notificationsSent, 2);
   assert.equal(report.matching.opened, 1);
   assert.equal(report.matching.converted, 1);
@@ -112,6 +133,27 @@ test("known beta fixtures produce reproducible account, funnel, payment, and mat
   assert.equal(report.matching.averageEligibleTaskersPerPostedTask, 1);
   assert.equal(report.matching.averageMinutesToFirstApplication, 60);
   assert.equal(report.matching.averageMinutesToAcceptance, 120);
+});
+
+test("revenue ranges include one day, three days, one week, and one month in Manila time", () => {
+  const now = Date.parse("2026-10-01T04:00:00.000Z");
+  assert.equal(resolveAnalyticsRange({ preset: "1d" }, now).days, 1);
+  assert.equal(resolveAnalyticsRange({ preset: "3d" }, now).days, 3);
+  assert.equal(resolveAnalyticsRange({ preset: "7d" }, now).days, 7);
+  assert.equal(resolveAnalyticsRange({ preset: "30d" }, now).days, 30);
+});
+
+test("only verified fee collections count toward revenue and refunds reduce retained revenue", () => {
+  const input = fixtures();
+  input.platformFees.push({
+    id: "fee-5", status: "credited", feeCentavos: 500, taskCategory: "Cleaning",
+    obligationCreatedAt: "2026-09-29T18:00:00.000Z", verifiedAt: "2026-09-30T08:00:00.000Z", creditedAt: "2026-09-30T09:00:00.000Z"
+  });
+  const report = buildAnalyticsReport(input, { preset: "7d" }, generatedAt);
+  assert.equal(report.revenue.grossVerifiedCollectionsCentavos, 3000);
+  assert.equal(report.revenue.refundsCentavos, 500);
+  assert.equal(report.revenue.netRetainedRevenueCentavos, 2500);
+  assert.equal(report.revenue.submittedForReviewCentavos, 5000);
 });
 
 test("analytics snapshots are deterministic, retry-safe, and exclude sensitive source fields", () => {
