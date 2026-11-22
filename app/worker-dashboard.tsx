@@ -3,22 +3,20 @@ import { BlurTargetView, BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { type ComponentRef, useEffect, useRef, useState } from "react";
-import { Animated, Easing, Modal, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Animated, Easing, Image, Modal, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, useWindowDimensions, View } from "react-native";
 import { AppText as Text } from "../src/components/AppText";
 import { AppHeader } from "../src/components/AppHeader";
+import { CompactJobCard } from "../src/components/CompactJobCard";
 import { interactiveCardShadow } from "../src/styles";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import LocationMap from "../src/components/LocationMap";
-import { SmartMatchBadge } from "../src/components/SmartMatchBadge";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { TaskMapPreview } from "../src/components/TaskMapPreview";
 import { useApp } from "../src/context/AppContext";
 import { usePullToRefresh } from "../src/hooks/usePullToRefresh";
 import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
-import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
+import { rankTasksForWorker } from "../src/domain/matching";
 import { Task } from "../src/types";
-import { formatDistance } from "../src/utils/location";
-import { formatRelativeTime } from "../src/utils/relativeTime";
 
 const palette = {
   background: "#F7FAF8",
@@ -39,6 +37,7 @@ const palette = {
 
 const TAB_ROW_PADDING = 4;
 const TAB_ROW_GAP = 8;
+const TOP_OPPORTUNITY_PAGE_SIZE = 5;
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 type MapOverlayRect = { x: number; y: number; width: number; height: number };
 
@@ -56,8 +55,11 @@ export default function WorkerDashboardScreen() {
   const [selectedMapTaskId, setSelectedMapTaskId] = useState<string>();
   const [actionMessage, setActionMessage] = useState("");
   const [tabRowWidth, setTabRowWidth] = useState(0);
+  const [bestFitCardHeight, setBestFitCardHeight] = useState(0);
+  const [visibleTopOpportunityCount, setVisibleTopOpportunityCount] = useState(TOP_OPPORTUNITY_PAGE_SIZE);
   const tabPosition = useRef(new Animated.Value(0)).current;
-  const applicationBorderRotation = useRef(new Animated.Value(0)).current;
+  const bestFitBorderRotation = useRef(new Animated.Value(0)).current;
+  const bestFitBadgeRotation = useRef(new Animated.Value(0)).current;
   const applicationsOverlayScale = useRef(new Animated.Value(0.82)).current;
   const applicationsOverlayClosingRef = useRef(false);
   const mapOverlayClosingRef = useRef(false);
@@ -82,13 +84,13 @@ export default function WorkerDashboardScreen() {
     (task) => task.workerId === currentUser?.id && (task.status === "Finished" || task.status === "Archived")
   );
   const smartMatches = rankedPostedTasks.filter(({ match }) => match.eligible);
+  const bestFitJobs = rankedPostedTasks.filter(({ match }) => match.eligible && match.score >= 90);
+  const bestFitTaskIds = new Set(bestFitJobs.map(({ task }) => task.id));
+  const topOpportunityJobs = rankedPostedTasks.filter(({ task }) => !bestFitTaskIds.has(task.id));
+  const visibleTopOpportunityJobs = topOpportunityJobs.slice(0, visibleTopOpportunityCount);
+  const bestFitCardWidth = Math.min(312, Math.max(240, viewportWidth - 86));
+  const bestFitLayoutKey = bestFitJobs.map(({ task, match }) => `${task.id}:${task.title}:${task.category}:${match.score}`).join("|");
   const visibleFinishedTasks = finishedExpanded ? finishedTasks : finishedTasks.slice(0, 3);
-  // Keep open work visible even when there are no eligible smart matches. The
-  // ranked list places the strongest eligible match first when one exists.
-  // Keep every open task visible. The shared ranking puts eligible Smart
-  // Matches first without hiding the rest of the marketplace.
-  const featuredJobs = rankedPostedTasks;
-  const bestMatchId = smartMatches[0]?.task.id;
   const tabWidth = Math.max(0, (tabRowWidth - TAB_ROW_PADDING * 2 - TAB_ROW_GAP) / 2);
   const mapOverlayViewportWidth = mapOverlayViewport?.width ?? viewportWidth;
   const mapOverlayViewportHeight = mapOverlayViewport?.height ?? viewportHeight;
@@ -114,6 +116,10 @@ export default function WorkerDashboardScreen() {
     : 1;
 
   useEffect(() => {
+    setBestFitCardHeight(0);
+  }, [bestFitCardWidth, bestFitLayoutKey]);
+
+  useEffect(() => {
     const animation = Animated.timing(tabPosition, {
       toValue: selectedTab === "active" ? 0 : 1,
       duration: 240,
@@ -125,17 +131,36 @@ export default function WorkerDashboardScreen() {
   }, [selectedTab, tabPosition]);
 
   useEffect(() => {
-    const animation = Animated.loop(
-      Animated.timing(applicationBorderRotation, {
+    if (!bestFitJobs.length) {
+      bestFitBorderRotation.setValue(0);
+      bestFitBadgeRotation.setValue(0);
+      return () => undefined;
+    }
+    bestFitBorderRotation.setValue(0);
+    bestFitBadgeRotation.setValue(0);
+    const cardBorderAnimation = Animated.loop(
+      Animated.timing(bestFitBorderRotation, {
         toValue: 1,
-        duration: 4200,
+        duration: 3000,
         easing: Easing.linear,
         useNativeDriver: true
       })
     );
-    animation.start();
-    return () => animation.stop();
-  }, [applicationBorderRotation]);
+    const badgeBorderAnimation = Animated.loop(
+      Animated.timing(bestFitBadgeRotation, {
+        toValue: 1,
+        duration: 2200,
+        easing: Easing.linear,
+        useNativeDriver: true
+      })
+    );
+    cardBorderAnimation.start();
+    badgeBorderAnimation.start();
+    return () => {
+      cardBorderAnimation.stop();
+      badgeBorderAnimation.stop();
+    };
+  }, [bestFitBadgeRotation, bestFitBorderRotation, bestFitJobs.length]);
 
   useEffect(() => {
     if (!applicationsOverlayOpen) return;
@@ -351,46 +376,20 @@ export default function WorkerDashboardScreen() {
         </View>
 
         {selectedTab === "active" ? (
-          <View style={styles.applicationCardShadow}>
-            <View style={styles.applicationGlowShadow}>
-              <View style={styles.applicationGlowFrame}>
-              <AnimatedLinearGradient
-                colors={["#FFFFFF", "#20D5C5", "#FFFFFF", "#008F83"]}
-                end={{ x: 1, y: 1 }}
-                pointerEvents="none"
-                start={{ x: 0, y: 0 }}
-                style={[
-                  styles.applicationGlowGradient,
-                  {
-                    transform: [
-                      { scale: 4 },
-                      {
-                        rotate: applicationBorderRotation.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: ["0deg", "360deg"]
-                        })
-                      }
-                    ]
-                  }
-                ]}
-              />
-                <View style={styles.applicationSection}>
-                  <Pressable
-                    accessibilityLabel={`Open My Applications, ${acceptedTasks.length} active`}
-                    accessibilityRole="button"
-                    accessibilityState={{ expanded: applicationsOverlayOpen }}
-                    onPress={openApplicationsOverlay}
-                    style={({ pressed }) => [styles.applicationHeader, pressed && styles.pressed]}
-                  >
-                    <View style={styles.sectionCopy}>
-                      <Text style={styles.sectionTitle}>My Applications</Text>
-                      <Text style={styles.sectionSubtitle}>{acceptedTasks.length} active</Text>
-                    </View>
-                    <Feather accessibilityElementsHidden color={palette.primary} name="chevron-right" size={24} />
-                  </Pressable>
-                </View>
+          <View style={styles.applicationSection}>
+            <Pressable
+              accessibilityLabel={`Open My Applications, ${acceptedTasks.length} active`}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: applicationsOverlayOpen }}
+              onPress={openApplicationsOverlay}
+              style={({ pressed }) => [styles.applicationHeader, pressed && styles.pressed]}
+            >
+              <View style={styles.sectionCopy}>
+                <Text style={styles.sectionTitle}>My Applications</Text>
+                <Text style={styles.sectionSubtitle}>{acceptedTasks.length} active</Text>
               </View>
-            </View>
+              <Feather accessibilityElementsHidden color={palette.primary} name="chevron-right" size={24} />
+            </Pressable>
           </View>
         ) : (
           <View style={styles.historyPanel}>
@@ -441,10 +440,14 @@ export default function WorkerDashboardScreen() {
             height={208}
           />
           <View style={styles.locationBadge}>
-            <Text style={styles.locationText}>{smartMatches.length} smart matches near you</Text>
+            <Text style={styles.locationText}>{smartMatches.length} job matches near you</Text>
           </View>
-          <Pressable accessibilityLabel="Open expanded map" accessibilityRole="button" onPress={openMapOverlay} style={styles.expandMapButton}>
-            <Text style={styles.expandMapButtonText}>Expand map</Text>
+          <Pressable accessibilityLabel="Open expanded map" accessibilityRole="button" hitSlop={6} onPress={openMapOverlay} style={styles.expandMapButton}>
+            <Image
+              accessibilityIgnoresInvertColors
+              source={require("../assets/full-screen.png")}
+              style={styles.expandMapIcon}
+            />
           </Pressable>
           <TaskMapPreview
             onDismiss={() => setSelectedMapTaskId(undefined)}
@@ -454,37 +457,177 @@ export default function WorkerDashboardScreen() {
           />
         </View>
 
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionCopy}>
-            <Text style={styles.sectionTitle}>Top Opportunities</Text>
-            <Text style={styles.sectionSubtitle}>All open tasks, ranked with your best match first</Text>
-          </View>
-          <Pressable accessibilityRole="button" onPress={() => router.push("/jobs")} style={styles.viewAllButton}>
-            <Text style={styles.viewAllText}>View All</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.jobGrid}>
-          {featuredJobs.length ? (
-            featuredJobs.map(({ task, match }) => (
-                <WorkerJobCard
-                key={task.id}
-                task={task}
-                match={match}
-                isBestMatch={task.id === bestMatchId}
-                onOpen={() => router.push(`/task/${task.id}`)}
-                onQuickAccept={() => task.pricingMode === "bidding" ? router.push(`/task/${task.id}`) : handleQuickApply(task)}
-                applying={actionLoading}
-                hasApplied={task.applicantIds?.includes(currentUser?.id ?? "") ?? false}
-              />
-            ))
-          ) : (
-            <View style={styles.emptyApplicationCard}>
-              <Text style={styles.emptyApplicationTitle}>No open opportunities yet</Text>
-              <Text style={styles.emptyApplicationText}>New tasks near you will appear here as employers post them.</Text>
+        {bestFitJobs.length ? (
+          <>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionCopy}>
+                <Text style={styles.sectionTitle}>Fits You Best</Text>
+                <Text style={styles.sectionSubtitle}>Jobs matching 90% or more of your profile</Text>
+              </View>
             </View>
-          )}
-        </View>
+            <ScrollView
+              contentContainerStyle={styles.bestFitRow}
+              horizontal
+              removeClippedSubviews={false}
+              showsHorizontalScrollIndicator={false}
+              style={styles.bestFitScroll}
+            >
+              {bestFitJobs.map(({ task, match }) => (
+                <View
+                  key={task.id}
+                  onLayout={(event) => {
+                    const measuredHeight = Math.ceil(event.nativeEvent.layout.height);
+                    setBestFitCardHeight((currentHeight) => measuredHeight > currentHeight ? measuredHeight : currentHeight);
+                  }}
+                  style={[styles.bestFitCardFrame, { minHeight: bestFitCardHeight || undefined, width: bestFitCardWidth }]}
+                >
+                  <View style={styles.bestFitCrystalShadow}>
+                    <View style={styles.bestFitCrystalFrame}>
+                      <AnimatedLinearGradient
+                        colors={["#003F3B", "#5BEBD9", "#FFFFFF", "#00D8C2", "#7C8F95", "#FFFFFF", "#00BFA9", "#264E55", "#FFFFFF", "#003F3B"]}
+                        end={{ x: 1, y: 1 }}
+                        locations={[0, 0.1, 0.18, 0.3, 0.42, 0.5, 0.64, 0.74, 0.86, 1]}
+                        pointerEvents="none"
+                        start={{ x: 0, y: 0 }}
+                        style={[
+                          styles.bestFitCrystalGradient,
+                          {
+                            transform: [
+                              { scale: 4 },
+                              {
+                                rotate: bestFitBorderRotation.interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: ["0deg", "360deg"]
+                                })
+                              }
+                            ]
+                          }
+                        ]}
+                      />
+                      <CompactJobCard
+                        task={task}
+                        match={match}
+                        showMatchBadge
+                        onOpen={() => router.push(`/task/${task.id}`)}
+                        onQuickApply={() => task.pricingMode === "bidding" ? router.push(`/task/${task.id}`) : handleQuickApply(task)}
+                        onApplicationStatus={() => router.push(`/task-status/${task.id}`)}
+                        applying={actionLoading}
+                        hasApplied={task.applicantIds?.includes(currentUser?.id ?? "") ?? false}
+                        style={styles.bestFitCard}
+                      />
+                    </View>
+                    <View accessibilityLabel="Best Match" accessible pointerEvents="none" style={styles.bestFitBadgeAnchor}>
+                      <View style={styles.bestFitBadgeGlow}>
+                        <View style={styles.bestFitBadgeFrame}>
+                          <AnimatedLinearGradient
+                            colors={["#003F3B", "#51F0DE", "#FFFFFF", "#7C8F95", "#FFFFFF", "#00C7B2", "#003F3B"]}
+                            end={{ x: 1, y: 1 }}
+                            pointerEvents="none"
+                            start={{ x: 0, y: 0 }}
+                            style={[
+                              styles.bestFitBadgeBorderGradient,
+                              {
+                                transform: [
+                                  { scale: 4 },
+                                  {
+                                    rotate: bestFitBadgeRotation.interpolate({
+                                      inputRange: [0, 1],
+                                      outputRange: ["0deg", "360deg"]
+                                    })
+                                  }
+                                ]
+                              }
+                            ]}
+                          />
+                          <View style={styles.bestFitBadgeInner}>
+                            <AnimatedLinearGradient
+                              colors={["#F8FFFF", "#A9F5EA", "#FFFFFF", "#8DE7DC", "#F8FFFF"]}
+                              end={{ x: 0.5, y: 1 }}
+                              pointerEvents="none"
+                              start={{ x: 0.5, y: 0 }}
+                              style={[
+                                styles.bestFitBadgeBackgroundGradient,
+                                {
+                                  transform: [
+                                    { scale: 4 },
+                                    {
+                                      rotate: bestFitBadgeRotation.interpolate({
+                                      inputRange: [0, 1],
+                                        outputRange: ["0deg", "360deg"]
+                                      })
+                                    }
+                                  ]
+                                }
+                              ]}
+                            />
+                            <Feather accessibilityElementsHidden color={palette.primary} name="award" size={13} />
+                            <Text style={styles.bestFitFloatingBadgeText}>Best Match</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          </>
+        ) : null}
+
+        <LinearGradient
+          colors={["rgba(0,92,85,0.16)", "rgba(0,92,85,0.06)", "rgba(0,92,85,0)"]}
+          end={{ x: 0.5, y: 1 }}
+          locations={[0, 0.58, 1]}
+          start={{ x: 0.5, y: 0 }}
+          style={[styles.topOpportunitiesSection, bestFitJobs.length ? styles.topOpportunitiesAfterBestFit : undefined]}
+        >
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionCopy}>
+              <Text style={styles.sectionTitle}>Top Opportunities</Text>
+              <Text style={styles.sectionSubtitle}>More open jobs ranked for you</Text>
+            </View>
+            <Pressable accessibilityRole="button" onPress={() => router.push("/jobs")} style={styles.viewAllButton}>
+              <Text style={styles.viewAllText}>View All</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.jobGrid}>
+            {visibleTopOpportunityJobs.length ? (
+              visibleTopOpportunityJobs.map(({ task, match }) => (
+                <CompactJobCard
+                  key={task.id}
+                  task={task}
+                  match={match}
+                  showMatchBadge={match.eligible}
+                  onOpen={() => router.push(`/task/${task.id}`)}
+                  onQuickApply={() => task.pricingMode === "bidding" ? router.push(`/task/${task.id}`) : handleQuickApply(task)}
+                  onApplicationStatus={() => router.push(`/task-status/${task.id}`)}
+                  applying={actionLoading}
+                  hasApplied={task.applicantIds?.includes(currentUser?.id ?? "") ?? false}
+                />
+              ))
+            ) : (
+              <View style={styles.emptyApplicationCard}>
+                <Text style={styles.emptyApplicationTitle}>{bestFitJobs.length ? "Your strongest matches are shown above" : "No open opportunities yet"}</Text>
+                <Text style={styles.emptyApplicationText}>{bestFitJobs.length ? "More opportunities will appear here as employers post new tasks." : "New tasks near you will appear here as employers post them."}</Text>
+              </View>
+            )}
+          </View>
+
+          {topOpportunityJobs.length > visibleTopOpportunityJobs.length ? (
+            <View style={styles.loadMoreDividerRow}>
+              <View style={styles.loadMoreDividerLine} />
+              <Pressable
+                accessibilityLabel={`Load ${Math.min(TOP_OPPORTUNITY_PAGE_SIZE, topOpportunityJobs.length - visibleTopOpportunityJobs.length)} more opportunities`}
+                accessibilityRole="button"
+                onPress={() => setVisibleTopOpportunityCount((count) => count + TOP_OPPORTUNITY_PAGE_SIZE)}
+                style={({ pressed }) => [styles.loadMoreButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.loadMoreText}>Load more</Text>
+              </Pressable>
+              <View style={styles.loadMoreDividerLine} />
+            </View>
+          ) : null}
+        </LinearGradient>
 
         {actionMessage ? <Text accessibilityRole="alert" style={styles.actionMessage}>{actionMessage}</Text> : null}
 
@@ -705,54 +848,6 @@ export default function WorkerDashboardScreen() {
   );
 }
 
-function WorkerJobCard({
-  task,
-  match,
-  isBestMatch,
-  onQuickAccept,
-  onOpen,
-  applying,
-  hasApplied
-}: {
-  task: Task;
-  match: MatchResult;
-  isBestMatch: boolean;
-  onQuickAccept: () => void;
-  onOpen: () => void;
-  applying: boolean;
-  hasApplied: boolean;
-}) {
-  return (
-    <View style={styles.jobCard}>
-      {isBestMatch ? (
-        <View style={styles.bestMatchBadge}>
-          <Feather accessibilityElementsHidden color="#005C55" name="award" size={14} />
-          <Text style={styles.bestMatchText}>Best Match</Text>
-        </View>
-      ) : null}
-      <View style={styles.jobHeader}>
-        <Text style={styles.jobTitle}>{task.title}</Text>
-        <Text style={styles.price}>{formatTaskPrice(task)}</Text>
-      </View>
-      <Text style={styles.jobMeta}>{formatRelativeTime(task.createdAt)}</Text>
-      <Text style={styles.jobMeta}>{formatDistance(match.distanceKm)} · {task.locationAddress ?? task.location}</Text>
-      {match.eligible ? <SmartMatchBadge eligible reasons={match.reasons} score={match.score} /> : null}
-      <View style={styles.jobInfoRow}>
-        <Text style={styles.jobInfo}>{task.estimatedDuration}</Text>
-        <Text style={styles.jobInfo}>{task.requiredCapability ?? task.category}</Text>
-      </View>
-      <View style={styles.cardActions}>
-        <Pressable accessibilityRole="button" onPress={onOpen} style={styles.detailsButton}>
-          <Text style={styles.detailsButtonText}>Details</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" disabled={applying || hasApplied} onPress={onQuickAccept} style={({ pressed }) => [styles.quickButton, (applying || hasApplied) && styles.disabled, pressed && styles.pressed]}>
-          <Text style={styles.quickButtonText}>{hasApplied ? "Applied" : applying ? "Applying..." : task.pricingMode === "bidding" ? "Make Offer" : "Quick Apply"}</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
 function ApplicationCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
   return (
     <Pressable accessibilityRole="button" onPress={onOpen} style={({ pressed }) => [styles.applicationCard, pressed && styles.pressed]}>
@@ -903,8 +998,8 @@ const styles = StyleSheet.create({
   locationBadge: { position: "absolute", left: 12, bottom: 12, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8 },
   locationIcon: { color: palette.primary, fontSize: 18, fontWeight: "900" },
   locationText: { color: palette.text, fontSize: 12, fontWeight: "800" },
-  expandMapButton: { position: "absolute", right: 12, top: 12, borderRadius: 999, backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primary, minHeight: 34, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
-  expandMapButtonText: { color: palette.white, fontSize: 11, fontWeight: "900" },
+  expandMapButton: { position: "absolute", right: 12, top: 12, width: 36, height: 36, borderRadius: 7, backgroundColor: palette.white, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.16, shadowRadius: 4, elevation: 3 },
+  expandMapIcon: { width: 18, height: 18, tintColor: palette.primary },
   closeMapButton: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.96)", borderWidth: 1, borderColor: "rgba(186,26,26,0.22)" },
   closeMapButtonPressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
@@ -918,12 +1013,28 @@ const styles = StyleSheet.create({
   tabButtonTextActive: { color: palette.white },
   viewAllButton: { minHeight: 44, paddingHorizontal: 4, alignItems: "center", justifyContent: "center" },
   viewAllText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
+  bestFitScroll: { marginHorizontal: -6, overflow: "visible" },
+  bestFitRow: { alignItems: "stretch", gap: 12, paddingHorizontal: 6, paddingTop: 14, paddingBottom: 8 },
+  bestFitCardFrame: { alignSelf: "stretch" },
+  bestFitCrystalShadow: { flex: 1, position: "relative", borderRadius: 18, shadowColor: "#16E8D0", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.46, shadowRadius: 8, elevation: 7 },
+  bestFitCrystalFrame: { flex: 1, borderRadius: 18, padding: 3, overflow: "hidden", backgroundColor: "#B9E9E4" },
+  bestFitCrystalGradient: { position: "absolute", inset: 0 },
+  bestFitBadgeAnchor: { position: "absolute", top: -10, left: 0, right: 0, zIndex: 4, alignItems: "center" },
+  bestFitBadgeGlow: { borderRadius: 15, shadowColor: "#16E8D0", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.52, shadowRadius: 5, elevation: 6 },
+  bestFitBadgeFrame: { padding: 2, borderRadius: 15, overflow: "hidden", backgroundColor: "#5BEBD9" },
+  bestFitBadgeBorderGradient: { position: "absolute", inset: 0 },
+  bestFitBadgeInner: { minHeight: 24, paddingHorizontal: 10, borderRadius: 12, overflow: "hidden", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: "#F8FFFF" },
+  bestFitBadgeBackgroundGradient: { position: "absolute", inset: 0 },
+  bestFitFloatingBadgeText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  bestFitCard: { flex: 1, paddingTop: 20, borderWidth: 0, borderRadius: 16, shadowOpacity: 0, shadowRadius: 0, elevation: 0 },
+  topOpportunitiesSection: { marginHorizontal: -16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4, borderTopLeftRadius: 24, borderTopRightRadius: 24, gap: 14 },
+  topOpportunitiesAfterBestFit: { marginTop: 8 },
   jobGrid: { gap: 12 },
-  applicationCardShadow: { borderRadius: 14, shadowColor: "#008F83", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.24, shadowRadius: 8, elevation: 8 },
-  applicationGlowShadow: { borderRadius: 14, shadowColor: "#20D5C5", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.55, shadowRadius: 9 },
-  applicationGlowFrame: { borderRadius: 14, padding: 2, overflow: "hidden" },
-  applicationGlowGradient: { position: "absolute", inset: 0 },
-  applicationSection: { borderRadius: 12, backgroundColor: palette.surface, overflow: "hidden" },
+  loadMoreDividerRow: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 4 },
+  loadMoreDividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: palette.outlineVariant },
+  loadMoreButton: { minHeight: 44, paddingHorizontal: 8, alignItems: "center", justifyContent: "center" },
+  loadMoreText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  applicationSection: { borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, overflow: "hidden", ...interactiveCardShadow },
   applicationHeader: { minHeight: 68, paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   applicationsOverlayRoot: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20 },
   applicationsOverlayFill: { position: "absolute", inset: 0 },
@@ -988,22 +1099,6 @@ const styles = StyleSheet.create({
   },
   emptyApplicationTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
   emptyApplicationText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  jobCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 12, ...interactiveCardShadow },
-  bestMatchBadge: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: "#E2F5EF" },
-  bestMatchText: { color: palette.primary, fontSize: 11, lineHeight: 16, fontWeight: "900", textTransform: "uppercase" },
-  urgentBadge: { position: "absolute", left: 16, top: 16, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: palette.secondaryContainer },
-  urgentText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "900" },
-  jobHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
-  price: { color: palette.primary, fontSize: 20, lineHeight: 28, fontWeight: "900" },
-  jobTitle: { flex: 1, flexShrink: 1, color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "800" },
-  jobMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
-  jobInfoRow: { paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(189,201,198,0.45)", flexDirection: "row", gap: 16 },
-  jobInfo: { color: palette.outline, fontSize: 12, lineHeight: 16, fontWeight: "800" },
-  cardActions: { flexDirection: "row", gap: 10 },
-  detailsButton: { flex: 1, minHeight: 46, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
-  detailsButtonText: { color: palette.primary, fontSize: 14, fontWeight: "900" },
-  quickButton: { flex: 1.3, minHeight: 46, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  quickButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   actionMessage: { color: "#BA1A1A", fontSize: 13, lineHeight: 18, fontWeight: "700" },
   historyPanel: { padding: 16, borderRadius: 12, backgroundColor: palette.surfaceLow, gap: 12 },
   historyHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
@@ -1047,6 +1142,5 @@ const styles = StyleSheet.create({
   historyActionButtonPrimaryTextDisabled: { color: palette.textStrong },
   historyActionButtonDisabled: { backgroundColor: palette.surfaceContainer, borderWidth: 1, borderColor: palette.outlineVariant },
   emptyHistoryRow: { padding: 12, borderRadius: 8, backgroundColor: palette.surface },
-  disabled: { opacity: 0.5 },
   pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
 });

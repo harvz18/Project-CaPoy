@@ -915,7 +915,8 @@ function getUploadedFileName(value: string) {
 }
 
 function ReviewCard({ initials, name, date, stars, text }: { initials: string; name: string; date: string; stars: number; text: string }) {
-  const score = Number.isFinite(stars) ? Math.min(5, Math.max(0, Math.round(stars))) : 0;
+  const score = Number.isFinite(stars) ? Math.min(5, Math.max(0, stars)) : 0;
+  const displayScore = score.toFixed(1);
   return (
     <View style={styles.reviewCard}>
       <View style={styles.reviewTop}>
@@ -923,12 +924,15 @@ function ReviewCard({ initials, name, date, stars, text }: { initials: string; n
           <View style={styles.reviewAvatar}>
             <Text style={styles.reviewAvatarText}>{initials}</Text>
           </View>
-          <View>
-            <Text style={styles.reviewName}>{name}</Text>
+          <View style={styles.reviewPersonCopy}>
+            <Text numberOfLines={2} style={styles.reviewName}>{name}</Text>
             <Text style={styles.reviewDate}>{date}</Text>
           </View>
         </View>
-        <Text accessibilityLabel={`${score} out of 5 stars`} style={styles.reviewStars}>{"★".repeat(score)}{"☆".repeat(5 - score)} <Text style={styles.reviewScore}>{score}/5</Text></Text>
+        <View accessibilityLabel={`${displayScore} out of 5 stars`} accessible style={styles.reviewRating}>
+          <Feather accessibilityElementsHidden color={palette.secondary} name="star" size={16} />
+          <Text style={styles.reviewScore}>{displayScore}</Text>
+        </View>
       </View>
       {text.trim() ? <Text style={styles.reviewText}>{text}</Text> : null}
     </View>
@@ -1072,12 +1076,13 @@ const styles = StyleSheet.create({
   reviewEmptyCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow },
   reviewEmptyText: { color: palette.muted, fontSize: 14, lineHeight: 20, fontWeight: "700" },
   reviewTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
-  reviewPerson: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  reviewAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.secondaryFixed, alignItems: "center", justifyContent: "center" },
+  reviewPerson: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1, minWidth: 0 },
+  reviewPersonCopy: { flex: 1, minWidth: 0 },
+  reviewAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.secondaryFixed, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   reviewAvatarText: { color: "#2A1700", fontWeight: "900" },
   reviewName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   reviewDate: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  reviewStars: { color: palette.secondary, fontSize: 19, lineHeight: 24, fontWeight: "900" },
+  reviewRating: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0, paddingTop: 1 },
   reviewText: { color: palette.muted, fontSize: 14, lineHeight: 20 },
   coverageCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surfaceLow, gap: 12 },
   coverageHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -1121,5 +1126,5 @@ const styles = StyleSheet.create({
   capabilityCancelText: { color: palette.primary, fontSize: 13, fontWeight: "900" },
   capabilitySaveButton: { minHeight: 42, justifyContent: "center", paddingHorizontal: 14, borderRadius: 8, backgroundColor: palette.primary },
   capabilitySaveText: { color: palette.white, fontSize: 13, fontWeight: "900" },
-  reviewScore: { color: palette.muted, fontSize: 12, fontWeight: "800" }
+  reviewScore: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: "800" }
 });

@@ -150,7 +150,7 @@ export default function TaskStatusScreen() {
   if (!task) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <TopBar initials={currentUser?.fullName?.[0] ?? "U"} onBack={goBack} />
+        <TopBar onBack={goBack} />
         <View style={styles.notFound}>
           <Text style={styles.title}>Task not found</Text>
           <Pressable style={styles.secondaryAction} onPress={() => router.replace("/worker-dashboard")}>
@@ -271,7 +271,7 @@ export default function TaskStatusScreen() {
   if (!workerCanTrackTask) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-          <TopBar initials={currentUser?.fullName?.[0] ?? "U"} onBack={goBack} />
+          <TopBar onBack={goBack} />
         <View style={styles.notFound}>
           <Text style={styles.title}>Apply before tracking this task</Text>
           <Text style={styles.emptyText}>This status screen is only for workers who applied to the task or were accepted by the client.</Text>
@@ -480,7 +480,7 @@ export default function TaskStatusScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <TopBar initials={currentUser?.fullName?.[0] ?? "U"} onBack={goBack} />
+      <TopBar onBack={goBack} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 132 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View style={styles.mapHero}>
           <LocationMap
@@ -1149,16 +1149,13 @@ function formatLocationUpdateTime(capturedAt: string) {
   return timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-function TopBar({ initials, onBack }: { initials: string; onBack: () => void }) {
+function TopBar({ onBack }: { onBack: () => void }) {
   return (
     <View style={styles.topBar}>
       <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={onBack} style={styles.backButton}>
         <Feather accessibilityElementsHidden color={palette.primary} name="arrow-left" size={22} />
       </Pressable>
-      <Text style={styles.brand}>TASKLINK</Text>
-      <View style={styles.userAvatar}>
-        <Text style={styles.avatarText}>{initials}</Text>
-      </View>
+      <Text numberOfLines={1} style={styles.headerTitle}>Application Status</Text>
     </View>
   );
 }
@@ -1190,12 +1187,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
     backgroundColor: palette.surface,
     borderBottomColor: "#EDF1EF",
     borderBottomWidth: 1
   },
   backButton: {
+    position: "absolute",
+    left: 8,
+    zIndex: 1,
     minWidth: 48,
     minHeight: 44,
     borderRadius: 20,
@@ -1203,17 +1203,7 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   backText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
-  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "800" },
-  userAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: palette.secondaryContainer,
-    borderWidth: 1,
-    borderColor: palette.outlineVariant
-  },
+  headerTitle: { maxWidth: "68%", color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "800", textAlign: "center" },
   avatarText: { color: "#684000", fontWeight: "900" },
   content: { paddingBottom: 132 },
   notFound: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", gap: 16 },

@@ -1,10 +1,9 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { type ComponentProps, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { StatusBadge } from "../../src/components/StatusBadge";
 import { SmartMatchBadge } from "../../src/components/SmartMatchBadge";
 import { useApp } from "../../src/context/AppContext";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
@@ -90,7 +89,16 @@ export default function TaskDetailsScreen() {
   const employerRating = employerScores.length
     ? employerScores.reduce((total, score) => total + score, 0) / employerScores.length
     : employer?.rating;
+  const description = task.description.trim();
   const hasApplied = Boolean(currentUser?.id && task.applicantIds?.includes(currentUser.id));
+  const canWorkerApply = task.status === "Finding Workers" || task.status === "Applied";
+  const workerActionLabel = actionLoading
+    ? task.pricingMode === "bidding" ? "Submitting..." : "Applying..."
+    : hasApplied || !canWorkerApply
+      ? "Open Task Status"
+      : task.pricingMode === "bidding"
+        ? "Submit Offer"
+        : "Apply";
   const chatRecipientId = isClient
     ? task.workerId ?? (applicantIds.length === 1 ? applicantIds[0] : undefined)
     : task.clientId;
@@ -150,31 +158,35 @@ export default function TaskDetailsScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <TopBar title={isClient ? "Task Details" : "Job Details"} onBack={goBack} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 32 + insets.bottom }]} showsVerticalScrollIndicator={false}>
-        <View style={styles.heroCard}>
-          <View style={styles.heroTop}>
-            <View style={styles.flex}>
-              <Text style={styles.eyebrow}>{task.category}</Text>
-              <Text style={styles.title}>{task.title}</Text>
-              <Text style={styles.description}>{task.description}</Text>
-            </View>
-            <View style={styles.priceBlock}>
-              <Text style={styles.price}>{formatTaskPrice(task)}</Text>
-              <Text style={styles.rateText}>{task.pricingMode === "bidding" ? "Employer selects the preferred offer" : "Fixed Price"}</Text>
-            </View>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: isClient ? 32 + insets.bottom : 14 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryMetaRow}>
+            <Text style={styles.categoryLabel}>{task.category}</Text>
+            <Text numberOfLines={1} style={styles.price}>{formatTaskPrice(task)}</Text>
           </View>
-          <StatusBadge status={task.status} />
+          <Text style={styles.title}>{task.title}</Text>
+          {description ? <Text style={styles.description}>{description}</Text> : null}
         </View>
 
-        <View style={styles.detailsGrid}>
-          <DetailBox label="Location" value={task.location} />
-          <DetailBox label="Duration" value={formatTaskDuration(task)} />
-          <DetailBox label="Payment" value={formatPaymentMethod(task.paymentMethod)} />
-          <DetailBox label="Applicants" value={hasAcceptedWorker ? "1 accepted" : `${applicantCount} applied`} />
-          <DetailBox label="Capabilities" value={formatRequiredCapabilities(task)} />
-          <DetailBox label="Task Radius" value={`${task.geofenceRadius ?? 500} meters`} />
-          <DetailBox label="Employer" value={`${employer?.fullName ?? "TaskLink employer"} · ${employer ? verificationProgressPublicLabel(employer) : "Verification: 0% complete"}${employerRating ? ` · ${employerRating.toFixed(1)}/5` : ""}`} />
-          <DetailBox label="Schedule" value={formatTaskSchedule(task)} />
+        <View style={styles.informationCard}>
+          <Text style={styles.informationTitle}>Job Information</Text>
+          <View style={styles.compactInfoGrid}>
+            <DetailBox label="Duration" value={formatTaskDuration(task)} />
+            <DetailBox label="Payment" value={formatPaymentMethod(task.paymentMethod)} />
+          </View>
+          <DetailRow icon="map-pin" label="Location" value={task.locationAddress ?? task.location} />
+          <DetailRow icon="calendar" label="Schedule" value={formatTaskSchedule(task)} />
+          <DetailRow icon="tool" label="Capabilities" value={formatRequiredCapabilities(task)} />
+          <DetailRow icon="crosshair" label="Task Radius" value={`${task.geofenceRadius ?? 500} meters`} />
+          <DetailRow
+            icon="user"
+            label="Employer"
+            value={`${employer?.fullName ?? "TaskLink employer"} · ${employer ? verificationProgressPublicLabel(employer) : "Verification: 0% complete"}${employerRating ? ` · ★ ${employerRating.toFixed(1)}` : ""}`}
+          />
+          <DetailRow icon="users" label="Applicants" value={hasAcceptedWorker ? "1 accepted" : `${applicantCount} applied`} />
         </View>
 
         {task.perks?.length ? <View style={styles.section}>
@@ -298,38 +310,20 @@ export default function TaskDetailsScreen() {
               </View>
             )}
           </View>
-        ) : (
+        ) : task.pricingMode === "bidding" && canWorkerApply && !hasApplied ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Ready to take this job?</Text>
-            {task.status === "Finding Workers" || task.status === "Applied" ? (
-              hasApplied ? (
-                <Pressable style={styles.primaryButtonLarge} onPress={() => router.push(`/task-status/${task.id}`)}>
-                  <Text style={styles.primaryButtonText}>Open Task Status</Text>
-                </Pressable>
-              ) : (
-                <View style={styles.applyBox}>
-                  {task.pricingMode === "bidding" ? <TextInput
-                    accessibilityLabel="Offer amount"
-                    keyboardType="decimal-pad"
-                    onChangeText={(value) => setProposedAmount(sanitizeMoneyInput(value))}
-                    placeholder="Your offer amount (₱)"
-                    placeholderTextColor={palette.outline}
-                    style={styles.bidInput}
-                    value={proposedAmount}
-                  /> : null}
-                  <Pressable style={styles.primaryButtonLarge} onPress={handleWorkerAccept}>
-                    <Text style={styles.primaryButtonText}>{task.pricingMode === "bidding" ? "Submit Offer" : "Apply"}</Text>
-                  </Pressable>
-                  {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
-                </View>
-              )
-            ) : (
-              <Pressable style={styles.primaryButtonLarge} onPress={() => router.push(`/task-status/${task.id}`)}>
-                <Text style={styles.primaryButtonText}>Open Task Status</Text>
-              </Pressable>
-            )}
+            <Text style={styles.sectionTitle}>Your Offer</Text>
+            <TextInput
+              accessibilityLabel="Offer amount"
+              keyboardType="decimal-pad"
+              onChangeText={(value) => setProposedAmount(sanitizeMoneyInput(value))}
+              placeholder="Your offer amount (₱)"
+              placeholderTextColor={palette.outline}
+              style={styles.bidInput}
+              value={proposedAmount}
+            />
           </View>
-        )}
+        ) : null}
 
         <View style={styles.actionRow}>
           <Pressable style={styles.secondaryButton} onPress={openTaskChat}>
@@ -340,6 +334,20 @@ export default function TaskDetailsScreen() {
           </Pressable>
         </View>
       </ScrollView>
+      {!isClient ? (
+        <View style={[styles.stickyFooter, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          {actionError ? <Text accessibilityRole="alert" style={styles.errorText}>{actionError}</Text> : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: actionLoading }}
+            disabled={actionLoading}
+            onPress={hasApplied || !canWorkerApply ? () => router.push(`/task-status/${task.id}`) : handleWorkerAccept}
+            style={({ pressed }) => [styles.stickyPrimaryButton, actionLoading && styles.disabledButton, pressed && !actionLoading && styles.pressedButton]}
+          >
+            <Text style={styles.primaryButtonText}>{workerActionLabel}</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -385,13 +393,10 @@ function OfferFeeNotice({ serviceFee }: { serviceFee: NonNullable<ReturnType<typ
 function TopBar({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <View style={styles.header}>
-      <View style={styles.headerLeft}>
-        <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={onBack} style={styles.backButton}>
-          <Feather accessibilityElementsHidden color={palette.primary} name="arrow-left" size={22} />
-        </Pressable>
-        <Text style={styles.headerTitle}>{title}</Text>
-      </View>
-      <Text style={styles.brand}>TASKLINK</Text>
+      <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={onBack} style={styles.backButton}>
+        <Feather accessibilityElementsHidden color={palette.primary} name="arrow-left" size={22} />
+      </Pressable>
+      <Text numberOfLines={1} style={styles.headerTitle}>{title}</Text>
     </View>
   );
 }
@@ -409,6 +414,20 @@ function DetailBox({ label, value }: { label: string; value: string }) {
   );
 }
 
+function DetailRow({ icon, label, value }: { icon: ComponentProps<typeof Feather>["name"]; label: string; value: string }) {
+  return (
+    <View style={styles.detailRow}>
+      <View style={styles.detailIcon}>
+        <Feather accessibilityElementsHidden color={palette.muted} name={icon} size={17} />
+      </View>
+      <View style={styles.detailCopy}>
+        <Text style={styles.detailLabel}>{label}</Text>
+        <Text style={styles.detailValue}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
   header: {
@@ -419,28 +438,28 @@ const styles = StyleSheet.create({
     borderBottomColor: "#EDF1EF",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between"
+    justifyContent: "center"
   },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
-  backButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
-  backText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
-  headerTitle: { color: palette.text, fontSize: 20, lineHeight: 28, fontWeight: "800" },
-  brand: { color: palette.primary, fontSize: 16, lineHeight: 22, fontWeight: "900" },
-  content: { padding: 16, gap: 14 },
+  backButton: { position: "absolute", left: 8, minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center", zIndex: 1 },
+  headerTitle: { maxWidth: "68%", color: palette.text, fontSize: 20, lineHeight: 28, fontWeight: "800", textAlign: "center" },
+  content: { padding: 14, gap: 14 },
   notFound: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  heroCard: { padding: 20, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", gap: 16, elevation: 2 },
-  heroTop: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  summaryCard: { padding: 16, borderRadius: 14, backgroundColor: palette.surface, borderWidth: 1, borderColor: "rgba(189,201,198,0.55)", gap: 10 },
+  summaryMetaRow: { minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   flex: { flex: 1 },
-  eyebrow: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900", textTransform: "uppercase" },
-  title: { color: palette.textStrong, fontSize: 22, lineHeight: 30, fontWeight: "900" },
-  description: { color: palette.muted, fontSize: 16, lineHeight: 24, marginTop: 6 },
-  priceBlock: { alignItems: "flex-end" },
-  price: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
-  rateText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  detailsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  detailBox: { width: "48.4%", padding: 12, borderRadius: 10, backgroundColor: palette.surfaceLow, borderWidth: 1, borderColor: palette.outlineVariant },
-  detailLabel: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  detailValue: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900", marginTop: 4 },
+  categoryLabel: { flex: 1, minWidth: 0, color: palette.success, fontSize: 12, lineHeight: 16, fontWeight: "800", textTransform: "uppercase" },
+  title: { minWidth: 0, color: palette.textStrong, fontSize: 20, lineHeight: 27, fontWeight: "800" },
+  description: { color: palette.muted, fontSize: 15, lineHeight: 22 },
+  price: { maxWidth: "48%", flexShrink: 0, color: palette.textStrong, fontSize: 20, lineHeight: 27, fontWeight: "800", textAlign: "right" },
+  informationCard: { paddingHorizontal: 16, paddingTop: 16, borderRadius: 14, backgroundColor: palette.surface, borderWidth: 1, borderColor: "rgba(189,201,198,0.55)" },
+  informationTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 24, fontWeight: "800", marginBottom: 12 },
+  compactInfoGrid: { flexDirection: "row", gap: 16, paddingBottom: 12 },
+  detailBox: { flex: 1, minWidth: 0, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: palette.surfaceLow },
+  detailRow: { minWidth: 0, flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 14, borderTopWidth: 1, borderTopColor: "rgba(189,201,198,0.35)" },
+  detailIcon: { width: 28, paddingTop: 2, alignItems: "center" },
+  detailCopy: { flex: 1, minWidth: 0, gap: 3 },
+  detailLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "500" },
+  detailValue: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "700" },
   section: { gap: 12 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", gap: 8 },
   sectionTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
@@ -461,7 +480,6 @@ const styles = StyleSheet.create({
   emptyWorkerText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   actionRow: { flexDirection: "row", gap: 10 },
   primaryButton: { flex: 1, minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  primaryButtonLarge: { minHeight: 52, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   primaryButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   editTaskButton: { minHeight: 44, borderRadius: 10, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#E5F3F0", borderWidth: 1, borderColor: "#9CCBC4" },
   editTaskText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
@@ -470,11 +488,13 @@ const styles = StyleSheet.create({
   disabledButton: { backgroundColor: palette.surfaceHigh },
   rejectButton: { minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: "#B91C1C", alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
   rejectButtonText: { color: "#B91C1C", fontSize: 13, lineHeight: 18, fontWeight: "900" },
-  applyBox: { gap: 10 },
   bidInput: { minHeight: 48, borderWidth: 1, borderColor: palette.outlineVariant, borderRadius: 10, paddingHorizontal: 14, backgroundColor: palette.surface, color: palette.text },
   bidChip: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "#FFF2DB", color: palette.secondary, fontSize: 13, fontWeight: "900" },
   offerFeeNote: { padding: 10, borderRadius: 8, backgroundColor: "#E5F3F0", borderWidth: 1, borderColor: "#9CCBC4", gap: 2 },
   offerFeeTotal: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
   offerFeeText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   errorText: { color: "#B91C1C", fontSize: 13, lineHeight: 18, fontWeight: "700" },
+  stickyFooter: { paddingHorizontal: 14, paddingTop: 10, gap: 8, borderTopWidth: 1, borderTopColor: "rgba(189,201,198,0.55)", backgroundColor: palette.surface, shadowColor: "#0F172A", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.08, shadowRadius: 5, elevation: 8 },
+  stickyPrimaryButton: { minHeight: 52, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
+  pressedButton: { opacity: 0.82, transform: [{ scale: 0.995 }] },
 });

@@ -40,6 +40,12 @@ export function RouteTransition({ children, reduceMotion, routeName }: PropsWith
     }
 
     const tabIndex = getTabIndex(routeName);
+    if (tabIndex !== undefined) {
+      lastTabIndex = tabIndex;
+      opacity.setValue(1);
+      translateX.setValue(0);
+      return () => undefined;
+    }
     const direction = tabIndex !== undefined && lastTabIndex !== undefined && tabIndex < lastTabIndex ? -1 : 1;
     if (tabIndex !== undefined) lastTabIndex = tabIndex;
     opacity.setValue(0.97);

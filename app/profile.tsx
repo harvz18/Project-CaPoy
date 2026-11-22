@@ -307,7 +307,7 @@ export default function ProfileScreen() {
                 <Text numberOfLines={1} style={styles.reviewName}>{latestReview.reviewerName}</Text>
                 <View style={styles.reviewScoreRow}>
                   <Feather accessibilityElementsHidden color="#D99A00" name="star" size={14} />
-                  <Text style={styles.reviewScore}>{latestReview.score}/5</Text>
+                  <Text style={styles.reviewScore}>{Math.min(5, Math.max(0, latestReview.score)).toFixed(1)}</Text>
                 </View>
               </View>
               <Text numberOfLines={1} style={styles.reviewTask}>{latestReview.taskTitle}</Text>

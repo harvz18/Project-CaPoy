@@ -202,16 +202,17 @@ function ProtectedNavigator() {
         <Stack.Screen name="recover-account" options={{ title: "Recover account" }} />
         <Stack.Screen name="help" options={{ title: "TaskLink Beta Information" }} />
         <Stack.Screen name="role-selection" options={{ title: "Role Selection" }} />
-        <Stack.Screen name="worker-dashboard" options={{ title: "Worker Dashboard" }} />
-        <Stack.Screen name="client-dashboard" options={{ title: "Client Dashboard" }} />
-        <Stack.Screen name="post-task" options={{ title: "Post Task" }} />
+        <Stack.Screen name="worker-dashboard" options={{ animation: "none", title: "Worker Dashboard" }} />
+        <Stack.Screen name="client-dashboard" options={{ animation: "none", title: "Client Dashboard" }} />
+        <Stack.Screen name="post-task" options={{ animation: "none", title: "Post Task" }} />
         <Stack.Screen name="edit-task/[id]" options={{ title: "Edit Task" }} />
-        <Stack.Screen name="jobs" options={{ title: "Nearby Jobs" }} />
+        <Stack.Screen name="jobs" options={{ animation: "none", title: "Nearby Jobs" }} />
         <Stack.Screen name="task/[id]" options={{ title: "Job Details" }} />
         <Stack.Screen name="task-status/[id]" options={{ title: "Task Status" }} />
+        <Stack.Screen name="chat/index" options={{ animation: "none", title: "Chat" }} />
         <Stack.Screen name="chat/[id]" options={{ title: "Chat" }} />
         <Stack.Screen name="rating/[id]" options={{ title: "Rating and Feedback" }} />
-        <Stack.Screen name="profile" options={{ title: "Profile" }} />
+        <Stack.Screen name="profile" options={{ animation: "none", title: "Profile" }} />
         <Stack.Screen name="profile-manage" options={{ title: "Profile Management" }} />
         <Stack.Screen name="phone-verification" options={{ title: "Verify Mobile Number" }} />
         <Stack.Screen name="worker-profile/[id]" options={{ title: "Worker Profile" }} />

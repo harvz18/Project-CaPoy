@@ -3,20 +3,18 @@ import { useEffect, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 import { AppHeader } from "../src/components/AppHeader";
+import { CompactJobCard } from "../src/components/CompactJobCard";
 import { interactiveCardShadow } from "../src/styles";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import LocationMap from "../src/components/LocationMap";
 import { TaskMapPreview } from "../src/components/TaskMapPreview";
 import { StatusBadge } from "../src/components/StatusBadge";
-import { SmartMatchBadge } from "../src/components/SmartMatchBadge";
 import { useApp } from "../src/context/AppContext";
 import { usePullToRefresh } from "../src/hooks/usePullToRefresh";
-import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
+import { rankTasksForWorker } from "../src/domain/matching";
 import { filterAndSortRankedJobs, getAvailableJobs, getJobCategories, JobSort } from "../src/domain/jobDiscovery";
-import { formatRequiredCapabilities, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../src/domain/taskMarketplace";
 import { Task } from "../src/types";
-import { formatDistance, getDiscoveryLocationIssue } from "../src/utils/location";
-import { formatRelativeTime } from "../src/utils/relativeTime";
+import { getDiscoveryLocationIssue } from "../src/utils/location";
 
 const palette = {
   background: "#F7FAF8",
@@ -44,7 +42,7 @@ const JOB_PAGE_SIZE = 10;
 export default function JobsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { tasks, acceptTask, currentUser, getUserById, actionLoading, error, retryDataSync } = useApp();
+  const { tasks, acceptTask, currentUser, actionLoading, error, retryDataSync } = useApp();
   const { onRefresh, refreshing } = usePullToRefresh(retryDataSync);
   const [activeFilter, setActiveFilter] = useState("");
   const [query, setQuery] = useState("");
@@ -186,12 +184,13 @@ export default function JobsScreen() {
         {forYouJobs.length ? (
           <View style={styles.jobGrid}>
             {forYouJobs.map(({ task, match }) => (
-              <JobCard
+              <CompactJobCard
                 key={task.id}
-                employerName={getUserById(task.clientId)?.fullName ?? "TaskLink employer"}
                 match={match}
+                isBestMatch={task.id === forYouJobs[0]?.task.id}
                 onOpen={() => router.push(`/task/${task.id}`)}
-                onQuickAccept={() => task.pricingMode === "bidding" ? router.push(`/task/${task.id}`) : handleQuickApply(task)}
+                onQuickApply={() => task.pricingMode === "bidding" ? router.push(`/task/${task.id}`) : handleQuickApply(task)}
+                onApplicationStatus={() => router.push(`/task-status/${task.id}`)}
                 applying={actionLoading}
                 hasApplied={task.applicantIds?.includes(currentUser?.id ?? "") ?? false}
                 task={task}
@@ -218,13 +217,13 @@ export default function JobsScreen() {
         <View style={styles.jobGrid}>
           {rankedJobs.length ? (
             visibleJobs.map(({ task, match }) => (
-              <JobCard
+              <CompactJobCard
                 key={task.id}
                 task={task}
-                employerName={getUserById(task.clientId)?.fullName ?? "TaskLink employer"}
                 match={match}
                 onOpen={() => router.push(`/task/${task.id}`)}
-                onQuickAccept={() => task.pricingMode === "bidding" ? router.push(`/task/${task.id}`) : handleQuickApply(task)}
+                onQuickApply={() => task.pricingMode === "bidding" ? router.push(`/task/${task.id}`) : handleQuickApply(task)}
+                onApplicationStatus={() => router.push(`/task-status/${task.id}`)}
                 applying={actionLoading}
                 hasApplied={task.applicantIds?.includes(currentUser?.id ?? "") ?? false}
               />
@@ -246,52 +245,6 @@ export default function JobsScreen() {
       </ScrollView>
 
     </SafeAreaView>
-  );
-}
-
-function JobCard({
-  task,
-  employerName,
-  match,
-  onOpen,
-  onQuickAccept,
-  applying,
-  hasApplied
-}: {
-  task: Task;
-  employerName: string;
-  match: MatchResult;
-  onOpen: () => void;
-  onQuickAccept: () => void;
-  applying: boolean;
-  hasApplied: boolean;
-}) {
-  return (
-    <Pressable accessibilityRole="button" onPress={onOpen} style={({ pressed }) => [styles.jobCard, pressed && styles.pressed]}>
-      <View style={styles.jobHeader}>
-        <Text style={styles.jobTitle}>{task.title}</Text>
-        <Text style={styles.price}>{formatTaskPrice(task)}</Text>
-      </View>
-      <Text style={styles.employerName}>Posted by {employerName}</Text>
-      <Text style={styles.jobMeta}>{formatRelativeTime(task.createdAt)}</Text>
-      <Text style={styles.jobMeta}>{formatTaskSchedule(task)}</Text>
-      <Text style={styles.jobMeta}>{formatDistance(match.distanceKm)} · {task.locationAddress ?? task.location}</Text>
-      <Text style={styles.jobDescription} numberOfLines={2}>{task.description}</Text>
-      {task.perks?.length ? <Text style={styles.perksText}>Perks: {task.perks.slice(0, 2).join(" · ")}</Text> : null}
-      <SmartMatchBadge eligible={match.eligible} reasons={match.reasons} score={match.score} />
-      <View style={styles.jobInfoRow}>
-        <Text style={styles.jobInfo}>{formatTaskDuration(task)}</Text>
-        <Text style={styles.jobInfo}>{formatRequiredCapabilities(task)}</Text>
-      </View>
-      <View style={styles.actionRow}>
-        <Pressable accessibilityRole="button" onPress={onOpen} style={styles.detailsButton}>
-          <Text style={styles.detailsButtonText}>Details</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" disabled={applying || hasApplied} onPress={onQuickAccept} style={[styles.quickButton, (applying || hasApplied) && styles.quickButtonDisabled]}>
-          <Text style={styles.quickButtonText}>{hasApplied ? "Applied" : applying ? "Applying..." : task.pricingMode === "bidding" ? "Make Offer" : "Quick Apply"}</Text>
-        </Pressable>
-      </View>
-    </Pressable>
   );
 }
 
@@ -383,28 +336,6 @@ const styles = StyleSheet.create({
   loadMoreButton: { minHeight: 46, marginHorizontal: 16, marginTop: 14, borderRadius: 10, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
   loadMoreText: { color: palette.primary, fontSize: 14, fontWeight: "900" },
   listCount: { color: palette.muted, fontSize: 12, fontWeight: "700", textAlign: "center", paddingTop: 14 },
-  jobCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 12, ...interactiveCardShadow },
-  urgentBadge: { position: "absolute", left: 16, top: 16, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: palette.secondaryContainer },
-  urgentText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "900" },
-  jobHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
-  price: { color: palette.primary, fontSize: 20, lineHeight: 28, fontWeight: "900" },
-  jobTitle: { flex: 1, flexShrink: 1, color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "800" },
-  employerName: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "800" },
-  jobMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
-  jobDescription: { color: palette.muted, fontSize: 14, lineHeight: 20 },
-  perksText: { color: palette.secondary, fontSize: 12, lineHeight: 17, fontWeight: "800" },
-  matchRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  matchChip: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: palette.surfaceHigh, color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: "900" },
-  matchChipGood: { backgroundColor: "#EAF8F1", color: "#0B7A52" },
-  matchChipWarn: { backgroundColor: "#FFF8EE", color: "#684000" },
-  jobInfoRow: { paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(189,201,198,0.45)", flexDirection: "row", gap: 16 },
-  jobInfo: { color: palette.outline, fontSize: 12, lineHeight: 16, fontWeight: "800" },
-  actionRow: { flexDirection: "row", gap: 10 },
-  detailsButton: { flex: 1, minHeight: 48, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
-  detailsButtonText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
-  quickButton: { flex: 1.3, minHeight: 48, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  quickButtonDisabled: { opacity: 0.45 },
-  quickButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   emptyCard: { padding: 24, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, alignItems: "center", gap: 8 },
   emptyTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 26, fontWeight: "900" },
   emptyText: { color: palette.muted, fontSize: 14, lineHeight: 20, textAlign: "center" },

@@ -17,24 +17,29 @@ const TAB_COUNT = 4;
 const NAV_SIDE_GAP = 16;
 const NAV_HORIZONTAL_PADDING = 8;
 const MARKER_MARGIN = 6;
-const NAV_TRANSITION_DURATION_MS = 220;
+const NAV_TRANSITION_DURATION_MS = 180;
 
 export function AnimatedBottomNav({ active, role }: { active: BottomNavKey; role?: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const navBottomOffset = Math.max(insets.bottom, 8);
   const reduceMotion = usePrefersReducedMotion();
-  const activeIndex = navItems.findIndex((item) => item.key === active);
+  const [visualActive, setVisualActive] = useState(active);
+  const activeIndex = navItems.findIndex((item) => item.key === visualActive);
   const markerPosition = useRef(new Animated.Value(activeIndex)).current;
   const [navWidth, setNavWidth] = useState(0);
   const slotWidth = Math.max(0, (navWidth - NAV_HORIZONTAL_PADDING * 2) / TAB_COUNT);
+
+  useEffect(() => {
+    setVisualActive(active);
+  }, [active]);
 
   useEffect(() => {
     const animation = Animated.timing(markerPosition, {
       toValue: activeIndex,
       duration: reduceMotion ? 0 : NAV_TRANSITION_DURATION_MS,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: false
+      useNativeDriver: true
     });
     animation.start();
     return () => animation.stop();
@@ -80,7 +85,7 @@ export function AnimatedBottomNav({ active, role }: { active: BottomNavKey; role
             />
           ) : null}
           {navItems.map((item) => {
-            const selected = item.key === active;
+            const selected = item.key === visualActive;
             const route = item.key === "home"
               ? role === "client" ? "/client-dashboard" : "/worker-dashboard"
               : item.key === "jobs"
@@ -93,7 +98,10 @@ export function AnimatedBottomNav({ active, role }: { active: BottomNavKey; role
                   accessibilityRole="button"
                   accessibilityState={{ selected }}
                   onPress={() => {
-                    if (!selected) router.push(route as never);
+                    if (!selected) {
+                      setVisualActive(item.key);
+                      router.replace(route as never);
+                    }
                   }}
                   style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
                 >
