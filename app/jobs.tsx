@@ -200,7 +200,7 @@ export default function JobsScreen() {
         ) : (
           <View style={styles.forYouEmptyCard}>
             <Text style={styles.emptyTitle}>No smart matches yet</Text>
-            <Text style={styles.emptyText}>Refresh your location and complete your profile to see recommendations here.</Text>
+            <Text style={styles.emptyText}>Save your service-area pin and complete your profile to see recommendations here.</Text>
           </View>
         )}
 
