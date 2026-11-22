@@ -941,8 +941,11 @@ function ReviewCard({ initials, name, date, stars, text }: { initials: string; n
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
-  embeddedRoot: { flex: 0, flexGrow: 0, flexShrink: 1, backgroundColor: "transparent" },
-  embeddedScroll: { flexGrow: 0, flexShrink: 1 },
+  // The parent popup supplies the viewport. Fill it so every management
+  // section (including long verification and service-area forms) is visible
+  // and scrollable instead of collapsing.
+  embeddedRoot: { flex: 1, minHeight: 0, backgroundColor: "transparent" },
+  embeddedScroll: { flex: 1, minHeight: 0 },
   embeddedContent: { padding: 12, paddingTop: 0, gap: 12 },
   managementHeader: { minHeight: 56, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: "#EDF1EF" },
   managementHeaderButton: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },

@@ -500,6 +500,7 @@ const styles = StyleSheet.create({
   overlaySurface: {
     width: "100%",
     maxWidth: 620,
+    height: "84%",
     maxHeight: "84%",
     borderRadius: 18,
     borderWidth: 1,
@@ -518,8 +519,10 @@ const styles = StyleSheet.create({
   overlaySubtitle: { color: colors.muted, fontSize: 12, lineHeight: 16 },
   overlayCloseButton: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: "#BA1A1A", alignItems: "center", justifyContent: "center", backgroundColor: colors.white },
   overlayClosePressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
-  overlayBody: { flexShrink: 1, minHeight: 0 },
-  phoneOverlayScroll: { flexGrow: 0, flexShrink: 1 },
+  // Each popup owns the remaining panel height so its nested form can scroll.
+  // Without this, embedded profile-management screens shrink to zero height.
+  overlayBody: { flex: 1, minHeight: 0 },
+  phoneOverlayScroll: { flex: 1, minHeight: 0 },
   phoneOverlayContent: { paddingHorizontal: 12, paddingTop: 0, paddingBottom: 12 },
   flex: { flex: 1 },
   pressed: { opacity: 0.68 }
