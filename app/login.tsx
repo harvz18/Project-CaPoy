@@ -205,7 +205,7 @@ export default function LoginScreen() {
           setRegisterError(photoError instanceof Error ? photoError.message : "Your account was created, but the profile photo could not be uploaded.");
         }
       }
-      router.replace(getRoleRoute(registerRole));
+      router.replace(`${getRoleRoute(registerRole)}?onboarding=verification` as Href);
     } catch {
       // AppContext exposes the readable error message.
     }

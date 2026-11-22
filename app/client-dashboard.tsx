@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { AppText as Text } from "../src/components/AppText";
@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { HelpShortcut } from "../src/components/HelpShortcut";
 import { NotificationShortcut } from "../src/components/NotificationShortcut";
 import { StatusBadge } from "../src/components/StatusBadge";
+import { VerificationOnboarding, VerificationReminder } from "../src/components/VerificationOnboarding";
 import { useApp } from "../src/context/AppContext";
 import { usePullToRefresh } from "../src/hooks/usePullToRefresh";
 import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
@@ -35,6 +36,7 @@ const palette = {
 
 export default function ClientDashboardScreen() {
   const router = useRouter();
+  const { onboarding } = useLocalSearchParams<{ onboarding?: string }>();
   const { currentUser, notifications, tasks, users, retryDataSync } = useApp();
   const { onRefresh, refreshing } = usePullToRefresh(retryDataSync);
   const [showAllOngoing, setShowAllOngoing] = useState(false);
@@ -80,6 +82,11 @@ export default function ClientDashboardScreen() {
           </View>
 
         </View>
+
+        <VerificationReminder
+          user={currentUser}
+          onContinue={() => router.push("/profile-manage?section=verification" as Href)}
+        />
 
         <View style={styles.statsGrid}>
           <StatCard label="Ongoing Jobs" value={String(activeClientTasks.length).padStart(2, "0")} tone="primary" />
@@ -168,6 +175,12 @@ export default function ClientDashboardScreen() {
       >
         <Text style={styles.fabText}>Post</Text>
       </Pressable>
+      <VerificationOnboarding
+        autoOpen={onboarding === "verification"}
+        user={currentUser}
+        onDismiss={() => router.replace("/client-dashboard")}
+        onContinue={() => router.replace("/profile-manage?section=verification" as Href)}
+      />
     </SafeAreaView>
   );
 }

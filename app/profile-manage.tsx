@@ -246,7 +246,7 @@ export function ProfileManagementContent({
         businessName: currentUser?.role === "client" ? bio : undefined
       });
       setAddressChanged(false);
-      if (currentUser && documentsChanged) {
+      if (currentUser && documentsChanged && hasVerificationDocuments) {
         const verificationInput: Parameters<typeof submitVerificationRequest>[0] = {
           userId: currentUser.id,
           role: currentUser.role === "client" ? "client" : "worker",
@@ -263,6 +263,9 @@ export function ProfileManagementContent({
         }
         setDocumentsChanged(false);
         setUploadMessage("Verification documents submitted for administrator review.");
+      } else if (documentsChanged) {
+        setDocumentsChanged(false);
+        setUploadMessage("Identity documents saved. Upload the medical certificate and police clearance later, then save again to submit the complete set for administrator review.");
       } else {
         setUploadMessage("Profile changes saved.");
       }
@@ -587,7 +590,7 @@ export function ProfileManagementContent({
               />
               <Text style={styles.helperText}>{fullNameLocked
                 ? "Approved documents are locked. Any missing document remains available for upload and will be sent for another administrator review."
-                : "Upload a valid ID, a clear selfie holding that same ID, a medical certificate, and police clearance (images or PDFs up to 5 MB; selfie must be an image). Files are private; save changes after all four are ready to submit them for review."}</Text>
+                : "Start with a valid ID and a clear selfie holding that same ID. You may save those now and add the medical certificate and police clearance later (images or PDFs up to 5 MB; selfie must be an image). When all four are ready, save again to submit the complete set for administrator review."}</Text>
               {uploadMessage ? <Text style={styles.locationMessage}>{uploadMessage}</Text> : null}
             </View> : null}
 

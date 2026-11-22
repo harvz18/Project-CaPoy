@@ -1,7 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { BlurTargetView, BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { Href, useLocalSearchParams, useRouter } from "expo-router";
 import { type ComponentRef, useEffect, useRef, useState } from "react";
 import { Animated, Easing, Image, Modal, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, useWindowDimensions, View } from "react-native";
 import { AppText as Text } from "../src/components/AppText";
@@ -12,6 +12,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { TaskMapPreview } from "../src/components/TaskMapPreview";
+import { VerificationOnboarding, VerificationReminder } from "../src/components/VerificationOnboarding";
 import { useApp } from "../src/context/AppContext";
 import { usePullToRefresh } from "../src/hooks/usePullToRefresh";
 import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
@@ -43,6 +44,7 @@ type MapOverlayRect = { x: number; y: number; width: number; height: number };
 
 export default function WorkerDashboardScreen() {
   const router = useRouter();
+  const { onboarding } = useLocalSearchParams<{ onboarding?: string }>();
   const [selectedTab, setSelectedTab] = useState<"active" | "finished">("active");
   const [applicationsOverlayOpen, setApplicationsOverlayOpen] = useState(false);
   const [applicationsOverlayClosing, setApplicationsOverlayClosing] = useState(false);
@@ -332,6 +334,11 @@ export default function WorkerDashboardScreen() {
             <Text style={styles.availabilityText} variant="badge">{currentUser ? getScheduleBasedAvailability(tasks, currentUser.id) : "Not set"}</Text>
           </View>
         </View>
+
+        <VerificationReminder
+          user={currentUser}
+          onContinue={() => router.push("/profile-manage?section=verification" as Href)}
+        />
 
         <View style={styles.statsGrid}>
           <StatCard label="Open Jobs" value={String(postedTasks.length).padStart(2, "0")} />
@@ -634,6 +641,12 @@ export default function WorkerDashboardScreen() {
       </ScrollView>
         </SafeAreaView>
       </BlurTargetView>
+      <VerificationOnboarding
+        autoOpen={onboarding === "verification"}
+        user={currentUser}
+        onDismiss={() => router.replace("/worker-dashboard")}
+        onContinue={() => router.replace("/profile-manage?section=verification" as Href)}
+      />
       <Modal
         animationType="none"
         onRequestClose={closeMapOverlay}
