@@ -1128,8 +1128,6 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
   }, []);
   useEffect(() => {
     void refreshReviewData();
-    const interval = window.setInterval(() => void refreshReviewData(), 30_000);
-    return () => window.clearInterval(interval);
   }, [refreshReviewData]);
   const sortedRequests = sortByDate(requests, (item) => item.submittedAt, requestOrder);
   const requestPage = useLocalTablePage(sortedRequests);
