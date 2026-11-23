@@ -12,6 +12,7 @@ import {
   writeBatch,
   Transaction
 } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore";
 import {
   assertCanApply,
   assertCanRejectApplicant,
@@ -25,6 +26,8 @@ import { isPaymentProofPathForTask } from "../utils/paymentProof";
 import { canEditTaskTerms, getChangedTaskTermKeys, getTaskTerms, hasPendingTaskChange, makeTaskChangeRequest, summarizeTaskTermChanges } from "../domain/taskTerms";
 import { assertCanCancelTask, assertValidCancellationReason, isCancellationActorRole } from "../domain/cancellation";
 import { auth, db } from "./firebase";
+import { getApplicationDeadline } from "../domain/taskExpiry";
+import { isTaskPastApplicationDeadline } from "../domain/taskExpiry";
 
 function requireDb() {
   if (!db) throw new Error("Firebase is not configured. Please check the EXPO_PUBLIC_FIREBASE_* values.");
@@ -89,7 +92,12 @@ export function subscribeToTasksForUser(
   const emit = () => {
     const uniqueTasks = new Map<string, Task>();
     buckets.flat().forEach((task) => uniqueTasks.set(task.id, task));
-    onChange([...uniqueTasks.values()].sort(
+    const visibleTasks = [...uniqueTasks.values()].map((task) =>
+      user.role === "client" && (task.status === "Finding Workers" || task.status === "Applied") && isTaskPastApplicationDeadline(task)
+        ? { ...task, status: "Expired" as const }
+        : task
+    );
+    onChange(visibleTasks.sort(
       (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
     ));
   };
@@ -142,6 +150,12 @@ export async function createTaskInFirestore(input: TaskInput) {
   requireAuthActor({ id: input.clientId, role: "client" });
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.parse(now) + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const applicationDeadline = getApplicationDeadline({
+    expiresAt,
+    scheduleMode: input.scheduleMode ?? "fixed",
+    scheduleStart: input.scheduleStart,
+    scheduleDate: input.scheduleDate
+  });
   const taskRef = doc(collection(firestore, "tasks"));
   const task = withoutUndefined({
     clientId: input.clientId,
@@ -173,6 +187,7 @@ export async function createTaskInFirestore(input: TaskInput) {
     paymentMethod: input.paymentMethod,
     paymentStatus: "Pending" as const,
     expiresAt,
+    applicationDeadlineAt: Timestamp.fromMillis(applicationDeadline ?? Date.parse(expiresAt)),
     createdAt: now,
     updatedAt: now
   }) as Omit<Task, "id">;

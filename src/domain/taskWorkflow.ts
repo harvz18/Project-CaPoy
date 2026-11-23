@@ -2,6 +2,7 @@ import { PaymentStatus, Role, Task, TaskStatus } from "../types";
 import { isValidMoneyAmount } from "../utils/numericInput";
 import { hasPendingTaskChange } from "./taskTerms";
 import { assertCanCancelTask } from "./cancellation";
+import { isTaskOpenForApplications, taskExpiryMessage } from "./taskExpiry";
 
 export type TaskActor = {
   id: string;
@@ -85,8 +86,8 @@ export function assertCanApply(task: Task, actor: TaskActor, proposedAmount?: st
   if (task.clientId === actor.id) {
     throw new Error("You cannot apply to your own task.");
   }
-  if (task.workerId || (task.status !== "Finding Workers" && task.status !== "Applied")) {
-    throw new Error("This task is no longer open for applications.");
+  if (!isTaskOpenForApplications(task)) {
+    throw new Error(taskExpiryMessage(task));
   }
   if (task.applicantIds?.includes(actor.id)) {
     throw new Error("You have already applied to this task.");

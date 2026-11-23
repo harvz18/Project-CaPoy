@@ -13,6 +13,22 @@ function validCoordinates(latitude, longitude) {
     latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
 }
 
+function taskApplicationDeadline(task) {
+  const parse = (value) => {
+    if (value && typeof value.toDate === "function") return value.toDate().getTime();
+    const parsed = value ? new Date(value).getTime() : Number.NaN;
+    return Number.isFinite(parsed) ? parsed : undefined;
+  };
+  const explicit = parse(task.applicationDeadlineAt);
+  if (explicit !== undefined) return explicit;
+  const listingExpiry = parse(task.expiresAt);
+  const scheduledStart = task.scheduleMode !== "anytime" ? parse(task.scheduleStart) : undefined;
+  const anytimeEnd = task.scheduleMode === "anytime" && /^\d{4}-\d{2}-\d{2}$/.test(task.scheduleDate || "")
+    ? parse(`${task.scheduleDate}T23:59:59.999+08:00`)
+    : undefined;
+  return [listingExpiry, scheduledStart, anytimeEnd].filter((value) => value !== undefined).reduce((earliest, value) => earliest === undefined ? value : Math.min(earliest, value), undefined);
+}
+
 function distanceKm(fromLatitude, fromLongitude, toLatitude, toLongitude) {
   if (!validCoordinates(fromLatitude, fromLongitude) || !validCoordinates(toLatitude, toLongitude)) return undefined;
   const radians = (value) => value * Math.PI / 180;
@@ -34,8 +50,8 @@ function scoreWorkerForTask(task, worker, now = Date.now()) {
   const capabilityMatch = missingCapabilities.length === 0;
   const approvedIdentity = worker.verificationStatus === "Verified" || worker.identityStatus === "Approved";
   const openTask = ["Finding Workers", "Applied"].includes(task.status);
-  const expiry = task.expiresAt ? new Date(task.expiresAt).getTime() : undefined;
-  const unexpiredTask = expiry === undefined || (Number.isFinite(expiry) && expiry > now);
+  const expiry = taskApplicationDeadline(task);
+  const unexpiredTask = expiry === undefined || expiry > now;
   // Smart Match deliberately uses a stable saved service area, never a live
   // check-in/device reading. Existing profiles retain a read-only fallback to
   // their former saved location until they save their service area once.

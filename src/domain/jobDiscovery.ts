@@ -1,5 +1,6 @@
 import { MatchResult } from "./matching";
 import { Task } from "../types";
+import { isTaskOpenForApplications } from "./taskExpiry";
 
 export type RankedJob = { task: Task; match: MatchResult };
 export type JobSort = "recommended" | "nearest" | "newest" | "highest-pay";
@@ -29,8 +30,7 @@ export function getJobCategories(tasks: Task[]) {
 
 export function getAvailableJobs(tasks: Task[], workerId: string) {
   return tasks.filter((task) =>
-    (task.status === "Finding Workers" || task.status === "Applied")
-    && !task.workerId
+    isTaskOpenForApplications(task)
     && !task.applicantIds?.includes(workerId)
   );
 }

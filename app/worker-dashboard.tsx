@@ -18,6 +18,7 @@ import { usePullToRefresh } from "../src/hooks/usePullToRefresh";
 import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
 import { rankTasksForWorker } from "../src/domain/matching";
 import { Task } from "../src/types";
+import { isTaskOpenForApplications } from "../src/domain/taskExpiry";
 
 const palette = {
   background: "#F7FAF8",
@@ -73,7 +74,7 @@ export default function WorkerDashboardScreen() {
   const insets = useSafeAreaInsets();
   const { actionLoading, currentUser, tasks, ratings, acceptTask, retryDataSync } = useApp();
   const { onRefresh, refreshing } = usePullToRefresh(retryDataSync);
-  const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
+  const postedTasks = tasks.filter(isTaskOpenForApplications);
   const rankedPostedTasks = currentUser ? rankTasksForWorker(postedTasks, currentUser) : [];
   const acceptedTasks = tasks.filter(
     (task) =>

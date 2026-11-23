@@ -44,7 +44,7 @@ export default function ClientDashboardScreen() {
   const activeClientTasks = clientTasks.filter((task) => ["Finding Workers", "Applied", "Accepted", "In Progress", "Pending Approval", "Disputed"].includes(task.status));
   const finishedCount = clientTasks.filter((task) => task.status === "Finished").length;
   const finishedTasks = clientTasks.filter((task) => task.status === "Finished");
-  const archivedTasks = clientTasks.filter((task) => task.status === "Archived");
+  const archivedTasks = clientTasks.filter((task) => task.status === "Archived" || task.status === "Expired");
   const registeredWorkers = users.filter((user) => user.role === "worker");
   const availableWorkers = registeredWorkers.filter((user) => getScheduleBasedAvailability(tasks, user.id) === "Available");
 
@@ -138,8 +138,8 @@ export default function ClientDashboardScreen() {
 
         <View style={styles.archivedPanel}>
           <View style={styles.archivedHeader}>
-            <Text style={styles.panelTitle}>Archived Tasks</Text>
-            <Text style={styles.smallMuted}>{archivedTasks.length} archived</Text>
+            <Text style={styles.panelTitle}>Archived & Expired Tasks</Text>
+            <Text style={styles.smallMuted}>{archivedTasks.length} records</Text>
           </View>
           {archivedTasks.length ? (
             archivedTasks.map((task) => (
@@ -147,7 +147,7 @@ export default function ClientDashboardScreen() {
             ))
           ) : (
             <View style={styles.archiveEmptyRow}>
-              <Text style={styles.smallMuted}>Archived tasks will appear here after completed work is closed.</Text>
+              <Text style={styles.smallMuted}>Archived tasks and past-due listings will appear here.</Text>
             </View>
           )}
         </View>

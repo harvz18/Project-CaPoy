@@ -207,6 +207,8 @@ export type Task = {
   paymentStatusAtCancellation?: PaymentStatus;
   disputedAt?: string;
   expiresAt?: string;
+  /** Server-comparable application cutoff for tasks created after expiry enforcement. */
+  applicationDeadlineAt?: unknown;
   updatedAt?: string;
   changeRequest?: TaskChangeRequest;
 };

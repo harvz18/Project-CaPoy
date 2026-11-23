@@ -14,6 +14,7 @@ import { formatPaymentMethod, formatRequiredCapabilities, formatTaskDuration, fo
 import { loadPlatformRevenueConfig } from "../../src/services/platformRevenueService";
 import { TaskMatch } from "../../src/types";
 import { sanitizeMoneyInput } from "../../src/utils/numericInput";
+import { isTaskOpenForApplications, taskExpiryMessage } from "../../src/domain/taskExpiry";
 
 const palette = {
   background: "#F7FAF8",
@@ -91,7 +92,7 @@ export default function TaskDetailsScreen() {
     : employer?.rating;
   const description = task.description.trim();
   const hasApplied = Boolean(currentUser?.id && task.applicantIds?.includes(currentUser.id));
-  const canWorkerApply = task.status === "Finding Workers" || task.status === "Applied";
+  const canWorkerApply = isTaskOpenForApplications(task);
   const workerActionLabel = actionLoading
     ? task.pricingMode === "bidding" ? "Submitting..." : "Applying..."
     : hasApplied || !canWorkerApply
@@ -336,6 +337,7 @@ export default function TaskDetailsScreen() {
       </ScrollView>
       {!isClient ? (
         <View style={[styles.stickyFooter, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          {!canWorkerApply && !hasApplied ? <Text style={styles.expiryNotice}>{taskExpiryMessage(task)}</Text> : null}
           {actionError ? <Text accessibilityRole="alert" style={styles.errorText}>{actionError}</Text> : null}
           <Pressable
             accessibilityRole="button"
@@ -494,6 +496,7 @@ const styles = StyleSheet.create({
   offerFeeTotal: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
   offerFeeText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   errorText: { color: "#B91C1C", fontSize: 13, lineHeight: 18, fontWeight: "700" },
+  expiryNotice: { color: "#B91C1C", fontSize: 12, lineHeight: 17, fontWeight: "700", paddingBottom: 8, textAlign: "center" },
   stickyFooter: { paddingHorizontal: 14, paddingTop: 10, gap: 8, borderTopWidth: 1, borderTopColor: "rgba(189,201,198,0.55)", backgroundColor: palette.surface, shadowColor: "#0F172A", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.08, shadowRadius: 5, elevation: 8 },
   stickyPrimaryButton: { minHeight: 52, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   pressedButton: { opacity: 0.82, transform: [{ scale: 0.995 }] },

@@ -15,6 +15,7 @@ import { rankTasksForWorker } from "../src/domain/matching";
 import { filterAndSortRankedJobs, getAvailableJobs, getJobCategories, JobSort } from "../src/domain/jobDiscovery";
 import { Task } from "../src/types";
 import { getDiscoveryLocationIssue } from "../src/utils/location";
+import { isTaskOpenForApplications } from "../src/domain/taskExpiry";
 
 const palette = {
   background: "#F7FAF8",
@@ -51,7 +52,7 @@ export default function JobsScreen() {
   const [applicationsExpanded, setApplicationsExpanded] = useState(false);
   const [visibleJobCount, setVisibleJobCount] = useState(JOB_PAGE_SIZE);
   const [selectedMapTaskId, setSelectedMapTaskId] = useState<string>();
-  const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
+  const postedTasks = tasks.filter(isTaskOpenForApplications);
   const availableTasks = getAvailableJobs(postedTasks, currentUser?.id ?? "");
   const appliedTasks = tasks.filter(
     (task) =>
