@@ -65,7 +65,8 @@ function ProtectedNavigator() {
   const networkState = Network.useNetworkState();
   const { actionErrorDialog, appLoading, authority, clearActionErrorDialog, clearError, currentUser, error, retryDataSync } = useApp();
   const route = segments[0] as string | undefined;
-  const activeBottomTab = getActiveBottomTab(route);
+  const isChatThread = route === "chat" && segments.length > 1;
+  const activeBottomTab = isChatThread ? undefined : getActiveBottomTab(route);
   const authRoutes = ["index", "login", "register"];
   const publicRoutes = [...authRoutes, "help", "recover-account"];
   const clientOnlyRoutes = ["client-dashboard", "post-task"];

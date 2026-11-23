@@ -2,7 +2,7 @@ import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, LayoutChangeEvent, Pressable, StyleSheet, View } from "react-native";
+import { Animated, Easing, Keyboard, LayoutChangeEvent, Pressable, StyleSheet, View } from "react-native";
 import { AppText as Text } from "./AppText";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomNavIcon } from "./BottomNavIcon";
@@ -11,13 +11,14 @@ import { typography } from "../typography";
 
 export type BottomNavKey = "home" | "jobs" | "chat" | "profile";
 
-const ACTIVE_COLOR = "#684000";
+const ACTIVE_COLOR = "#0F766E";
 const INACTIVE_COLOR = "#3E4947";
 const TAB_COUNT = 4;
 const NAV_SIDE_GAP = 16;
 const NAV_HORIZONTAL_PADDING = 8;
 const MARKER_MARGIN = 6;
 const NAV_TRANSITION_DURATION_MS = 180;
+export const BOTTOM_NAV_MIN_HEIGHT = 72;
 
 export function AnimatedBottomNav({ active, role }: { active: BottomNavKey; role?: string }) {
   const router = useRouter();
@@ -97,6 +98,7 @@ export function AnimatedBottomNav({ active, role }: { active: BottomNavKey; role
                   accessibilityLabel={item.label}
                   accessibilityRole="button"
                   accessibilityState={{ selected }}
+                  onPressIn={Keyboard.dismiss}
                   onPress={() => {
                     if (!selected) {
                       setVisualActive(item.key);
@@ -152,12 +154,12 @@ const styles = StyleSheet.create({
   },
   bottomNav: {
     width: "100%",
-    minHeight: 72,
+    minHeight: BOTTOM_NAV_MIN_HEIGHT,
     paddingHorizontal: NAV_HORIZONTAL_PADDING,
     paddingVertical: 8,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#BDC9C6",
+    borderColor: "#E2E8F0",
     backgroundColor: "#FFFFFF",
     flexDirection: "row"
   },
@@ -174,7 +176,7 @@ const styles = StyleSheet.create({
     top: 8,
     bottom: 8,
     borderRadius: 24,
-    backgroundColor: "#FEA619"
+    backgroundColor: "#CCFBF1"
   },
   navSlot: {
     flex: 1,

@@ -15,6 +15,7 @@ type CompactJobCardProps = {
   match: MatchResult;
   isBestMatch?: boolean;
   showMatchBadge?: boolean;
+  showPostedTime?: boolean;
   onOpen: () => void;
   onQuickApply: () => void;
   onApplicationStatus: () => void;
@@ -28,6 +29,7 @@ export function CompactJobCard({
   match,
   isBestMatch = false,
   showMatchBadge = true,
+  showPostedTime = true,
   onOpen,
   onQuickApply,
   onApplicationStatus,
@@ -62,7 +64,7 @@ export function CompactJobCard({
           <Text numberOfLines={1} style={styles.price}>{formatTaskPrice(task)}</Text>
         </View>
       )}
-      <Text style={styles.postedTime}>{formatRelativeTime(task.createdAt)}</Text>
+      {showPostedTime ? <Text style={styles.postedTime}>{formatRelativeTime(task.createdAt)}</Text> : null}
 
       <View style={styles.locationRow}>
         <Feather accessibilityElementsHidden color={colors.muted} name="map-pin" size={14} />

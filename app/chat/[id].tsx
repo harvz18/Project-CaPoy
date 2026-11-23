@@ -1,38 +1,55 @@
 import Feather from "@expo/vector-icons/Feather";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
+import { useLocalSearchParams } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View
+} from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
 import { useApp } from "../../src/context/AppContext";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
-import { ChatMessage } from "../../src/types";
+import type { ChatMessage } from "../../src/types";
 
 const palette = {
-  background: "#F7FAF8",
+  background: "#F8FAFC",
   surface: "#FFFFFF",
-  surfaceLow: "#F1F4F3",
-  surfaceContainer: "#EBEFED",
-  surfaceHigh: "#E0E3E1",
-  primary: "#005C55",
-  secondaryContainer: "#FEA619",
-  text: "#181C1C",
-  textStrong: "#111827",
-  muted: "#3E4947",
-  outline: "#6E7977",
-  outlineVariant: "#BDC9C6",
-  success: "#10B981",
-  white: "#FFFFFF"
+  received: "#F1F5F9",
+  primary: "#0D9488",
+  primaryDark: "#0F766E",
+  primaryLight: "#CCFBF1",
+  text: "#0F172A",
+  muted: "#475569",
+  subtle: "#64748B",
+  border: "#E2E8F0",
+  error: "#B91C1C"
 };
 
 const quickReplies = ["I'm on my way", "I've arrived", "Stuck in traffic"];
 
 export default function ChatScreen() {
   const { id, recipientId } = useLocalSearchParams<{ id: string; recipientId?: string }>();
-  const router = useRouter();
   const goBack = useTasklinkBack();
   const insets = useSafeAreaInsets();
-  const { currentUser, getTaskMessages, getUserById, loadOlderChatMessages, markMessagesRead, sendMessage, tasks } = useApp();
+  const listRef = useRef<FlatList<ChatMessage>>(null);
+  const lastMessageIdRef = useRef<string | undefined>(undefined);
+  const shouldScrollToEndRef = useRef(true);
+  const {
+    actionLoading,
+    currentUser,
+    getTaskMessages,
+    getUserById,
+    loadOlderChatMessages,
+    markMessagesRead,
+    sendMessage,
+    tasks
+  } = useApp();
   const [message, setMessage] = useState("");
   const [sendError, setSendError] = useState("");
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -49,27 +66,34 @@ export default function ChatScreen() {
   const chatUnavailable = !participantId;
   const participant = getUserById(participantId);
   const messages = getTaskMessages(id, participantId);
+  const latestMessageId = messages[messages.length - 1]?.id;
   const unreadIds = useMemo(
     () => messages.filter((item) => item.receiverId === currentUser?.id && !item.readAt).map((item) => item.id).join(","),
     [currentUser?.id, messages]
   );
+  const sendDisabled = chatUnavailable || actionLoading || !message.trim();
 
   useEffect(() => {
     if (id && participantId && unreadIds) {
       void markMessagesRead(id, participantId).catch(() => undefined);
     }
-  }, [id, participantId, unreadIds]);
+  }, [id, markMessagesRead, participantId, unreadIds]);
+
+  useEffect(() => {
+    if (!latestMessageId || latestMessageId === lastMessageIdRef.current) return;
+    shouldScrollToEndRef.current = true;
+    lastMessageIdRef.current = latestMessageId;
+  }, [latestMessageId]);
 
   async function handleSend(text = message) {
-    if (!text.trim()) {
-      return;
-    }
+    const trimmedText = text.trim();
+    if (!trimmedText || actionLoading) return;
     if (!participantId) {
       setSendError("Choose a tasker from the Chat inbox before sending a message.");
       return;
     }
     try {
-      await sendMessage(id, text.trim(), participantId);
+      await sendMessage(id, trimmedText, participantId);
       setMessage("");
       setSendError("");
     } catch (error) {
@@ -78,8 +102,10 @@ export default function ChatScreen() {
   }
 
   async function handleLoadOlder() {
+    if (loadingOlder || allMessagesLoaded) return;
     setLoadingOlder(true);
     setSendError("");
+    shouldScrollToEndRef.current = false;
     try {
       const count = await loadOlderChatMessages();
       if (count === 0) setAllMessagesLoaded(true);
@@ -91,75 +117,151 @@ export default function ChatScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={goBack} style={styles.iconButton}>
-            <Feather accessibilityElementsHidden color={palette.primary} name="arrow-left" size={22} />
-          </Pressable>
-          <Text style={styles.brand}>TASKLINK</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <View style={styles.smallAvatar}>
-            <Text style={styles.avatarText}>{currentUser?.fullName?.[0] ?? "U"}</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.contextBar}>
-        <View style={styles.contactAvatar}>
-          <Text style={styles.avatarText}>{participant?.fullName?.[0] ?? "U"}</Text>
-        </View>
-        <View style={styles.contextCopy}>
-          <Text style={styles.contactName}>{participant?.fullName ?? "Task Chat"}</Text>
-          <Text style={styles.contactMeta}>{task?.title ?? "Task conversation"}</Text>
-        </View>
-      </View>
-
-      <FlatList
-        data={messages}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={[styles.messageList, { paddingBottom: 174 + insets.bottom }]}
-        ListHeaderComponent={(
-          <View>
-            {!allMessagesLoaded && messages.length ? (
-              <Pressable accessibilityRole="button" disabled={loadingOlder} onPress={() => void handleLoadOlder()}>
-                <Text style={styles.loadOlder}>{loadingOlder ? "Loading..." : "Load older messages"}</Text>
-              </Pressable>
-            ) : null}
-            <Text style={styles.datePill}>Conversation</Text>
-          </View>
-        )}
-        renderItem={({ item }) => (
-          <MessageBubble message={item} mine={item.senderId === currentUser?.id} />
-        )}
+    <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
+      <ConversationHeader
+        contactName={participant?.fullName ?? "Task participant"}
+        onBack={goBack}
+        taskTitle={task?.title ?? "Task conversation"}
       />
 
-      <View style={[styles.composerWrap, { bottom: 72 + insets.bottom, paddingBottom: 12 }]}>
-        {sendError ? <Text style={styles.sendError}>{sendError}</Text> : null}
-        {chatUnavailable ? <Text style={styles.sendError}>Choose a tasker from the Chat inbox before sending a message.</Text> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickReplyRow}>
-          {quickReplies.map((reply) => (
-            <Pressable disabled={chatUnavailable} key={reply} onPress={() => handleSend(reply)} style={[styles.quickReply, chatUnavailable && styles.disabled]}>
-              <Text style={styles.quickReplyText}>{reply}</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+        style={styles.keyboardArea}
+      >
+        <FlatList
+          contentContainerStyle={[styles.messageList, !messages.length && styles.messageListEmpty]}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={(
+            <MessageEmptyState unavailable={chatUnavailable} />
+          )}
+          ListHeaderComponent={(
+            !allMessagesLoaded && messages.length ? (
+              <Pressable
+                accessibilityLabel={loadingOlder ? "Loading older messages" : "Load older messages"}
+                accessibilityRole="button"
+                disabled={loadingOlder}
+                onPress={() => void handleLoadOlder()}
+                style={styles.loadOlderButton}
+              >
+                {loadingOlder ? <ActivityIndicator color={palette.primary} size="small" /> : null}
+                <Text variant="button" style={styles.loadOlderText}>
+                  {loadingOlder ? "Loading" : "Load older messages"}
+                </Text>
+              </Pressable>
+            ) : undefined
+          )}
+          onContentSizeChange={() => {
+            if (!shouldScrollToEndRef.current) return;
+            shouldScrollToEndRef.current = false;
+            listRef.current?.scrollToEnd({ animated: Boolean(lastMessageIdRef.current) });
+          }}
+          ref={listRef}
+          renderItem={({ item }) => (
+            <MessageBubble message={item} mine={item.senderId === currentUser?.id} />
+          )}
+          showsVerticalScrollIndicator={false}
+          style={styles.messageListView}
+        />
+
+        <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+          {sendError ? <Text accessibilityRole="alert" variant="metadata" style={styles.sendError}>{sendError}</Text> : null}
+          {chatUnavailable && !sendError ? (
+            <Text accessibilityRole="alert" variant="metadata" style={styles.sendError}>
+              Choose a tasker from the Chat inbox before sending a message.
+            </Text>
+          ) : null}
+
+          <ScrollView
+            contentContainerStyle={styles.quickReplyRow}
+            horizontal
+            keyboardShouldPersistTaps="handled"
+            showsHorizontalScrollIndicator={false}
+            style={styles.quickReplyScroller}
+          >
+            {quickReplies.map((reply) => (
+              <Pressable
+                accessibilityRole="button"
+                disabled={chatUnavailable || actionLoading}
+                key={reply}
+                onPress={() => void handleSend(reply)}
+                style={({ pressed }) => [
+                  styles.quickReply,
+                  (chatUnavailable || actionLoading) && styles.disabled,
+                  pressed && !chatUnavailable && !actionLoading && styles.pressed
+                ]}
+              >
+                <Text numberOfLines={1} variant="badge" style={styles.quickReplyText}>{reply}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          <View style={styles.inputRow}>
+            <TextInput
+              accessibilityLabel="Message"
+              maxLength={2000}
+              multiline
+              onChangeText={setMessage}
+              placeholder="Type a message"
+              placeholderTextColor={palette.subtle}
+              style={styles.input}
+              textAlignVertical="top"
+              value={message}
+            />
+            <Pressable
+              accessibilityLabel={actionLoading ? "Sending message" : "Send message"}
+              accessibilityRole="button"
+              accessibilityState={{ busy: actionLoading, disabled: sendDisabled }}
+              disabled={sendDisabled}
+              onPress={() => void handleSend()}
+              style={({ pressed }) => [
+                styles.sendButton,
+                sendDisabled && styles.sendButtonDisabled,
+                pressed && !sendDisabled && styles.pressed
+              ]}
+            >
+              {actionLoading
+                ? <ActivityIndicator color={palette.surface} size="small" />
+                : <Feather accessibilityElementsHidden color={palette.surface} name="send" size={18} />}
             </Pressable>
-          ))}
-        </ScrollView>
-        <View style={styles.inputRow}>
-          <TextInput
-            accessibilityLabel="Message"
-            onChangeText={setMessage}
-            placeholder="Type a message..."
-            placeholderTextColor={palette.outline}
-            style={styles.input}
-            value={message}
-          />
-          <Pressable accessibilityRole="button" disabled={chatUnavailable} onPress={() => handleSend()} style={({ pressed }) => [styles.sendButton, chatUnavailable && styles.sendButtonDisabled, pressed && !chatUnavailable && styles.pressed]}>
-            <Text style={styles.sendButtonText}>Send</Text>
-          </Pressable>
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+function ConversationHeader({ contactName, onBack, taskTitle }: {
+  contactName: string;
+  onBack: () => void;
+  taskTitle: string;
+}) {
+  return (
+    <View style={styles.header}>
+      <Pressable
+        accessibilityLabel="Back to messages"
+        accessibilityRole="button"
+        hitSlop={4}
+        onPress={onBack}
+        style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+      >
+        <Feather accessibilityElementsHidden color={palette.primaryDark} name="arrow-left" size={22} />
+      </Pressable>
+      <View style={styles.contactAvatar}>
+        <Text variant="badge" style={styles.avatarText}>{getInitials(contactName)}</Text>
+      </View>
+      <View style={styles.headerCopy}>
+        <Text accessibilityRole="header" ellipsizeMode="tail" numberOfLines={1} variant="button" style={styles.contactName}>
+          {contactName}
+        </Text>
+        <Text ellipsizeMode="tail" numberOfLines={1} variant="metadata" style={styles.taskTitle}>
+          {taskTitle}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -167,73 +269,159 @@ function MessageBubble({ message, mine }: { message: ChatMessage; mine: boolean 
   return (
     <View style={[styles.messageRow, mine ? styles.messageRowMine : styles.messageRowOther]}>
       <View style={[styles.messageBubble, mine ? styles.messageMine : styles.messageOther]}>
-        <Text style={[styles.messageText, mine && styles.messageMineText]}>{message.message}</Text>
-        <Text style={[styles.messageTime, mine && styles.messageMineText]}>{formatTime(message.timestamp)}</Text>
+        <Text variant="body" style={styles.messageText}>{message.message}</Text>
+        <Text variant="overline" style={[styles.messageTime, mine && styles.messageTimeMine]}>
+          {formatTime(message.timestamp)}
+        </Text>
       </View>
-      {mine ? <Text style={styles.doneMark}>{message.readAt ? "Read" : "Sent"}</Text> : null}
+      {mine ? <Text variant="overline" style={styles.deliveryState}>{message.readAt ? "Read" : "Sent"}</Text> : null}
     </View>
   );
 }
 
+function MessageEmptyState({ unavailable }: { unavailable: boolean }) {
+  return (
+    <View style={styles.emptyState}>
+      <View style={styles.emptyIcon}>
+        <Feather accessibilityElementsHidden color={palette.primaryDark} name="message-circle" size={22} />
+      </View>
+      <Text variant="cardTitleStrong" style={styles.emptyTitle}>
+        {unavailable ? "Conversation unavailable" : "No messages yet"}
+      </Text>
+      <Text variant="body" style={styles.emptyText}>
+        {unavailable
+          ? "Return to Messages and choose an available task conversation."
+          : "Send a message when you are ready to coordinate this task."}
+      </Text>
+    </View>
+  );
+}
+
+function getInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "TL";
+}
+
 function formatTime(timestamp: string) {
   const parsed = new Date(timestamp);
-  return Number.isFinite(parsed.getTime()) ? parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Time unavailable";
+  return Number.isFinite(parsed.getTime())
+    ? parsed.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : "";
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
+  keyboardArea: { flex: 1 },
   header: {
-    minHeight: 56,
-    paddingHorizontal: 16,
+    minHeight: 60,
+    paddingHorizontal: 8,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: palette.surface,
+    gap: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#EDF1EF"
+    borderBottomColor: palette.border,
+    backgroundColor: palette.surface
   },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  iconButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
-  menuText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
-  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
-  callButton: { paddingHorizontal: 10, minHeight: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  callText: { color: palette.muted, fontWeight: "800" },
-  smallAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.secondaryContainer, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: palette.outlineVariant },
-  avatarText: { color: "#684000", fontWeight: "900" },
-  contextBar: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surfaceLow, flexDirection: "row", alignItems: "center", gap: 12 },
-  contactAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.surfaceHigh, alignItems: "center", justifyContent: "center" },
-  onlineDot: { position: "absolute", right: 0, bottom: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: palette.success, borderWidth: 2, borderColor: palette.surfaceLow },
-  contextCopy: { flex: 1 },
-  contactName: { color: palette.textStrong, fontSize: 14, lineHeight: 20, fontWeight: "900" },
-  contactMeta: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  locationButton: { minHeight: 38, borderRadius: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceHigh },
-  locationButtonText: { color: palette.primary, fontWeight: "900" },
-  messageList: { paddingHorizontal: 16, paddingTop: 16, gap: 12 },
-  datePill: { alignSelf: "center", overflow: "hidden", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, marginBottom: 12, backgroundColor: palette.surfaceContainer, color: palette.muted, fontSize: 12, lineHeight: 16 },
-  loadOlder: { alignSelf: "center", color: palette.primary, fontSize: 12, lineHeight: 18, fontWeight: "800", marginBottom: 10 },
-  messageRow: { marginBottom: 12, flexDirection: "row", alignItems: "flex-end", gap: 8, maxWidth: "86%" },
-  messageRowMine: { alignSelf: "flex-end" },
-  messageRowOther: { alignSelf: "flex-start" },
-  messageBubble: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  messageMine: { backgroundColor: palette.primary, borderBottomRightRadius: 4 },
-  messageOther: { backgroundColor: palette.surfaceHigh, borderBottomLeftRadius: 4 },
-  messageText: { color: palette.text, fontSize: 16, lineHeight: 24 },
-  messageMineText: { color: palette.white },
-  messageTime: { color: palette.muted, fontSize: 10, lineHeight: 14, marginTop: 4, textAlign: "right" },
-  doneMark: { color: palette.primary, fontSize: 10, fontWeight: "900" },
-  composerWrap: { position: "absolute", left: 0, right: 0, bottom: 72, backgroundColor: palette.background, paddingTop: 8 },
+  backButton: { width: 44, height: 48, alignItems: "center", justifyContent: "center" },
+  contactAvatar: {
+    width: 40,
+    height: 40,
+    flexShrink: 0,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: palette.primaryLight
+  },
+  avatarText: { color: palette.primaryDark },
+  headerCopy: { flex: 1, minWidth: 0, paddingRight: 12 },
+  contactName: { color: palette.text },
+  taskTitle: { color: palette.muted },
+  messageListView: { flex: 1 },
+  messageList: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
+  messageListEmpty: { justifyContent: "center" },
+  loadOlderButton: {
+    minHeight: 44,
+    marginBottom: 8,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8
+  },
+  loadOlderText: { color: palette.primaryDark },
+  messageRow: { maxWidth: "84%", marginBottom: 12 },
+  messageRowMine: { alignSelf: "flex-end", alignItems: "flex-end" },
+  messageRowOther: { alignSelf: "flex-start", alignItems: "flex-start" },
+  messageBubble: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 16 },
+  messageMine: { borderBottomRightRadius: 4, backgroundColor: palette.primaryLight },
+  messageOther: { borderBottomLeftRadius: 4, backgroundColor: palette.received },
+  messageText: { color: palette.text },
+  messageTime: { marginTop: 3, color: palette.subtle, textAlign: "right" },
+  messageTimeMine: { color: palette.primaryDark },
+  deliveryState: { marginTop: 2, color: palette.primaryDark },
+  emptyState: { paddingHorizontal: 28, alignItems: "center", gap: 8 },
+  emptyIcon: {
+    width: 44,
+    height: 44,
+    marginBottom: 4,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: palette.primaryLight
+  },
+  emptyTitle: { color: palette.text, textAlign: "center" },
+  emptyText: { maxWidth: 300, color: palette.muted, textAlign: "center" },
+  composer: {
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: palette.border,
+    backgroundColor: palette.surface
+  },
+  sendError: { paddingHorizontal: 16, paddingBottom: 8, color: palette.error },
+  quickReplyScroller: { flexGrow: 0 },
   quickReplyRow: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
-  quickReply: { borderRadius: 999, borderWidth: 1, borderColor: palette.primary, backgroundColor: palette.surface, paddingHorizontal: 14, paddingVertical: 8 },
-  quickReplyText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "800" },
-  inputRow: { padding: 12, borderTopWidth: 1, borderTopColor: palette.outlineVariant, backgroundColor: palette.surface, flexDirection: "row", alignItems: "center", gap: 10 },
-  addButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  addButtonText: { color: palette.muted, fontSize: 24, fontWeight: "700" },
-  input: { flex: 1, minHeight: 44, borderRadius: 22, backgroundColor: palette.surfaceLow, color: palette.text, paddingHorizontal: 16, fontSize: 16 },
-  sendButton: { width: 52, height: 44, borderRadius: 22, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
-  sendButtonDisabled: { backgroundColor: palette.outline },
-  sendButtonText: { color: palette.white, fontSize: 12, fontWeight: "900" },
-  sendError: { color: "#BA1A1A", fontSize: 12, lineHeight: 16, fontWeight: "700", paddingHorizontal: 16, paddingBottom: 8 },
-  pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
-  disabled: { opacity: 0.5 }
+  quickReply: {
+    minHeight: 36,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: palette.primary,
+    borderRadius: 18,
+    backgroundColor: palette.surface
+  },
+  quickReplyText: { color: palette.primaryDark },
+  inputRow: { paddingHorizontal: 12, flexDirection: "row", alignItems: "flex-end", gap: 8 },
+  input: {
+    flex: 1,
+    minHeight: 44,
+    maxHeight: 112,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 10,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 22,
+    color: palette.text,
+    backgroundColor: palette.background
+  },
+  sendButton: {
+    width: 44,
+    height: 44,
+    flexShrink: 0,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: palette.primary
+  },
+  sendButtonDisabled: { backgroundColor: "#94A3B8" },
+  pressed: { opacity: 0.68 },
+  disabled: { opacity: 0.48 }
 });
