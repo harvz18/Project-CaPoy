@@ -9,12 +9,14 @@ export type VerificationDocumentReview = { status: "Pending" | "Verified" | "Rej
 export type Profile = {
   id: string; fullName?: string; role?: Role; rating?: number; ratingCount?: number; createdAt?: string;
   accountStatus?: AccountStatus; verificationStatus?: VerificationStatus; verificationProgress?: number; verificationProgressLevel?: string; identityStatus?: string; businessName?: string; profilePhotoUrl?: string;
+  activitySummary?: string; taskCount?: number; completedTaskCount?: number;
 };
 
 export type Task = {
   id: string; title?: string; clientId?: string; workerId?: string; applicantIds?: string[]; category?: string;
   location?: string; wage?: string; agreedAmount?: string; estimatedDuration?: string; pricingMode?: string;
   status?: TaskStatus; paymentMethod?: string; paymentStatus?: string; createdAt?: string; updatedAt?: string;
+  employerName?: string; workerName?: string;
 };
 
 export type TaskMatch = {
@@ -52,3 +54,4 @@ export type ModerationUser = Profile & { accountStatus?: AccountStatus; restrict
 
 export type SuperadminOverview = { users: ModerationUser[]; reports: ViolationReport[]; auditLogs: AuditLog[] };
 export type BasicDashboardCounts = { users: number; employers: number; taskers: number; tasks: number; activeTasks: number; completedTasks: number; paymentRecords: number; submittedPayments: number; pendingVerifications: number };
+export type PortalPage<T> = { items: T[]; page: number; pageSize: number; total: number; hasMore: boolean };

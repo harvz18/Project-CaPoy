@@ -12,6 +12,12 @@ test("health is public and protected API data requires a bearer token", async ()
     assert.deepEqual(await health.json(), { ok: true });
     const protectedRoute = await fetch(`http://127.0.0.1:${port}/api/admin/superadmin/overview`);
     assert.equal(protectedRoute.status, 401);
+    const protectedUsers = await fetch(`http://127.0.0.1:${port}/api/admin/users`);
+    assert.equal(protectedUsers.status, 401);
+    const protectedTasks = await fetch(`http://127.0.0.1:${port}/api/admin/tasks`);
+    assert.equal(protectedTasks.status, 401);
+    const protectedAudit = await fetch(`http://127.0.0.1:${port}/api/admin/audit`);
+    assert.equal(protectedAudit.status, 401);
     const protectedModeration = await fetch(`http://127.0.0.1:${port}/api/admin/moderation/account-status`, { method: "POST" });
     assert.equal(protectedModeration.status, 401);
     const protectedVerificationReview = await fetch(`http://127.0.0.1:${port}/api/admin/verifications/review`, { method: "POST" });

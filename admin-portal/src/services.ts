@@ -3,7 +3,7 @@ import { httpsCallable } from "firebase/functions";
 import { getDownloadURL, ref } from "firebase/storage";
 import { db, functions, storage } from "./firebase";
 import { getAdminApi, postAdminApi } from "./adminApi";
-import { AuditLog, BasicDashboardCounts, ModerationUser, Payment, PlatformFee, PlatformRevenueOverview, Profile, Rating, RevenueAnalyticsRangePreset, RevenueAnalyticsReport, SuperadminOverview, Task, TaskMatch, VerificationDocumentKind, VerificationRequest } from "./types";
+import { AuditLog, BasicDashboardCounts, ModerationUser, Payment, PlatformFee, PlatformRevenueOverview, PortalPage, Profile, Rating, RevenueAnalyticsRangePreset, RevenueAnalyticsReport, SuperadminOverview, Task, TaskMatch, VerificationDocumentKind, VerificationRequest, ViolationReport } from "./types";
 
 function requireServices() { if (!db || !functions) throw new Error("Firebase is not configured."); return { db, functions }; }
 function records<T>(snapshot: { docs: QueryDocumentSnapshot<DocumentData>[] }) { return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as T); }
@@ -16,6 +16,15 @@ export async function loadPage<T>(name: string, orderField: string, size = 10, c
   const snapshot = await getDocs(query(collection(store, name), ...clauses));
   const docs = snapshot.docs.slice(0, size);
   return { items: records<T>({ docs }), cursor: docs.at(-1) ?? null, hasMore: snapshot.docs.length > size };
+}
+
+export type PortalList = "users" | "tasks" | "applications" | "feedback" | "reports";
+export async function loadPortalPage<T>(name: PortalList, options: { page: number; pageSize: number; direction: "asc" | "desc"; search?: string; role?: string; status?: string }): Promise<PortalPage<T>> {
+  const params = new URLSearchParams({ page: String(options.page), pageSize: String(options.pageSize), direction: options.direction });
+  if (options.search?.trim()) params.set("search", options.search.trim());
+  if (options.role && options.role !== "all") params.set("role", options.role);
+  if (options.status && options.status !== "all") params.set("status", options.status);
+  return getAdminApi<PortalPage<T>>(`/api/admin/${name}?${params.toString()}`);
 }
 export async function getFeedbackCount(score?: number) {
   const { db: store } = requireServices();
@@ -40,8 +49,9 @@ export async function loadProfilesById(ids: string[]) {
 }
 
 export async function loadTasksById(ids: string[]) {
-  const tasks = await loadRecordsById<Task>("tasks", ids);
-  return Object.fromEntries(tasks.map((task) => [task.id, task]));
+  if (!ids.filter(Boolean).length) return {};
+  const response = await postAdminApi<{ tasks: Record<string, Task> }>("/api/admin/tasks/lookup", { ids });
+  return response.tasks;
 }
 
 export async function loadSubmittedPayments() {
@@ -49,8 +59,8 @@ export async function loadSubmittedPayments() {
   return response.payments;
 }
 export async function loadSubmittedPlatformFees() {
-  const { db: store } = requireServices();
-  return records<PlatformFee>(await getDocs(query(collection(store, "platformFees"), where("status", "==", "submitted_for_review"), limit(100))));
+  const response = await getAdminApi<{ fees: PlatformFee[] }>("/api/admin/platform-fees/submitted");
+  return response.fees;
 }
 export async function reviewPlatformFee(taskId: string, decision: "verified" | "rejected", reason: string) {
   await postAdminApi("/api/revenue/fees/review", { taskId, decision, reason });
@@ -114,6 +124,12 @@ export async function loadPendingVerifications() {
 export async function getSuperadminOverview() {
   return getAdminApi<SuperadminOverview>("/api/admin/superadmin/overview");
 }
+export type AuditPage = { items: AuditLog[]; cursor: string | null; hasMore: boolean };
+export async function loadAuditLogPage(options: { cursor?: string | null; direction: "asc" | "desc"; pageSize: number }) {
+  const params = new URLSearchParams({ direction: options.direction, pageSize: String(options.pageSize) });
+  if (options.cursor) params.set("cursor", options.cursor);
+  return getAdminApi<AuditPage>(`/api/admin/audit?${params.toString()}`);
+}
 export async function getAdminModerationUsers() {
   const response = await getAdminApi<{ users: ModerationUser[] }>("/api/admin/moderation/users");
   return response.users;
@@ -125,7 +141,7 @@ export async function reviewVerificationDocument(userId: string, kind: Verificat
   await postAdminApi("/api/admin/verifications/document-review", { userId, kind, decision, reason });
 }
 export async function reviewPayment(taskId: string, decision: "Verified" | "Rejected", reason: string) {
-  await httpsCallable(requireServices().functions, "reviewPaymentEvidence")({ taskId, decision, reason });
+  await postAdminApi("/api/admin/payments/review", { taskId, decision, reason });
 }
 export async function changeAccountStatus(userId: string, accountStatus: "active" | "suspended", reason: string, violationReportId = "") {
   await postAdminApi("/api/admin/moderation/account-status", { userId, accountStatus, reason, violationReportId });

@@ -48,13 +48,15 @@ import {
   getPlatformRevenueConfig,
   getSuperadminOverview,
   getVerificationDocumentUrl,
-  loadPage,
+  loadPortalPage,
   loadPendingVerifications,
   loadProfilesById,
   loadSubmittedPayments,
   loadSubmittedPlatformFees,
   getPlatformFeeReceiptUrl,
+  loadAuditLogPage,
   loadTasksById,
+  PortalList,
   reviewPayment,
   reviewPlatformFee,
   reviewVerification,
@@ -76,7 +78,6 @@ import {
   VerificationDocumentKind,
   ViolationReport,
 } from "./types";
-import { where } from "firebase/firestore";
 import "./styles.css";
 import "./v5.css";
 
@@ -305,11 +306,10 @@ function DeniedScreen() {
 type Scope = "admin" | "superadmin";
 const adminNavigation = [
   ["dashboard", "Dashboard", LayoutDashboard],
-  ["revenue", "Revenue analytics", TrendingUp],
-  ["task-analytics", "Task analytics", BarChart3],
-  ["user-analytics", "User analytics", Users],
-  ["category-trends", "Category trends", ListChecks],
-  ["decision-support", "Decision support", Lightbulb],
+  ["revenue", "Revenue", TrendingUp],
+  ["tasks", "Tasks", ListChecks],
+  ["users", "Users", Users],
+  ["insights", "Insights", Lightbulb],
   ["reports", "Reports", FileDown],
 ] as const;
 const superNavigation = [
@@ -317,9 +317,9 @@ const superNavigation = [
   ["users", "Users", Users],
   ["tasks", "Tasks", ListChecks],
   ["applications", "Applications", FileText],
-  ["verifications", "Identity verification", ClipboardCheck],
+  ["verifications", "Identity review", ClipboardCheck],
   ["financial", "Financial review", TrendingUp],
-  ["feedback", "Feedback & disputes", Star],
+  ["feedback", "Feedbacks", Star],
   ["reports", "Violation reports", Flag],
   ["audit", "Audit log", ShieldCheck],
   ["configuration", "Configurations", Settings],
@@ -424,13 +424,12 @@ function Page({
 }) {
   if (section === "dashboard") return <OperationsDashboard scope={scope} />;
   if (scope === "admin" && section === "revenue") return <RevenuePage />;
-  if (scope === "admin" && section === "task-analytics") return <AnalyticsPage kind="tasks" />;
-  if (scope === "admin" && section === "user-analytics") return <AnalyticsPage kind="users" />;
-  if (scope === "admin" && section === "category-trends") return <AnalyticsPage kind="categories" />;
-  if (scope === "admin" && section === "decision-support") return <DecisionSupportPage />;
+  if (scope === "admin" && section === "tasks") return <TasksPage scope="admin" />;
+  if (scope === "admin" && section === "users") return <UsersPage scope="admin" notify={notify} />;
+  if (scope === "admin" && section === "insights") return <DecisionSupportPage />;
   if (scope === "admin" && section === "reports") return <AnalyticsReportsPage />;
   if (scope === "superadmin" && section === "users") return <UsersPage scope={scope} notify={notify} />;
-  if (scope === "superadmin" && section === "tasks") return <TasksPage />;
+  if (scope === "superadmin" && section === "tasks") return <TasksPage scope="superadmin" />;
   if (scope === "superadmin" && section === "applications") return <ApplicationsPage />;
   if (scope === "superadmin" && section === "verifications") return <VerificationPage notify={notify} />;
   if (scope === "superadmin" && section === "financial") return <FinancialReviewPage notify={notify} />;
@@ -652,16 +651,28 @@ function AnalyticsPage({ kind }: { kind: "tasks" | "users" | "categories" }) {
   return <div className="page-stack"><div className="page-heading"><div><h2>{labels[kind][0]}</h2><p>{labels[kind][1]} {report.range.label} · Asia/Manila.</p></div><AnalyticsFilters preset={preset} setPreset={setPreset} reload={reload} loading={loading} /></div>{error ? <ErrorState message={error} retry={reload} /> : null}{content}</div>;
 }
 
+function TaskCategoryInsights() {
+  const { report, loading, error, reload } = useAnalytics("30d");
+  return <Panel title="Category insights" description="Live demand and completed-task indicators for the last 30 days." action={<button className="button secondary" onClick={reload} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button>}>
+    {error ? <ErrorState message={error} retry={reload} /> : null}
+    {!report && loading ? <TableLoading /> : null}
+    {report ? <div className="dashboard-grid"><div><h4>Most requested categories</h4><HorizontalBars values={report.activity.byCategory.map((item) => ({ label: item.category, value: item.count }))} empty="No category demand data in this period." /></div><div><h4>Completion and demand</h4><Table headers={["Metric", "Value"]}><tr><td>Tasks posted</td><td>{report.activity.posted}</td></tr><tr><td>Tasks completed</td><td>{report.activity.completed}</td></tr><tr><td>Completion rate</td><td>{report.activity.posted ? `${Math.round((report.activity.completed / report.activity.posted) * 100)}%` : "—"}</td></tr></Table></div></div> : null}
+  </Panel>;
+}
+
 function DecisionSupportPage() {
   const [preset, setPreset] = useState<RevenueAnalyticsRangePreset>("30d"); const { report, loading, error, reload } = useAnalytics(preset);
   if (loading && !report) return <div className="page-stack"><SkeletonCards /></div>; if (error && !report) return <div className="page-stack"><ErrorState message={error} retry={reload} /></div>; if (!report) return null;
   const top = report.activity.byCategory[0]; const insights = [
     top ? ["Highest task demand", `${top.category} has ${top.count} posted task${top.count === 1 ? "" : "s"} in ${report.range.label.toLowerCase()}.`, "Review worker capability coverage and recruitment for this category.", "tasks.category + tasks.createdAt"] : null,
     report.activity.posted ? ["Task completion", `${report.activity.completed} of ${report.activity.posted} posted tasks were completed in the selected period.`, "Review categories with lower completion and identify workflow bottlenecks.", "tasks.createdAt + tasks.finishedAt"] : null,
+    report.activity.posted ? ["Application coverage", `${report.activity.applications} application${report.activity.applications === 1 ? "" : "s"} were recorded across ${report.activity.posted} posted task${report.activity.posted === 1 ? "" : "s"}.`, "Prioritize outreach or simplify task requirements where applications remain low.", "taskMatches.createdAt + tasks.createdAt"] : null,
+    ["Worker engagement", `${report.activity.applications} application activity record${report.activity.applications === 1 ? "" : "s"} was logged in ${report.range.label.toLowerCase()}.`, "Monitor whether the available tasker base is responding to posted work.", "taskMatches.createdAt"],
     ["Verification backlog", `${report.verification.pending} identity record(s) are awaiting review.`, "Schedule authorized Superadmin review capacity when the queue grows.", "verificationRequests.status"],
+    ["Cancellation pattern", `${report.activity.cancelled} task cancellation${report.activity.cancelled === 1 ? "" : "s"} was recorded in the selected period.`, "Review cancellation reasons and task terms when the count increases.", "tasks.status + tasks.updatedAt"],
     ["Fee collection backlog", `${php(report.revenue.outstandingFeeObligationsCentavos)} remains outstanding across ${report.revenue.outstandingFeeObligations} obligation(s).`, "Monitor follow-up policy; only verified amounts are counted as revenue.", "platformFees.status + verifiedAt"]
   ].filter(Boolean) as string[][];
-  return <div className="page-stack"><div className="page-heading"><div><h2>Decision support</h2><p>Explainable descriptive insights only; no predictions are generated.</p></div><AnalyticsFilters preset={preset} setPreset={setPreset} reload={reload} loading={loading} /></div>{error ? <ErrorState message={error} retry={reload} /> : null}<section className="insight-grid">{insights.map(([title, metric, action, source]) => <article className="insight-card" key={title}><Lightbulb size={19} /><h3>{title}</h3><p><strong>{metric}</strong></p><p>{action}</p><small>Source: {source}</small></article>)}</section></div>;
+  return <div className="page-stack"><div className="page-heading"><div><h2>Insights</h2><p>Explainable descriptive insights only; no predictions are generated.</p></div><AnalyticsFilters preset={preset} setPreset={setPreset} reload={reload} loading={loading} /></div>{error ? <ErrorState message={error} retry={reload} /> : null}<section className="insight-grid">{insights.map(([title, metric, action, source]) => <article className="insight-card" key={title}><Lightbulb size={19} /><h3>{title}</h3><p><strong>{metric}</strong></p><p>{action}</p><small>Source: {source}</small></article>)}</section></div>;
 }
 
 function AnalyticsReportsPage() {
@@ -672,8 +683,12 @@ function AnalyticsReportsPage() {
 
 function FinancialReviewPage({ notify }: { notify: (notice: Notice) => void }) {
   const [fees, setFees] = useState<PlatformFee[]>([]); const [payments, setPayments] = useState<Payment[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [modal, setModal] = useState<{ kind: "payment"; item: Payment; decision: "Verified" | "Rejected" } | { kind: "platform-fee"; item: PlatformFee; decision: "verified" | "rejected" } | null>(null);
+  const [dateOrder, setDateOrder] = useState<SortDirection>("desc");
   const refresh = useCallback(async () => { setLoading(true); setError(""); try { const [nextFees, nextPayments] = await Promise.all([loadSubmittedPlatformFees(), loadSubmittedPayments()]); setFees(nextFees); setPayments(nextPayments); } catch (failure) { setError(errorText(failure)); } finally { setLoading(false); } }, []); useEffect(() => { void refresh(); }, [refresh]);
-  return <div className="page-stack"><div className="page-heading"><div><h2>Financial review</h2><p>Evidence is reviewed only by Superadmin. Verification remains a human financial-control decision.</p></div><button className="button secondary" onClick={() => void refresh()} disabled={loading}>Refresh</button></div>{error ? <ErrorState message={error} retry={() => void refresh()} /> : null}<Panel title="TASKLINK service fees" description="Submitted service-fee receipts awaiting review."><Table headers={["Task", "Amount", "Submitted", "Actions"]}>{fees.map((fee) => <tr key={fee.id}><td>{fee.taskTitle || fee.taskId || fee.id}</td><td>{php(fee.feeCentavos || 0)}</td><td>{date(fee.submittedAt)}</td><td><div className="row-actions"><button className="text-button success-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "verified" })}>Verify</button><button className="text-button danger-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "rejected" })}>Reject</button></div></td></tr>)}</Table>{loading ? <TableLoading /> : null}{!loading && !fees.length ? <EmptyState title="No submitted service-fee receipts" /> : null}</Panel><Panel title="Existing payment reviews" description="Submitted GCash task payment evidence."><Table headers={["Task", "Method", "Submitted", "Actions"]}>{payments.map((payment) => <tr key={payment.id}><td>{payment.taskId || payment.id}</td><td>{payment.paymentMethod || "—"}</td><td>{date(payment.updatedAt || payment.createdAt)}</td><td><div className="row-actions"><button className="text-button success-text" onClick={() => setModal({ kind: "payment", item: payment, decision: "Verified" })}>Verify</button><button className="text-button danger-text" onClick={() => setModal({ kind: "payment", item: payment, decision: "Rejected" })}>Reject</button></div></td></tr>)}</Table>{!loading && !payments.length ? <EmptyState title="No submitted payment evidence" /> : null}</Panel>{modal ? <ReviewModal modal={modal} close={() => setModal(null)} refreshPayments={refresh} notify={notify} /> : null}</div>;
+  const sortedFees = sortByDate(fees, (fee) => fee.submittedAt, dateOrder);
+  const sortedPayments = sortByDate(payments, (payment) => payment.updatedAt || payment.createdAt, dateOrder);
+  const sort = <SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />;
+  return <div className="page-stack"><div className="page-heading"><div><h2>Financial review</h2><p>Evidence is reviewed only by Superadmin. Verification remains a human financial-control decision.</p></div><button className="button secondary" onClick={() => void refresh()} disabled={loading}>Refresh</button></div>{error ? <ErrorState message={error} retry={() => void refresh()} /> : null}<Panel title="TASKLINK service fees" description="Submitted service-fee receipts awaiting review." action={sort}><Table headers={["Task", "Amount", "Submitted", "Actions"]}>{sortedFees.map((fee) => <tr key={fee.id}><td>{fee.taskTitle || fee.taskId || fee.id}</td><td>{php(fee.feeCentavos || 0)}</td><td>{date(fee.submittedAt)}</td><td><div className="row-actions"><button className="text-button success-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "verified" })}>Verify</button><button className="text-button danger-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "rejected" })}>Reject</button></div></td></tr>)}</Table>{loading ? <TableLoading /> : null}{!loading && !fees.length ? <EmptyState title="No submitted service-fee receipts" /> : null}</Panel><Panel title="Existing payment reviews" description="Submitted GCash task payment evidence." action={sort}><Table headers={["Task", "Method", "Submitted", "Actions"]}>{sortedPayments.map((payment) => <tr key={payment.id}><td>{payment.taskId || payment.id}</td><td>{payment.paymentMethod || "—"}</td><td>{date(payment.updatedAt || payment.createdAt)}</td><td><div className="row-actions"><button className="text-button success-text" onClick={() => setModal({ kind: "payment", item: payment, decision: "Verified" })}>Verify</button><button className="text-button danger-text" onClick={() => setModal({ kind: "payment", item: payment, decision: "Rejected" })}>Reject</button></div></td></tr>)}</Table>{!loading && !payments.length ? <EmptyState title="No submitted payment evidence" /> : null}</Panel>{modal ? <ReviewModal modal={modal} close={() => setModal(null)} refreshPayments={refresh} notify={notify} /> : null}</div>;
 }
 
 function ConfigurationPage() {
@@ -685,81 +700,54 @@ function ConfigurationPage() {
 }
 
 function usePaged<T>(
-  name: string,
-  field: string,
-  filter?: { field: string; value: string | number },
-  sortDirection: SortDirection = "asc",
+  name: PortalList,
+  filters: { search?: string; role?: string; status?: string } = {},
+  sortDirection: SortDirection = "desc",
 ) {
   const [items, setItems] = useState<T[]>([]);
-  const [cursor, setCursor] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const filterKey = JSON.stringify(filters);
   const load = useCallback(
-    async (nextCursor: any = null, addHistory = false) => {
+    async (requestedPage = pageNumber) => {
       setLoading(true);
       setError("");
       try {
-        const page = await loadPage<T>(
+        const page = await loadPortalPage<T>(
           name,
-          field,
-          PAGE_SIZE,
-          nextCursor,
-          filter ? [where(filter.field, "==", filter.value)] : [],
-          sortDirection,
+          { page: requestedPage, pageSize: PAGE_SIZE, direction: sortDirection, ...filters },
         );
         setItems(page.items);
-        setCursor(page.cursor);
+        setPageNumber(page.page);
+        setTotal(page.total);
         setHasMore(page.hasMore);
-        if (addHistory) setHistory((current) => [...current, nextCursor]);
       } catch (failure) {
         setError(errorText(failure));
       } finally {
         setLoading(false);
       }
     },
-    [field, filter?.field, filter?.value, name, sortDirection],
+    [filterKey, name, pageNumber, sortDirection],
   );
   useEffect(() => {
-    setHistory([]);
-    void load();
-  }, [load]);
+    setPageNumber(1);
+  }, [filterKey, name, sortDirection]);
+  useEffect(() => { void load(pageNumber); }, [load, pageNumber]);
   return {
     items,
     loading,
     error,
     hasMore,
-    next: () => load(cursor, true),
-    previous: () => {
-      const back = history.slice(0, -1);
-      setHistory(back);
-      return load(back.at(-1) ?? null);
-    },
-    canGoBack: history.length > 0,
-    refresh: () => load(history.at(-1) ?? null),
-    pageNumber: history.length + 1,
+    total,
+    next: () => setPageNumber((current) => current + 1),
+    previous: () => setPageNumber((current) => Math.max(1, current - 1)),
+    canGoBack: pageNumber > 1,
+    refresh: () => load(pageNumber),
+    pageNumber,
   };
-}
-
-function useModerationStatuses() {
-  const [statuses, setStatuses] = useState<Record<string, Profile>>({});
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const users = await getAdminModerationUsers();
-      setStatuses(Object.fromEntries(users.map((user) => [user.id, user])));
-      setError("");
-    } catch (failure) {
-      setError(errorText(failure));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-  useEffect(() => { void refresh(); }, [refresh]);
-  return { statuses, error, loading, refresh };
 }
 
 function useRecordLookup<T>(
@@ -798,23 +786,17 @@ function UsersPage({
   notify: (notice: Notice) => void;
 }) {
   const [nameOrder, setNameOrder] = useState<SortDirection>("asc");
-  const page = usePaged<Profile>("publicProfiles", "fullName", undefined, nameOrder);
-  const moderation = useModerationStatuses();
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [role, setRole] = useState(() => searchParams.get("role") === "client" || searchParams.get("role") === "worker" ? searchParams.get("role") as string : "all");
+  const [status, setStatus] = useState("all");
+  const page = usePaged<Profile>("users", { search, role, status }, nameOrder);
   const [modal, setModal] = useState<{
     user: Profile;
     action: "suspend" | "active";
   } | null>(null);
-  const users = page.items.map((user) => ({ ...user, ...moderation.statuses[user.id] }));
-  const filtered = users.filter(
-    (user) =>
-      (role === "all" || user.role === role) &&
-      `${user.fullName} ${user.businessName ?? ""}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
-  );
+  const [details, setDetails] = useState<Profile | null>(null);
+  const users = page.items;
   useEffect(() => {
     const requestedRole = searchParams.get("role");
     setRole(requestedRole === "client" || requestedRole === "worker" ? requestedRole : "all");
@@ -831,12 +813,6 @@ function UsersPage({
         </div>
         <div className="toolbar">
           <SearchBox value={search} onChange={setSearch} />
-          <SortButton
-            direction={nameOrder}
-            ascendingLabel="Name A–Z"
-            descendingLabel="Name Z–A"
-            onToggle={() => setNameOrder((current) => current === "asc" ? "desc" : "asc")}
-          />
           <select
             value={role}
             onChange={(event) => setRole(event.target.value)}
@@ -845,22 +821,32 @@ function UsersPage({
             <option value="worker">Taskers</option>
             <option value="client">Employers</option>
           </select>
+          <select value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="suspended">Restricted</option>
+            <option value="pending_verification">Pending verification</option>
+          </select>
         </div>
       </div>
       <Panel
         title="Accounts"
-        description="Restriction status is loaded from the trusted moderation record."
+        description={`Live account records from the authorized Render API. ${page.total} matching account${page.total === 1 ? "" : "s"}.`}
+        action={<SortButton direction={nameOrder} ascendingLabel="Oldest registered" descendingLabel="Newest registered" onToggle={() => setNameOrder((current) => current === "asc" ? "desc" : "asc")} />}
       >
         <Table
           headers={[
             "Name",
             "Role",
-            "Identity",
-            "Rating",
-            "Actions",
+            "Account status",
+            "Verification",
+            "Registered",
+            "Activity",
+            "Details",
+            ...(scope === "superadmin" ? ["Action"] : []),
           ]}
         >
-          {filtered.map((user) => (
+          {users.map((user) => (
             <tr key={user.id}>
               <td>
                 <div className="profile-cell">
@@ -873,40 +859,38 @@ function UsersPage({
                 <Badge value={roleLabel(user.role)} />
               </td>
               <td>
-                {user.verificationStatus ||
-                  user.identityStatus ||
-                  "Not submitted"}
+                <Badge value={user.accountStatus === "suspended" ? "Restricted" : user.accountStatus || "Active"} />
               </td>
               <td>
-                {user.rating ?? 0}
-                {user.ratingCount ? ` (${user.ratingCount})` : ""}
+                {user.verificationStatus || user.identityStatus || "Not submitted"}
+                {typeof user.verificationProgress === "number" ? <small>{user.verificationProgress}% eligibility progress</small> : null}
               </td>
-              <td>
+              <td>{date(user.createdAt)}</td>
+              <td>{user.activitySummary || "No task activity"}</td>
+              <td><button className="text-button" onClick={() => setDetails(user)}>View profile</button></td>
+              {scope === "superadmin" ? <td>
                 <div className="row-actions">
-                  <button
-                    className="text-button danger-text"
-                    disabled={moderation.loading || Boolean(moderation.error) || user.accountStatus === "suspended"}
-                    onClick={() => setModal({ user, action: "suspend" })}
-                  >
-                    Restrict
-                  </button>
-                  <button
+                  {user.accountStatus === "suspended" ? <button
                     className="text-button"
-                    disabled={moderation.loading || Boolean(moderation.error) || user.accountStatus !== "suspended"}
                     onClick={() => setModal({ user, action: "active" })}
                   >
                     Reactivate
-                  </button>
+                  </button> : <button
+                    className="text-button danger-text"
+                    onClick={() => setModal({ user, action: "suspend" })}
+                  >
+                    Restrict
+                  </button>}
                 </div>
-              </td>
+              </td> : null}
             </tr>
           ))}
         </Table>
-        {!page.loading && !filtered.length ? (
+        {!page.loading && !users.length ? (
           <EmptyState title="No accounts in this result" />
         ) : null}
-        {page.error || moderation.error ? (
-          <ErrorState message={page.error || moderation.error} retry={() => { void page.refresh(); void moderation.refresh(); }} />
+        {page.error ? (
+          <ErrorState message={page.error} retry={() => { void page.refresh(); }} />
         ) : null}
         <Pager {...page} />
       </Panel>
@@ -915,30 +899,22 @@ function UsersPage({
           modal={modal}
           close={() => setModal(null)}
           notify={notify}
-          refreshed={() => { void page.refresh(); void moderation.refresh(); }}
+          refreshed={() => { void page.refresh(); }}
         />
       ) : null}
+      {details ? <ReadOnlyDetailsModal title="Account profile" close={() => setDetails(null)} rows={[["Name", details.fullName || "Unnamed account"], ["Role", roleLabel(details.role)], ["Account status", details.accountStatus === "suspended" ? "Restricted" : details.accountStatus || "Active"], ["Verification", details.verificationStatus || details.identityStatus || "Not submitted"], ["Eligibility progress", typeof details.verificationProgress === "number" ? `${details.verificationProgress}%` : "Unavailable"], ["Registered", date(details.createdAt)], ["Activity", details.activitySummary || "No task activity"]]} /> : null}
     </div>
   );
 }
 
-function TasksPage() {
+function TasksPage({ scope }: { scope: Scope }) {
   const [dateOrder, setDateOrder] = useState<SortDirection>("desc");
-  const page = usePaged<Task>("tasks", "createdAt", undefined, dateOrder);
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState(() => searchParams.get("status") ?? "all");
-  const employers = useRecordLookup<Profile>(
-    page.items.map((task) => task.clientId || ""),
-    loadProfilesById,
-  );
-  const filtered = page.items.filter(
-    (task) =>
-      (status === "all" || task.status === status) &&
-      `${task.title} ${task.category} ${task.location} ${employers[task.clientId || ""]?.fullName || ""}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
-  );
+  const page = usePaged<Task>("tasks", { search, status }, dateOrder);
+  const tasks = page.items;
+  const [details, setDetails] = useState<Task | null>(null);
   useEffect(() => {
     setStatus(searchParams.get("status") ?? "all");
   }, [searchParams]);
@@ -946,12 +922,11 @@ function TasksPage() {
     <div className="page-stack">
       <div className="page-heading">
         <div>
-          <h2>Task oversight</h2>
-          <p>Live task postings and workflow status.</p>
+          <h2>{scope === "admin" ? "Tasks" : "Task oversight"}</h2>
+          <p>Live task postings and workflow status. This table is read-only.</p>
         </div>
         <div className="toolbar">
           <SearchBox value={search} onChange={setSearch} />
-          <SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value)}
@@ -974,39 +949,41 @@ function TasksPage() {
           </select>
         </div>
       </div>
-      <Panel title="Task postings">
+      {scope === "admin" ? <TaskCategoryInsights /> : null}
+      <Panel title="Task postings" description={`${page.total} matching task${page.total === 1 ? "" : "s"}.`} action={<SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />}>
         <Table
           headers={[
-            "Task / employer",
+            "Task title",
             "Category",
-            "Location",
-            "Budget",
-            "Applicants",
+            "Employer",
+            "Assigned worker",
+            "Agreed wage",
             "Status",
             "Created",
+            "Details",
           ]}
         >
-          {filtered.map((task) => (
+          {tasks.map((task) => (
             <tr key={task.id}>
               <td>
                 <strong>{taskTitle(task)}</strong>
                 <small>
-                  {employers[task.clientId || ""]?.fullName ||
-                    "Employer unavailable"}
+                  {task.location || "Location unavailable"}
                 </small>
               </td>
               <td>{task.category || "—"}</td>
-              <td>{task.location || "—"}</td>
+              <td>{task.employerName || "Employer unavailable"}</td>
+              <td>{task.workerName || "Unassigned"}</td>
               <td>{task.agreedAmount || task.wage || "—"}</td>
-              <td>{task.applicantIds?.length ?? 0}</td>
               <td>
                 <Badge value={task.status || "Unknown"} />
               </td>
               <td>{date(task.createdAt)}</td>
+              <td><button className="text-button" onClick={() => setDetails(task)}>View task</button></td>
             </tr>
           ))}
         </Table>
-        {!page.loading && !filtered.length ? (
+        {!page.loading && !tasks.length ? (
           <EmptyState title="No tasks in this result" />
         ) : null}
         {page.error ? (
@@ -1014,14 +991,15 @@ function TasksPage() {
         ) : null}
         <Pager {...page} />
       </Panel>
+      {details ? <ReadOnlyDetailsModal title="Task details" close={() => setDetails(null)} rows={[["Title", taskTitle(details)], ["Category", details.category || "—"], ["Employer", details.employerName || "Employer unavailable"], ["Assigned worker", details.workerName || "Unassigned"], ["Agreed wage", details.agreedAmount || details.wage || "—"], ["Status", details.status || "Unknown"], ["Location", details.location || "Unavailable"], ["Created", date(details.createdAt)]]} /> : null}
     </div>
   );
 }
 
 function ApplicationsPage() {
   const [dateOrder, setDateOrder] = useState<SortDirection>("desc");
-  const page = usePaged<TaskMatch>("taskMatches", "createdAt", undefined, dateOrder);
   const [search, setSearch] = useState("");
+  const page = usePaged<TaskMatch>("applications", { search }, dateOrder);
   const tasks = useRecordLookup<Task>(
     page.items.map((match) => match.taskId || ""),
     loadTasksById,
@@ -1030,11 +1008,7 @@ function ApplicationsPage() {
     page.items.flatMap((match) => [match.workerId || "", match.clientId || ""]),
     loadProfilesById,
   );
-  const filtered = page.items.filter((match) =>
-    `${match.taskId} ${tasks[match.taskId || ""]?.title || ""} ${match.workerId} ${profiles[match.workerId || ""]?.fullName || ""} ${match.clientId} ${profiles[match.clientId || ""]?.fullName || ""}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
+  const filtered = page.items;
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -1046,10 +1020,9 @@ function ApplicationsPage() {
         </div>
         <div className="toolbar">
           <SearchBox value={search} onChange={setSearch} />
-          <SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />
         </div>
       </div>
-      <Panel title="Task applications">
+      <Panel title="Task applications" description={`${page.total} matching application${page.total === 1 ? "" : "s"}.`} action={<SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />}>
         <Table
           headers={[
             "Task",
@@ -1123,6 +1096,7 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
   } | null>(null);
   const [requestOrder, setRequestOrder] = useState<SortDirection>("desc");
   const [paymentOrder, setPaymentOrder] = useState<SortDirection>("desc");
+  const [feeOrder, setFeeOrder] = useState<SortDirection>("desc");
   const profiles = useRecordLookup<Profile>(
     [...requests.map((item) => item.userId), ...platformFees.map((item) => item.employerId || "")],
     loadProfilesById,
@@ -1156,6 +1130,7 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
   }, [refreshReviewData]);
   const sortedRequests = sortByDate(requests, (item) => item.submittedAt, requestOrder);
   const sortedPayments = sortByDate(payments, (item) => item.updatedAt || item.createdAt, paymentOrder);
+  const sortedPlatformFees = sortByDate(platformFees, (item) => item.submittedAt || item.createdAt, feeOrder);
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -1324,9 +1299,9 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
             <EmptyState title="No submitted payment evidence" />
           ) : null}
         </Panel>
-        <Panel title={`TASKLINK service-fee review (${platformFees.length})`} description="Approve only after confirming the separate GCash fee arrived in TASKLINK's account.">
+        <Panel title={`TASKLINK service-fee review (${platformFees.length})`} description="Approve only after confirming the separate GCash fee arrived in TASKLINK's account." action={<SortButton direction={feeOrder} onToggle={() => setFeeOrder((current) => current === "desc" ? "asc" : "desc")} />}>
           <Table headers={["Employer / task", "Worker wage", "Expected fee", "Reference", "Submitted", "Decision"]}>
-            {platformFees.map((fee) => <tr key={fee.id}>
+            {sortedPlatformFees.map((fee) => <tr key={fee.id}>
               <td><strong>{profiles[fee.employerId || ""]?.fullName || "Employer unavailable"}</strong><small>{fee.taskTitle || fee.taskId}</small></td>
               <td>₱{fee.workerWage || "—"}</td><td>₱{fee.feeAmount || "—"}</td><td>{fee.transactionReference || "—"}{fee.receiptPath ? <button className="text-button" onClick={() => setDocument({ path: fee.receiptPath || "", label: "TASKLINK service-fee receipt", taskId: fee.taskId || fee.id, platformFee: true })}>Open receipt</button> : null}</td><td>{date(fee.submittedAt)}</td>
               <td><div className="row-actions"><button className="text-button success-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "verified" })}>Verify fee</button><button className="text-button danger-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "rejected" })}>Reject</button></div></td>
@@ -1399,20 +1374,9 @@ function HelpPage() {
 
 function FeedbackPage() {
   const [score, setScore] = useState("all");
-  const selectedScore = score === "all" ? undefined : Number(score);
   const [dateOrder, setDateOrder] = useState<SortDirection>("desc");
-  const page = usePaged<Rating>("ratings", "createdAt", selectedScore === undefined ? undefined : { field: "score", value: selectedScore }, dateOrder);
-  const [total, setTotal] = useState<number>();
-  const [countError, setCountError] = useState("");
-  useEffect(() => {
-    let active = true;
-    setTotal(undefined);
-    void getFeedbackCount(selectedScore)
-      .then((count) => { if (active) { setTotal(count); setCountError(""); } })
-      .catch((failure) => { if (active) setCountError(errorText(failure)); });
-    return () => { active = false; };
-  }, [selectedScore]);
-  const filtered = page.items;
+  const page = usePaged<Rating>("feedback", {}, dateOrder);
+  const filtered = score === "all" ? page.items : page.items.filter((rating) => rating.score === Number(score));
   const profiles = useRecordLookup<Profile>(
     filtered.map((rating) => rating.targetUserId || ""),
     loadProfilesById,
@@ -1429,7 +1393,6 @@ function FeedbackPage() {
           <p>Live feedback records from employers and taskers.</p>
         </div>
         <div className="toolbar">
-          <SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />
           <select value={score} onChange={(event) => setScore(event.target.value)}>
             <option value="all">All ratings</option>
             {[5, 4, 3, 2, 1].map((value) => <option key={value} value={value}>{value} stars</option>)}
@@ -1437,8 +1400,9 @@ function FeedbackPage() {
         </div>
       </div>
       <Panel
-        title={total === undefined ? "Feedback" : `Feedback — ${total} total records`}
-        description={total === undefined ? "Counting live feedback records…" : `Showing ${filtered.length} of ${total} feedback records${score === "all" ? "" : ` rated ${score} stars`}.`}
+        title={`Feedback — ${page.total} total records`}
+        description={`Showing ${filtered.length} of ${page.total} feedback records${score === "all" ? "" : ` rated ${score} stars`}.`}
+        action={<SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />}
       >
         <Table headers={["Rating", "Feedback", "Target user", "Task title", "Date"]}>
           {filtered.map((rating) => (
@@ -1459,8 +1423,8 @@ function FeedbackPage() {
         {!page.loading && !filtered.length ? (
           <EmptyState title="No feedback in this result" />
         ) : null}
-        {page.error || countError ? (
-          <ErrorState message={page.error || countError} retry={() => { void page.refresh(); void getFeedbackCount(selectedScore).then(setTotal).catch((failure) => setCountError(errorText(failure))); }} />
+        {page.error ? (
+          <ErrorState message={page.error} retry={() => { void page.refresh(); }} />
         ) : null}
         <Pager {...page} />
       </Panel>
@@ -1469,31 +1433,15 @@ function FeedbackPage() {
 }
 
 function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
-  const [data, setData] = useState<ViolationReport[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [modal, setModal] = useState<ViolationReport | null>(null);
   const [dateOrder, setDateOrder] = useState<SortDirection>("desc");
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const overview = await getSuperadminOverview();
-      setData(overview.reports);
-      setError("");
-    } catch (failure) {
-      setError(errorText(failure));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const page = usePaged<ViolationReport>("reports", {}, dateOrder);
+  const data = page.items;
   const profiles = useRecordLookup<Profile>(
     data.map((report) => report.targetUserId || ""),
     loadProfilesById,
   );
-  const sortedReports = sortByDate(data, (report) => report.createdAt, dateOrder);
+  const sortedReports = data;
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -1503,8 +1451,8 @@ function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
         </div>
         <button
           className="button secondary"
-          onClick={() => void load()}
-          disabled={loading}
+          onClick={() => void page.refresh()}
+          disabled={page.loading}
         >
           Refresh
         </button>
@@ -1544,12 +1492,12 @@ function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
             </tr>
           ))}
         </Table>
-        {loading ? <TableLoading /> : null}
+        {page.loading ? <TableLoading /> : null}
         {!loading && !data.length ? (
           <EmptyState title="No violation reports" />
         ) : null}
-        {error ? (
-          <ErrorState message={error} retry={() => void load()} />
+        {page.error ? (
+          <ErrorState message={page.error} retry={() => void page.refresh()} />
         ) : null}
       </Panel>
       {modal ? (
@@ -1557,7 +1505,7 @@ function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
           report={modal}
           close={() => setModal(null)}
           notify={notify}
-          refreshed={load}
+          refreshed={() => { void page.refresh(); }}
         />
       ) : null}
     </div>
@@ -1568,19 +1516,31 @@ function AuditPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [dateOrder, setDateOrder] = useState<SortDirection>("desc");
-  const load = useCallback(async () => {
+  const [pageSize, setPageSize] = useState(10);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [history, setHistory] = useState<Array<string | null>>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [search, setSearch] = useState("");
+  const [actor, setActor] = useState("");
+  const [action, setAction] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const load = useCallback(async (nextCursor: string | null = null, recordHistory = false) => {
     setLoading(true);
     try {
-      const overview = await getSuperadminOverview();
-      setItems(overview.auditLogs);
+      const page = await loadAuditLogPage({ cursor: nextCursor, direction: dateOrder, pageSize });
+      setItems(page.items);
+      setCursor(page.cursor);
+      setHasMore(page.hasMore);
+      if (recordHistory) setHistory((current) => [...current, nextCursor]);
       setError("");
     } catch (failure) {
       setError(errorText(failure));
     } finally {
       setLoading(false);
     }
-  }, []);
-  useEffect(() => { void load(); }, [load]);
+  }, [dateOrder, pageSize]);
+  useEffect(() => { setHistory([]); void load(); }, [load]);
   const profiles = useRecordLookup<Profile>(
     items.flatMap((item) => [
       item.actorId || "",
@@ -1590,7 +1550,13 @@ function AuditPage() {
     ]),
     loadProfilesById,
   );
-  const sortedItems = sortByDate(items, (item) => item.createdAt, dateOrder);
+  const sortedItems = items.filter((item) => {
+    const haystack = `${item.action || ""} ${item.targetType || ""} ${item.targetId || ""} ${item.reason || ""} ${item.actorId || ""}`.toLowerCase();
+    const value = timestamp(item.createdAt);
+    const afterFrom = !fromDate || value >= timestamp(`${fromDate}T00:00:00+08:00`);
+    const beforeTo = !toDate || value <= timestamp(`${toDate}T23:59:59.999+08:00`);
+    return (!search || haystack.includes(search.toLowerCase())) && (!actor || item.actorId === actor) && (!action || item.action === action) && afterFrom && beforeTo;
+  });
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -1598,9 +1564,10 @@ function AuditPage() {
           <h2>Audit log</h2>
           <p>Immutable staff action records from the trusted administrator API.</p>
         </div>
-        <button className="button secondary" onClick={() => void load()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button>
+        <button className="button secondary" onClick={() => void load(history.at(-1) ?? null)} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button>
       </div>
-      <Panel title="Recent actions" action={<SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />}>
+      <Panel title="Recent actions" description="Read-only, cursor-paginated immutable audit records." action={<div className="table-controls"><SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} /><select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))} aria-label="Audit page size"><option value="10">10 per page</option><option value="25">25 per page</option><option value="50">50 per page</option></select></div>}>
+        <div className="table-filter-row"><SearchBox value={search} onChange={setSearch} /><input value={actor} onChange={(event) => setActor(event.target.value)} placeholder="Actor ID" aria-label="Filter by actor" /><input value={action} onChange={(event) => setAction(event.target.value)} placeholder="Action" aria-label="Filter by action" /><input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} aria-label="From date" /><input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} aria-label="To date" /></div>
         <Table headers={["Action", "Target", "Reason", "Actor", "Date"]}>
           {sortedItems.map((item) => (
             <tr key={item.id}>
@@ -1617,12 +1584,13 @@ function AuditPage() {
           ))}
         </Table>
         {loading ? <TableLoading /> : null}
-        {!loading && !items.length ? (
+        {!loading && !sortedItems.length ? (
           <EmptyState title="No audit records in this result" />
         ) : null}
         {error ? (
-          <ErrorState message={error} retry={() => void load()} />
+          <ErrorState message={error} retry={() => void load(history.at(-1) ?? null)} />
         ) : null}
+        <div className="pager"><span>{loading ? "Loading…" : `Page ${history.length + 1}`}</span><div><button className="icon-button" disabled={!history.length || loading} onClick={() => { const previousHistory = history.slice(0, -1); const previousCursor = previousHistory.at(-1) ?? null; setHistory(previousHistory); void load(previousCursor); }} aria-label="Previous page"><ChevronLeft size={18} /></button><button className="icon-button" disabled={!hasMore || loading} onClick={() => void load(cursor, true)} aria-label="Next page"><ChevronRight size={18} /></button></div></div>
       </Panel>
     </div>
   );
@@ -1648,9 +1616,13 @@ function UserActionModal({
       : "Reactivate account";
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (modal.action === "suspend" && reason.trim().length < 10) {
+      setError("Enter a restriction reason of at least 10 characters.");
+      return;
+    }
     setBusy(true);
     setError("");
-    const auditNote = reason.trim() || "No additional note provided.";
+    const auditNote = reason.trim() || "Account reactivated by Superadmin.";
     try {
       await changeAccountStatus(
         modal.user.id,
@@ -1673,10 +1645,12 @@ function UserActionModal({
           <strong>{modal.user.fullName || modal.user.id}</strong>
         </p>
         <label>
-          Optional audit note
+          {modal.action === "suspend" ? "Restriction reason" : "Reactivation note"}
           <textarea
             value={reason}
             onChange={(event) => setReason(event.target.value)}
+            required={modal.action === "suspend"}
+            minLength={modal.action === "suspend" ? 10 : undefined}
           />
         </label>
         {error ? <p className="inline-error">{error}</p> : null}
@@ -1854,12 +1828,16 @@ function ReportActionModal({
       setError("The report is missing its target account.");
       return;
     }
+    if (reason.trim().length < 10) {
+      setError("Enter a restriction reason of at least 10 characters.");
+      return;
+    }
     setBusy(true);
     try {
       await changeAccountStatus(
         report.targetUserId,
         "suspended",
-        reason.trim() || "Account restricted after violation report review.",
+        reason.trim(),
         report.id,
       );
       notify({
@@ -1881,10 +1859,12 @@ function ReportActionModal({
           This action is server-authorized and creates an audit record.
         </p>
         <label>
-          Optional audit note
+          Restriction reason
           <textarea
             value={reason}
             onChange={(event) => setReason(event.target.value)}
+            required
+            minLength={10}
           />
         </label>
         {error ? <p className="inline-error">{error}</p> : null}
@@ -1926,6 +1906,12 @@ function Modal({
       </section>
     </div>
   );
+}
+function ReadOnlyDetailsModal({ title, close, rows }: { title: string; close: () => void; rows: Array<[string, string]> }) {
+  return <Modal title={title} close={close}>
+    <dl className="details-list">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+    <div className="modal-actions"><button className="button secondary" onClick={close}>Close</button></div>
+  </Modal>;
 }
 function ModalActions({
   busy,
@@ -2093,17 +2079,14 @@ function SortButton({
   ascendingLabel?: string;
   descendingLabel?: string;
 }) {
-  const label = direction === "asc" ? ascendingLabel : descendingLabel;
   return (
-    <button
-      type="button"
-      className="button secondary"
-      onClick={onToggle}
-      title="Change the list order"
-      aria-label={`Sort: ${label}. Activate to reverse.`}
-    >
-      {label}
-    </button>
+    <label className="sort-control">
+      <span>Sort</span>
+      <select value={direction} onChange={(event) => { if (event.target.value !== direction) onToggle(); }} aria-label="Sorting order">
+        <option value="asc">{ascendingLabel}</option>
+        <option value="desc">{descendingLabel}</option>
+      </select>
+    </label>
   );
 }
 function Badge({ value }: { value: string }) {

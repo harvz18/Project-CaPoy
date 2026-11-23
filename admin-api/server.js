@@ -54,6 +54,134 @@ function withIds(snapshot) {
   return snapshot.docs.map((document) => ({ id: document.id, ...document.data() }));
 }
 
+const PORTAL_PAGE_SIZE = 10;
+const PORTAL_MAX_PAGE_SIZE = 50;
+
+function portalPageOptions(request) {
+  const page = Math.max(1, Number.parseInt(String(request.query.page || "1"), 10) || 1);
+  const pageSize = Math.min(PORTAL_MAX_PAGE_SIZE, Math.max(5, Number.parseInt(String(request.query.pageSize || PORTAL_PAGE_SIZE), 10) || PORTAL_PAGE_SIZE));
+  const direction = request.query.direction === "asc" ? "asc" : "desc";
+  const search = typeof request.query.search === "string" ? request.query.search.trim().toLowerCase() : "";
+  return { page, pageSize, direction, search };
+}
+
+function portalPage(items, request, fields = []) {
+  const { page, pageSize, search } = portalPageOptions(request);
+  const filtered = search
+    ? items.filter((item) => fields.some((field) => String(item[field] || "").toLowerCase().includes(search)))
+    : items;
+  const start = (page - 1) * pageSize;
+  return {
+    items: filtered.slice(start, start + pageSize),
+    page,
+    pageSize,
+    total: filtered.length,
+    hasMore: start + pageSize < filtered.length
+  };
+}
+
+function comparePortalValues(left, right, direction) {
+  const normalize = (value) => {
+    if (value === undefined || value === null) return "";
+    if (value && typeof value.toDate === "function") return value.toDate().getTime();
+    if (value && typeof value.seconds === "number") return value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1_000_000);
+    const parsed = value instanceof Date || typeof value === "string" ? new Date(value).getTime() : Number.NaN;
+    return Number.isFinite(parsed) ? parsed : value;
+  };
+  const a = normalize(left);
+  const b = normalize(right);
+  const result = typeof a === "number" && typeof b === "number"
+    ? a - b
+    : String(a).localeCompare(String(b), "en", { numeric: true, sensitivity: "base" });
+  return direction === "asc" ? result : -result;
+}
+
+function sortPortalRecords(items, key, direction) {
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((left, right) => comparePortalValues(left.item[key], right.item[key], direction) || left.index - right.index)
+    .map(({ item }) => item);
+}
+
+function safePortalUser(id, user, tasks = []) {
+  const assigned = tasks.filter((task) => task.clientId === id || task.workerId === id);
+  const completed = assigned.filter((task) => task.status === "Finished").length;
+  return {
+    id,
+    fullName: user.fullName || "Unnamed account",
+    role: user.role,
+    profilePhotoUrl: user.profilePhotoUrl || null,
+    accountStatus: user.accountStatus || "active",
+    verificationStatus: user.verificationStatus || user.identityStatus || "Not Submitted",
+    verificationProgress: Number.isFinite(user.verificationProgress) ? user.verificationProgress : 0,
+    verificationProgressLevel: user.verificationProgressLevel || "Incomplete",
+    businessName: user.businessName || "",
+    rating: Number.isFinite(user.rating) ? user.rating : 0,
+    ratingCount: Number.isFinite(user.ratingCount) ? user.ratingCount : 0,
+    createdAt: user.createdAt || null,
+    taskCount: assigned.length,
+    completedTaskCount: completed,
+    activitySummary: completed ? `${completed} completed task${completed === 1 ? "" : "s"}` : assigned.length ? `${assigned.length} task record${assigned.length === 1 ? "" : "s"}` : "No task activity"
+  };
+}
+
+async function portalUsersPage({ request, db }) {
+  const [usersSnapshot, tasksSnapshot] = await Promise.all([
+    db.collection("users").where("role", "in", ["client", "worker"]).get(),
+    db.collection("tasks").get()
+  ]);
+  const { direction } = portalPageOptions(request);
+  const role = typeof request.query.role === "string" ? request.query.role : "all";
+  const status = typeof request.query.status === "string" ? request.query.status : "all";
+  let users = usersSnapshot.docs.map((document) => safePortalUser(document.id, document.data(), withIds(tasksSnapshot)));
+  if (["client", "worker"].includes(role)) users = users.filter((user) => user.role === role);
+  if (status !== "all") users = users.filter((user) => user.accountStatus === status);
+  return portalPage(sortPortalRecords(users, "createdAt", direction), request, ["fullName", "businessName", "role", "activitySummary"]);
+}
+
+async function portalTasksPage({ request, db }) {
+  const [tasksSnapshot, usersSnapshot] = await Promise.all([
+    db.collection("tasks").get(),
+    db.collection("users").get()
+  ]);
+  const names = Object.fromEntries(usersSnapshot.docs.map((document) => [document.id, document.data().fullName || "Account unavailable"]));
+  const { direction } = portalPageOptions(request);
+  const status = typeof request.query.status === "string" ? request.query.status : "all";
+  let tasks = withIds(tasksSnapshot).map((task) => ({
+    ...task,
+    employerName: names[task.clientId] || "Employer unavailable",
+    workerName: task.workerId ? names[task.workerId] || "Worker unavailable" : "Unassigned"
+  }));
+  if (status !== "all") tasks = tasks.filter((task) => task.status === status);
+  return portalPage(sortPortalRecords(tasks, "createdAt", direction), request, ["title", "category", "location", "employerName", "workerName", "status"]);
+}
+
+async function portalCollectionPage({ request, db, collection, fields, sortField = "createdAt" }) {
+  const snapshot = await db.collection(collection).get();
+  const { direction } = portalPageOptions(request);
+  return portalPage(sortPortalRecords(withIds(snapshot), sortField, direction), request, fields);
+}
+
+async function auditLogPage({ request, db }) {
+  const { pageSize, direction } = portalPageOptions(request);
+  const cursorId = typeof request.query.cursor === "string" ? request.query.cursor : "";
+  let query = db.collection("auditLogs").orderBy("createdAt", direction).limit(pageSize + 1);
+  if (cursorId) {
+    const cursor = await db.collection("auditLogs").doc(cursorId).get();
+    if (cursor.exists) query = query.startAfter(cursor);
+  }
+  const snapshot = await query.get();
+  const documents = snapshot.docs.slice(0, pageSize);
+  return {
+    items: documents.map((document) => {
+      const data = document.data();
+      return { id: document.id, actorId: data.actorId, action: data.action, targetType: data.targetType, targetId: data.targetId, reason: data.reason, createdAt: data.createdAt };
+    }),
+    cursor: documents.at(-1)?.id || null,
+    hasMore: snapshot.docs.length > pageSize
+  };
+}
+
 async function buildPortalAnalytics(db, rangeInput) {
   const [usersSnapshot, verificationSnapshot, tasksSnapshot, paymentsSnapshot, platformFeesSnapshot, matchesSnapshot, notificationsSnapshot] = await Promise.all([
     db.collection("users").where("role", "in", ["client", "worker"]).get(),
@@ -1236,6 +1364,35 @@ async function submitPlatformFee({ request, db, claims }) {
   return { ok: true, status: "submitted_for_review" };
 }
 
+async function reviewPaymentEvidence({ request, db, claims }) {
+  const taskId = requiredBodyString(request, "taskId");
+  const decision = requiredBodyString(request, "decision");
+  const reason = optionalBodyString(request, "reason");
+  if (!new Set(["Verified", "Rejected"]).has(decision)) throw new ApiError(400, "Unsupported payment decision.");
+  if (decision === "Rejected" && !reason) throw new ApiError(400, "A rejection reason is required.");
+  const taskRef = db.collection("tasks").doc(taskId);
+  const paymentRef = db.collection("payments").doc(taskId);
+  const reviewedAt = nowIso();
+  await db.runTransaction(async (transaction) => {
+    const [taskSnapshot, paymentSnapshot] = await Promise.all([transaction.get(taskRef), transaction.get(paymentRef)]);
+    if (!taskSnapshot.exists || !paymentSnapshot.exists) throw new ApiError(404, "Task or payment record was not found.");
+    const task = taskSnapshot.data();
+    const payment = paymentSnapshot.data();
+    if (payment.paymentMethod !== "GCash link" || task.paymentMethod !== "GCash link") throw new ApiError(409, "Cash payments use worker confirmation instead of administrator review.");
+    if (payment.paymentStatus !== "Submitted" || task.paymentStatus !== "Submitted") throw new ApiError(409, "Only submitted payment evidence can be reviewed.");
+    if (!payment.proofOfPaymentUrl) throw new ApiError(409, "The payment proof file is missing.");
+    transaction.update(paymentRef, { paymentStatus: decision, reviewedAt, reviewedBy: claims.uid, reviewReason: reason, updatedAt: reviewedAt });
+    transaction.update(taskRef, { paymentStatus: decision, paymentReviewedAt: reviewedAt, paymentReviewedBy: claims.uid, paymentReviewReason: reason, updatedAt: reviewedAt });
+    [task.clientId, task.workerId].filter(Boolean).forEach((userId) => transaction.set(db.collection("notifications").doc(), {
+      userId, taskId, createdBy: claims.uid, notificationType: "Payment review",
+      message: decision === "Verified" ? `Payment for ${task.title || "the task"} was verified.` : `Payment evidence for ${task.title || "the task"} was rejected: ${reason}`,
+      readStatus: false, createdAt: reviewedAt
+    }));
+    writeAudit(transaction, db, { actorId: claims.uid, action: "review_payment_evidence", targetType: "payment", targetId: taskId, reason, metadata: { decision } });
+  });
+  return { ok: true, status: decision };
+}
+
 async function reviewPlatformFee({ request, db, claims }) {
   const taskId = requiredBodyString(request, "taskId");
   const decision = requiredBodyString(request, "decision");
@@ -1490,6 +1647,25 @@ async function profileLookup({ request, db }) {
   return { profiles };
 }
 
+async function taskLookup({ request, db }) {
+  const tasks = {};
+  await Promise.all(requestedIds(request).map(async (id) => {
+    const snapshot = await db.collection("tasks").doc(id).get();
+    if (!snapshot.exists) return;
+    const task = snapshot.data();
+    tasks[id] = {
+      id,
+      title: task.title || "Untitled task",
+      category: task.category || "",
+      clientId: task.clientId || "",
+      workerId: task.workerId || "",
+      status: task.status || "",
+      createdAt: task.createdAt || null
+    };
+  }));
+  return { tasks };
+}
+
 function createServer() {
   const app = express();
   // Render terminates TLS at one trusted proxy. This preserves a per-client
@@ -1611,22 +1787,36 @@ function createServer() {
       throw new ApiError(500, "Unable to generate live analytics right now.");
     }
   }));
+  // The portal never grants browser clients broad Firestore read access. List
+  // views are built from the same live records through this role-checked API.
+  app.get("/api/admin/users", route("admin", portalUsersPage));
+  app.get("/api/admin/tasks", route("admin", portalTasksPage));
   app.post("/api/admin/profiles/lookup", route("superadmin", profileLookup));
+  app.post("/api/admin/tasks/lookup", route("superadmin", taskLookup));
   app.get("/api/admin/verifications/pending", route("superadmin", async ({ db }) => {
     const snapshot = await db.collection("verificationRequests").where("status", "==", "Pending Verification").limit(100).get();
     return { requests: withIds(snapshot) };
   }));
   app.post("/api/admin/verifications/review", route("superadmin", reviewVerification));
   app.post("/api/admin/verifications/document-review", route("superadmin", reviewVerificationDocument));
+  app.post("/api/admin/payments/review", route("superadmin", reviewPaymentEvidence));
   app.get("/api/admin/payments/submitted", route("superadmin", async ({ db }) => {
     const snapshot = await db.collection("payments").where("paymentStatus", "==", "Submitted").limit(100).get();
     return { payments: withIds(snapshot) };
+  }));
+  app.get("/api/admin/platform-fees/submitted", route("superadmin", async ({ db }) => {
+    const snapshot = await db.collection("platformFees").where("status", "==", "submitted_for_review").limit(100).get();
+    return { fees: withIds(snapshot) };
   }));
   app.get("/api/admin/moderation/users", route("superadmin", async ({ db }) => {
     const users = await db.collection("users").where("role", "in", ["client", "worker"]).get();
     return { users: users.docs.map((document) => toModerationUser(document.id, document.data())) };
   }));
   app.post("/api/admin/moderation/account-status", route("superadmin", changeAccountStatus));
+  app.get("/api/admin/applications", route("superadmin", ({ request, db }) => portalCollectionPage({ request, db, collection: "taskMatches", fields: ["taskId", "workerId", "clientId", "acceptanceStatus", "proposedAmount"] })));
+  app.get("/api/admin/feedback", route("superadmin", ({ request, db }) => portalCollectionPage({ request, db, collection: "ratings", fields: ["feedback", "taskId", "targetUserId", "reviewerId", "score"] })));
+  app.get("/api/admin/reports", route("superadmin", ({ request, db }) => portalCollectionPage({ request, db, collection: "violationReports", fields: ["category", "reason", "targetUserId", "reporterId", "status"] })));
+  app.get("/api/admin/audit", route("superadmin", auditLogPage));
   app.get("/api/admin/superadmin/overview", route("superadmin", async ({ db }) => {
     const [users, reports, auditLogs] = await Promise.all([
       db.collection("users").where("role", "in", ["client", "worker"]).get(),
