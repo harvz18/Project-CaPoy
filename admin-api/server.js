@@ -1516,7 +1516,8 @@ function createServer() {
   app.post("/api/revenue/fees/posting-eligibility", route("user", getTaskPostingEligibility));
   app.post("/api/revenue/fees/progression-eligibility", route("user", getTaskFeeProgressionEligibility));
   app.post("/api/revenue/fees/submit", route("user", submitPlatformFee));
-  app.post("/api/revenue/fees/review", route("admin", reviewPlatformFee));
+  // Review routes intentionally require Superadmin. Admin is analytics-only.
+  app.post("/api/revenue/fees/review", route("superadmin", reviewPlatformFee));
   app.get("/api/revenue/overview", route("superadmin", platformRevenueOverview));
   app.post("/api/payments/cash/mark-paid", route("user", markCashPaymentPaid));
   app.post("/api/payments/cash/acknowledge-receipt", route("user", acknowledgeCashPaymentReceived));
@@ -1573,22 +1574,22 @@ function createServer() {
   app.post("/api/vonage-otp/profile/check", route("user", completeVonageProfilePhoneVerification));
   app.post("/api/phone-verification/native-session", route("user", createPhoneVerificationNativeSession));
   app.post("/api/phone-verification/sync", route("user", syncPhoneVerification));
-  app.post("/api/admin/profiles/lookup", route("admin", profileLookup));
-  app.get("/api/admin/verifications/pending", route("admin", async ({ db }) => {
+  app.post("/api/admin/profiles/lookup", route("superadmin", profileLookup));
+  app.get("/api/admin/verifications/pending", route("superadmin", async ({ db }) => {
     const snapshot = await db.collection("verificationRequests").where("status", "==", "Pending Verification").limit(100).get();
     return { requests: withIds(snapshot) };
   }));
-  app.post("/api/admin/verifications/review", route("admin", reviewVerification));
-  app.post("/api/admin/verifications/document-review", route("admin", reviewVerificationDocument));
-  app.get("/api/admin/payments/submitted", route("admin", async ({ db }) => {
+  app.post("/api/admin/verifications/review", route("superadmin", reviewVerification));
+  app.post("/api/admin/verifications/document-review", route("superadmin", reviewVerificationDocument));
+  app.get("/api/admin/payments/submitted", route("superadmin", async ({ db }) => {
     const snapshot = await db.collection("payments").where("paymentStatus", "==", "Submitted").limit(100).get();
     return { payments: withIds(snapshot) };
   }));
-  app.get("/api/admin/moderation/users", route("admin", async ({ db }) => {
+  app.get("/api/admin/moderation/users", route("superadmin", async ({ db }) => {
     const users = await db.collection("users").where("role", "in", ["client", "worker"]).get();
     return { users: users.docs.map((document) => toModerationUser(document.id, document.data())) };
   }));
-  app.post("/api/admin/moderation/account-status", route("admin", changeAccountStatus));
+  app.post("/api/admin/moderation/account-status", route("superadmin", changeAccountStatus));
   app.get("/api/admin/superadmin/overview", route("superadmin", async ({ db }) => {
     const [users, reports, auditLogs] = await Promise.all([
       db.collection("users").where("role", "in", ["client", "worker"]).get(),

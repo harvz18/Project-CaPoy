@@ -313,7 +313,9 @@ exports.updateRatingAggregate = onDocumentCreated(
 );
 
 exports.reviewWorkerVerification = onCall({ region: REGION }, async (request) => {
-  const adminId = requireAdmin(request);
+  // Identity decisions are governance actions. Analytics-only Admin accounts
+  // must never be able to approve or reject a person's credentials.
+  const adminId = requireSuperadmin(request);
   const userId = requiredString(request.data?.userId, "userId");
   const decision = requiredString(request.data?.decision, "decision");
   const reason = typeof request.data?.reason === "string" ? request.data.reason.trim() : "";
@@ -398,7 +400,8 @@ exports.reviewWorkerVerification = onCall({ region: REGION }, async (request) =>
 });
 
 exports.reviewPaymentEvidence = onCall({ region: REGION }, async (request) => {
-  const adminId = requireAdmin(request);
+  // Payment evidence decisions are reserved for the financial governor.
+  const adminId = requireSuperadmin(request);
   const taskId = requiredString(request.data?.taskId, "taskId");
   const decision = requiredString(request.data?.decision, "decision");
   const reason = typeof request.data?.reason === "string" ? request.data.reason.trim() : "";
@@ -473,7 +476,7 @@ exports.reviewPaymentEvidence = onCall({ region: REGION }, async (request) => {
 });
 
 exports.setUserAccountStatus = onCall({ region: REGION }, async (request) => {
-  const adminId = requireAdmin(request);
+  const adminId = requireSuperadmin(request);
   const userId = requiredString(request.data?.userId, "userId");
   const accountStatus = requiredString(request.data?.accountStatus, "accountStatus");
   const reason = requiredString(request.data?.reason, "reason");
@@ -883,7 +886,7 @@ exports.submitPlatformFeePayment = onCall({ region: REGION }, async (request) =>
 });
 
 exports.reviewPlatformFeePayment = onCall({ region: REGION }, async (request) => {
-  const adminId = requireAdmin(request); const taskId = requiredString(request.data?.taskId, "taskId");
+  const adminId = requireSuperadmin(request); const taskId = requiredString(request.data?.taskId, "taskId");
   const decision = requiredString(request.data?.decision, "decision"); const reason = typeof request.data?.reason === 'string' ? request.data.reason.trim() : '';
   if (!['verified', 'rejected'].includes(decision)) throw new HttpsError('invalid-argument', 'Unsupported service-fee decision.');
   if (decision === 'rejected' && !reason) throw new HttpsError('invalid-argument', 'A rejection reason is required.');

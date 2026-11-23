@@ -13,6 +13,7 @@ import {
 } from "react-router-dom";
 import {
   Bell,
+  BarChart3,
   CheckCircle2,
   CircleHelp,
   ChevronLeft,
@@ -20,7 +21,9 @@ import {
   ClipboardCheck,
   FileText,
   Flag,
+  FileDown,
   LayoutDashboard,
+  Lightbulb,
   ListChecks,
   LoaderCircle,
   LogOut,
@@ -28,7 +31,9 @@ import {
   Search,
   ShieldAlert,
   ShieldCheck,
+  Settings,
   Star,
+  TrendingUp,
   Users,
   X,
 } from "lucide-react";
@@ -40,6 +45,7 @@ import {
   getBasicDashboardCounts,
   getFeedbackCount,
   getRevenueAnalytics,
+  getPlatformRevenueConfig,
   getSuperadminOverview,
   getVerificationDocumentUrl,
   loadPage,
@@ -53,6 +59,7 @@ import {
   reviewPlatformFee,
   reviewVerification,
   reviewVerificationDocument,
+  updatePlatformRevenueConfig,
 } from "./services";
 import {
   AuditLog,
@@ -123,6 +130,14 @@ function taskTitle(task?: Task) {
   return task?.title || "Untitled task";
 }
 type Notice = { tone: "success" | "error"; message: string } | null;
+type AnalyticsReport = Omit<RevenueAnalyticsReport, "daily"> & {
+  accounts: { employers: number; taskers: number; active: number; restricted: number };
+  verification: { pending: number; approved: number; rejected: number; resubmission: number };
+  taskInventory: { total: number; byStatus: Record<string, number> };
+  activity: { posted: number; applications: number; accepted: number; completed: number; cancelled: number; disputed: number; byCategory: Array<{ category: string; count: number }> };
+  payments: { unresolvedReviews: number };
+  daily: Array<{ date: string; posted: number; applications: number; completed: number; feeObligations: number; netRetainedRevenueCentavos: number }>;
+};
 
 function App() {
   if (!firebaseConfigured) return <ConfigurationRequired />;
@@ -290,18 +305,24 @@ function DeniedScreen() {
 type Scope = "admin" | "superadmin";
 const adminNavigation = [
   ["dashboard", "Dashboard", LayoutDashboard],
+  ["revenue", "Revenue analytics", TrendingUp],
+  ["task-analytics", "Task analytics", BarChart3],
+  ["user-analytics", "User analytics", Users],
+  ["category-trends", "Category trends", ListChecks],
+  ["decision-support", "Decision support", Lightbulb],
+  ["reports", "Reports", FileDown],
+] as const;
+const superNavigation = [
+  ["dashboard", "Dashboard", LayoutDashboard],
   ["users", "Users", Users],
   ["tasks", "Tasks", ListChecks],
   ["applications", "Applications", FileText],
-  ["verifications", "Verifications", ClipboardCheck],
-  ["feedback", "Feedback", Star],
-  ["help", "Help", CircleHelp],
-] as const;
-const superNavigation = [
-  ...adminNavigation,
-  ["revenue", "Revenue", FileText],
-  ["reports", "Reports", Flag],
+  ["verifications", "Identity verification", ClipboardCheck],
+  ["financial", "Financial review", TrendingUp],
+  ["feedback", "Feedback & disputes", Star],
+  ["reports", "Violation reports", Flag],
   ["audit", "Audit log", ShieldCheck],
+  ["configuration", "Configurations", Settings],
 ] as const;
 
 function Portal({ scope }: { scope: Scope }) {
@@ -379,6 +400,9 @@ function Portal({ scope }: { scope: Scope }) {
             <ShieldCheck size={17} />
             <span>{scope === "superadmin" ? "Superadmin" : "Admin"}</span>
           </div>
+          <button className="icon-button notification-button" aria-label="Notifications">
+            <Bell size={18} /><span aria-hidden="true" />
+          </button>
         </header>
         {notice ? (
           <NoticeBanner notice={notice} onClose={() => setNotice(null)} />
@@ -398,17 +422,22 @@ function Page({
   scope: Scope;
   notify: (notice: Notice) => void;
 }) {
-  if (section === "dashboard") return <Dashboard scope={scope} />;
-  if (section === "users") return <UsersPage scope={scope} notify={notify} />;
-  if (section === "tasks") return <TasksPage />;
-  if (section === "applications") return <ApplicationsPage />;
-  if (section === "verifications") return <VerificationPage notify={notify} />;
-  if (section === "feedback") return <FeedbackPage />;
-  if (section === "help") return <HelpPage />;
-  if (scope === "superadmin" && section === "revenue") return <RevenuePage />;
-  if (scope === "superadmin" && section === "reports")
-    return <ReportsPage notify={notify} />;
+  if (section === "dashboard") return <OperationsDashboard scope={scope} />;
+  if (scope === "admin" && section === "revenue") return <RevenuePage />;
+  if (scope === "admin" && section === "task-analytics") return <AnalyticsPage kind="tasks" />;
+  if (scope === "admin" && section === "user-analytics") return <AnalyticsPage kind="users" />;
+  if (scope === "admin" && section === "category-trends") return <AnalyticsPage kind="categories" />;
+  if (scope === "admin" && section === "decision-support") return <DecisionSupportPage />;
+  if (scope === "admin" && section === "reports") return <AnalyticsReportsPage />;
+  if (scope === "superadmin" && section === "users") return <UsersPage scope={scope} notify={notify} />;
+  if (scope === "superadmin" && section === "tasks") return <TasksPage />;
+  if (scope === "superadmin" && section === "applications") return <ApplicationsPage />;
+  if (scope === "superadmin" && section === "verifications") return <VerificationPage notify={notify} />;
+  if (scope === "superadmin" && section === "financial") return <FinancialReviewPage notify={notify} />;
+  if (scope === "superadmin" && section === "feedback") return <FeedbackPage />;
+  if (scope === "superadmin" && section === "reports") return <ReportsPage notify={notify} />;
   if (scope === "superadmin" && section === "audit") return <AuditPage />;
+  if (scope === "superadmin" && section === "configuration") return <ConfigurationPage />;
   return <Navigate to={`/${scope}/dashboard`} replace />;
 }
 
@@ -539,6 +568,120 @@ function Dashboard({ scope }: { scope: Scope }) {
       ) : null}
     </div>
   );
+}
+
+function useAnalytics(preset: RevenueAnalyticsRangePreset = "7d") {
+  const [report, setReport] = useState<AnalyticsReport | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const reload = useCallback(async () => {
+    setLoading(true); setError("");
+    try { setReport(await getRevenueAnalytics(preset) as AnalyticsReport); }
+    catch (failure) { setError(errorText(failure)); }
+    finally { setLoading(false); }
+  }, [preset]);
+  useEffect(() => { void reload(); }, [reload]);
+  return { report, loading, error, reload };
+}
+
+function AnalyticsFilters({ preset, setPreset, reload, loading }: { preset: RevenueAnalyticsRangePreset; setPreset: (value: RevenueAnalyticsRangePreset) => void; reload: () => void; loading: boolean }) {
+  return <div className="toolbar analytics-filters">
+    {(["1d", "3d", "7d", "30d"] as RevenueAnalyticsRangePreset[]).map((value) => <button key={value} className={`button ${preset === value ? "primary" : "secondary"}`} onClick={() => setPreset(value)} disabled={loading}>{value === "1d" ? "1 day" : value === "3d" ? "3 days" : value === "7d" ? "1 week" : "1 month"}</button>)}
+    <button className="button secondary" onClick={reload} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button>
+  </div>;
+}
+
+function OperationsDashboard({ scope }: { scope: Scope }) {
+  const navigate = useNavigate();
+  const [preset, setPreset] = useState<RevenueAnalyticsRangePreset>("7d");
+  const { report, loading, error, reload } = useAnalytics(preset);
+  if (loading && !report) return <div className="page-stack"><SkeletonCards /></div>;
+  if (error && !report) return <div className="page-stack"><ErrorState message={error} retry={reload} /></div>;
+  if (!report) return null;
+  const active = Object.entries(report.taskInventory.byStatus).filter(([status]) => ["Finding Workers", "Applied", "Accepted", "In Progress", "Pending Approval"].includes(status)).reduce((sum, [, value]) => sum + value, 0);
+  return <div className="page-stack">
+    <div className="page-heading"><div><h2>Operations overview</h2><p>Trusted live metrics · {report.range.label} · Asia/Manila</p></div><AnalyticsFilters preset={preset} setPreset={setPreset} reload={reload} loading={loading} /></div>
+    {error ? <ErrorState message={error} retry={reload} /> : null}
+    <section className="metric-grid">
+      <Metric label="Active tasks" value={active} icon={<ListChecks />} onClick={scope === "superadmin" ? () => navigate("/superadmin/tasks") : undefined} />
+      <Metric label="Completed tasks" value={report.activity.completed} icon={<CheckCircle2 />} />
+      <Metric label="Pending verifications" value={report.verification.pending} icon={<ClipboardCheck />} onClick={scope === "superadmin" ? () => navigate("/superadmin/verifications") : undefined} />
+      <Metric label="Applications" value={report.activity.applications} icon={<FileText />} onClick={scope === "superadmin" ? () => navigate("/superadmin/applications") : undefined} />
+    </section>
+    <section className="dashboard-grid">
+      <Panel title="Completed tasks over time" description="Completed lifecycle events in the selected period."><MiniBarChart values={report.daily.map((row) => ({ label: row.date.slice(5), value: row.completed }))} empty="No completed tasks in this period." /></Panel>
+      <Panel title="Task status distribution" description="Current status of all TaskLink tasks."><StatusDistribution statuses={report.taskInventory.byStatus} /></Panel>
+      <Panel title={scope === "superadmin" ? "Governance queue" : "Operational backlog"} description={scope === "superadmin" ? "Open records needing authorized review." : "Read-only workload indicators."}><QueueSummary report={report} scope={scope} navigate={navigate} /></Panel>
+      <Panel title="Most requested categories" description="Live task-posting demand in the selected period."><HorizontalBars values={report.activity.byCategory.map((item) => ({ label: item.category, value: item.count }))} empty="No task postings in this period." /></Panel>
+    </section>
+  </div>;
+}
+
+function MiniBarChart({ values, empty }: { values: Array<{ label: string; value: number }>; empty: string }) {
+  const max = Math.max(...values.map((item) => item.value), 0);
+  if (!max) return <EmptyState title={empty} />;
+  return <div className="mini-bars" aria-label="Bar chart">{values.map((item) => <div className="mini-bar-item" key={item.label}><span className="mini-bar-value">{item.value}</span><div className="mini-bar-track"><i style={{ height: `${Math.max(7, (item.value / max) * 100)}%` }} /></div><small>{item.label}</small></div>)}</div>;
+}
+function HorizontalBars({ values, empty }: { values: Array<{ label: string; value: number }>; empty: string }) {
+  const max = Math.max(...values.map((item) => item.value), 0);
+  if (!max) return <EmptyState title={empty} />;
+  return <div className="horizontal-bars">{values.slice(0, 6).map((item) => <div className="horizontal-bar" key={item.label}><span>{item.label}</span><div><i style={{ width: `${(item.value / max) * 100}%` }} /></div><strong>{item.value}</strong></div>)}</div>;
+}
+function StatusDistribution({ statuses }: { statuses: Record<string, number> }) {
+  const entries = Object.entries(statuses).filter(([, value]) => value > 0);
+  const total = entries.reduce((sum, [, value]) => sum + value, 0);
+  if (!total) return <EmptyState title="No task statuses available." />;
+  const colors = ["#007d67", "#159b74", "#6fc8b6", "#b8eee0", "#d0e1dd", "#e1a532"];
+  let offset = 0;
+  const stops = entries.map(([, value], index) => { const start = offset; offset += (value / total) * 100; return `${colors[index % colors.length]} ${start}% ${offset}%`; });
+  return <div className="donut-layout"><div className="donut" style={{ background: `conic-gradient(${stops.join(",")})` }}><strong>{total}</strong><small>tasks</small></div><div className="chart-legend">{entries.slice(0, 6).map(([label, value], index) => <p key={label}><i style={{ background: colors[index % colors.length] }} />{label}<b>{Math.round((value / total) * 100)}%</b></p>)}</div></div>;
+}
+function QueueSummary({ report, scope, navigate }: { report: AnalyticsReport; scope: Scope; navigate: ReturnType<typeof useNavigate> }) {
+  const rows = [["Identity reviews", report.verification.pending, "verifications"], ["Payment reviews", report.payments.unresolvedReviews, "financial"], ["Platform-fee reviews", report.revenue.submittedForReviewCentavos, "financial"], ["Open disputes", report.activity.disputed, "feedback"]] as const;
+  return <div className="queue-list">{rows.map(([label, value, route]) => <button key={label} className="queue-row" disabled={scope !== "superadmin"} onClick={() => navigate(`/superadmin/${route}`)}><span>{label}</span><b>{label === "Platform-fee reviews" ? php(value) : value}</b><small>{scope === "superadmin" ? "Review" : "Read-only"}</small></button>)}</div>;
+}
+
+function AnalyticsPage({ kind }: { kind: "tasks" | "users" | "categories" }) {
+  const [preset, setPreset] = useState<RevenueAnalyticsRangePreset>("30d");
+  const { report, loading, error, reload } = useAnalytics(preset);
+  const labels = { tasks: ["Task analytics", "Task activity and lifecycle performance based on recorded events."], users: ["User analytics", "Registered account and participation indicators."], categories: ["Category trends", "Demand and platform-fee trends by actual task category."] } as const;
+  if (loading && !report) return <div className="page-stack"><SkeletonCards /></div>;
+  if (error && !report) return <div className="page-stack"><ErrorState message={error} retry={reload} /></div>;
+  if (!report) return null;
+  const content = kind === "tasks" ? <><section className="metric-grid"><Metric label="Posted" value={report.activity.posted} icon={<FileText />} /><Metric label="Completed" value={report.activity.completed} icon={<CheckCircle2 />} /><Metric label="Cancelled" value={report.activity.cancelled} icon={<X />} /><Metric label="Completion rate" value={report.activity.posted ? `${Math.round((report.activity.completed / report.activity.posted) * 100)}%` : "—"} icon={<TrendingUp />} /></section><section className="dashboard-grid"><Panel title="Task activity by date"><MiniBarChart values={report.daily.map((row) => ({ label: row.date.slice(5), value: row.posted }))} empty="No task postings in this period." /></Panel><Panel title="Task status distribution"><StatusDistribution statuses={report.taskInventory.byStatus} /></Panel></section></> : kind === "users" ? <><section className="metric-grid"><Metric label="Employers" value={report.accounts.employers} icon={<Users />} /><Metric label="Taskers" value={report.accounts.taskers} icon={<Users />} /><Metric label="Active accounts" value={report.accounts.active} icon={<CheckCircle2 />} /><Metric label="Applications" value={report.activity.applications} icon={<FileText />} /></section><Panel title="Engagement indicators" description="Uses recorded applications and account state; it does not infer activity where data is absent."><Table headers={["Indicator", "Value", "Calculation basis"]}><tr><td>Average applications per posted task</td><td>{report.activity.posted ? (report.activity.applications / report.activity.posted).toFixed(1) : "—"}</td><td>Applications created ÷ tasks posted in selected period</td></tr><tr><td>Active-account share</td><td>{report.accounts.employers + report.accounts.taskers ? `${Math.round((report.accounts.active / (report.accounts.employers + report.accounts.taskers)) * 100)}%` : "—"}</td><td>Accounts with active or pending-verification state</td></tr></Table></Panel></> : <><section className="dashboard-grid"><Panel title="Demand by category"><HorizontalBars values={report.activity.byCategory.map((item) => ({ label: item.category, value: item.count }))} empty="No category demand data in this period." /></Panel><Panel title="Verified fee revenue by category"><HorizontalBars values={report.revenue.byCategory.map((item) => ({ label: item.category, value: item.feeCentavos }))} empty="No verified platform-fee revenue in this period." /></Panel></section></>;
+  return <div className="page-stack"><div className="page-heading"><div><h2>{labels[kind][0]}</h2><p>{labels[kind][1]} {report.range.label} · Asia/Manila.</p></div><AnalyticsFilters preset={preset} setPreset={setPreset} reload={reload} loading={loading} /></div>{error ? <ErrorState message={error} retry={reload} /> : null}{content}</div>;
+}
+
+function DecisionSupportPage() {
+  const [preset, setPreset] = useState<RevenueAnalyticsRangePreset>("30d"); const { report, loading, error, reload } = useAnalytics(preset);
+  if (loading && !report) return <div className="page-stack"><SkeletonCards /></div>; if (error && !report) return <div className="page-stack"><ErrorState message={error} retry={reload} /></div>; if (!report) return null;
+  const top = report.activity.byCategory[0]; const insights = [
+    top ? ["Highest task demand", `${top.category} has ${top.count} posted task${top.count === 1 ? "" : "s"} in ${report.range.label.toLowerCase()}.`, "Review worker capability coverage and recruitment for this category.", "tasks.category + tasks.createdAt"] : null,
+    report.activity.posted ? ["Task completion", `${report.activity.completed} of ${report.activity.posted} posted tasks were completed in the selected period.`, "Review categories with lower completion and identify workflow bottlenecks.", "tasks.createdAt + tasks.finishedAt"] : null,
+    ["Verification backlog", `${report.verification.pending} identity record(s) are awaiting review.`, "Schedule authorized Superadmin review capacity when the queue grows.", "verificationRequests.status"],
+    ["Fee collection backlog", `${php(report.revenue.outstandingFeeObligationsCentavos)} remains outstanding across ${report.revenue.outstandingFeeObligations} obligation(s).`, "Monitor follow-up policy; only verified amounts are counted as revenue.", "platformFees.status + verifiedAt"]
+  ].filter(Boolean) as string[][];
+  return <div className="page-stack"><div className="page-heading"><div><h2>Decision support</h2><p>Explainable descriptive insights only; no predictions are generated.</p></div><AnalyticsFilters preset={preset} setPreset={setPreset} reload={reload} loading={loading} /></div>{error ? <ErrorState message={error} retry={reload} /> : null}<section className="insight-grid">{insights.map(([title, metric, action, source]) => <article className="insight-card" key={title}><Lightbulb size={19} /><h3>{title}</h3><p><strong>{metric}</strong></p><p>{action}</p><small>Source: {source}</small></article>)}</section></div>;
+}
+
+function AnalyticsReportsPage() {
+  const { report, loading, error, reload } = useAnalytics("30d");
+  const exportReport = () => { if (!report) return; const lines = [["Metric", "Value"], ["Period", report.range.label], ["Tasks posted", report.activity.posted], ["Tasks completed", report.activity.completed], ["Applications", report.activity.applications], ["Verified platform revenue", php(report.revenue.netRetainedRevenueCentavos)], ["Outstanding platform fees", php(report.revenue.outstandingFeeObligationsCentavos)]].map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n"); const url = URL.createObjectURL(new Blob([lines], { type: "text/csv" })); const link = document.createElement("a"); link.href = url; link.download = `tasklink-operational-report-${report.range.startDate}-to-${report.range.endDate}.csv`; link.click(); URL.revokeObjectURL(url); };
+  return <div className="page-stack"><div className="page-heading"><div><h2>Reports</h2><p>Export only the displayed, authorized operational summary.</p></div><button className="button primary" onClick={exportReport} disabled={!report || loading}><FileDown size={16} /> Export CSV</button></div>{loading && !report ? <SkeletonCards /> : null}{error ? <ErrorState message={error} retry={reload} /> : null}{report ? <Panel title="Operational summary" description={`${report.range.label} · generated from trusted analytics.`}><Table headers={["Metric", "Value"]}><tr><td>Tasks posted</td><td>{report.activity.posted}</td></tr><tr><td>Tasks completed</td><td>{report.activity.completed}</td></tr><tr><td>Applications</td><td>{report.activity.applications}</td></tr><tr><td>Verified platform revenue</td><td>{php(report.revenue.netRetainedRevenueCentavos)}</td></tr><tr><td>Outstanding service fees</td><td>{php(report.revenue.outstandingFeeObligationsCentavos)}</td></tr></Table></Panel> : null}</div>;
+}
+
+function FinancialReviewPage({ notify }: { notify: (notice: Notice) => void }) {
+  const [fees, setFees] = useState<PlatformFee[]>([]); const [payments, setPayments] = useState<Payment[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [modal, setModal] = useState<{ kind: "payment"; item: Payment; decision: "Verified" | "Rejected" } | { kind: "platform-fee"; item: PlatformFee; decision: "verified" | "rejected" } | null>(null);
+  const refresh = useCallback(async () => { setLoading(true); setError(""); try { const [nextFees, nextPayments] = await Promise.all([loadSubmittedPlatformFees(), loadSubmittedPayments()]); setFees(nextFees); setPayments(nextPayments); } catch (failure) { setError(errorText(failure)); } finally { setLoading(false); } }, []); useEffect(() => { void refresh(); }, [refresh]);
+  return <div className="page-stack"><div className="page-heading"><div><h2>Financial review</h2><p>Evidence is reviewed only by Superadmin. Verification remains a human financial-control decision.</p></div><button className="button secondary" onClick={() => void refresh()} disabled={loading}>Refresh</button></div>{error ? <ErrorState message={error} retry={() => void refresh()} /> : null}<Panel title="TASKLINK service fees" description="Submitted service-fee receipts awaiting review."><Table headers={["Task", "Amount", "Submitted", "Actions"]}>{fees.map((fee) => <tr key={fee.id}><td>{fee.taskTitle || fee.taskId || fee.id}</td><td>{php(fee.feeCentavos || 0)}</td><td>{date(fee.submittedAt)}</td><td><div className="row-actions"><button className="text-button success-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "verified" })}>Verify</button><button className="text-button danger-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "rejected" })}>Reject</button></div></td></tr>)}</Table>{loading ? <TableLoading /> : null}{!loading && !fees.length ? <EmptyState title="No submitted service-fee receipts" /> : null}</Panel><Panel title="Existing payment reviews" description="Submitted GCash task payment evidence."><Table headers={["Task", "Method", "Submitted", "Actions"]}>{payments.map((payment) => <tr key={payment.id}><td>{payment.taskId || payment.id}</td><td>{payment.paymentMethod || "—"}</td><td>{date(payment.updatedAt || payment.createdAt)}</td><td><div className="row-actions"><button className="text-button success-text" onClick={() => setModal({ kind: "payment", item: payment, decision: "Verified" })}>Verify</button><button className="text-button danger-text" onClick={() => setModal({ kind: "payment", item: payment, decision: "Rejected" })}>Reject</button></div></td></tr>)}</Table>{!loading && !payments.length ? <EmptyState title="No submitted payment evidence" /> : null}</Panel>{modal ? <ReviewModal modal={modal} close={() => setModal(null)} refreshPayments={refresh} notify={notify} /> : null}</div>;
+}
+
+function ConfigurationPage() {
+  const [name, setName] = useState(""); const [number, setNumber] = useState(""); const [rate, setRate] = useState("5"); const [instructions, setInstructions] = useState(""); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState(""); const [notice, setNotice] = useState("");
+  const load = useCallback(async () => { setLoading(true); setError(""); try { const { config } = await getPlatformRevenueConfig(); setName(config?.gcashAccountName || ""); setNumber(config?.gcashNumber || ""); setRate(String((config?.rateBasisPoints ?? 500) / 100)); setInstructions(config?.instructions || ""); } catch (failure) { setError(errorText(failure)); } finally { setLoading(false); } }, []);
+  useEffect(() => { void load(); }, [load]);
+  async function save(event: FormEvent) { event.preventDefault(); const percent = Number(rate); if (!Number.isFinite(percent) || percent < 0 || percent > 100) { setError("Service fee must be between 0% and 100%."); return; } setSaving(true); setError(""); setNotice(""); try { await updatePlatformRevenueConfig({ gcashAccountName: name.trim(), gcashNumber: number.trim(), instructions: instructions.trim(), rateBasisPoints: Math.round(percent * 100) }); setNotice("Configuration saved and audit logged."); } catch (failure) { setError(errorText(failure)); } finally { setSaving(false); } }
+  return <div className="page-stack"><div className="page-heading"><div><h2>System configurations</h2><p>Authorized Superadmin settings only. Authentication secrets are never shown here.</p></div><button className="button secondary" onClick={() => void load()} disabled={loading || saving}>Refresh</button></div>{error ? <ErrorState message={error} retry={() => void load()} /> : null}{notice ? <div className="notice success"><p>{notice}</p><button onClick={() => setNotice("")} aria-label="Dismiss">×</button></div> : null}<Panel title="TASKLINK service-fee destination" description="Changes are validated by the trusted backend and written to the immutable audit history.">{loading ? <TableLoading /> : <form onSubmit={save}><label>Official GCash account name<input required value={name} onChange={(event) => setName(event.target.value)} /></label><label>Official GCash number<input required inputMode="tel" value={number} onChange={(event) => setNumber(event.target.value)} /></label><label>Service fee percentage<input required inputMode="decimal" value={rate} onChange={(event) => setRate(event.target.value)} /></label><label>Employer instructions<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} maxLength={1000} /></label><div className="modal-actions"><button className="button primary" disabled={saving}>{saving ? "Saving…" : "Save configuration"}</button></div></form>}</Panel></div>;
 }
 
 function usePaged<T>(

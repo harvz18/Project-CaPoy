@@ -58,6 +58,13 @@ export async function reviewPlatformFee(taskId: string, decision: "verified" | "
 export async function getPlatformRevenueOverview() {
   return getAdminApi<PlatformRevenueOverview>("/api/revenue/overview");
 }
+export type PlatformRevenueConfig = { enabled?: boolean; gcashAccountName?: string; gcashNumber?: string; gcashQrImageUrl?: string; instructions?: string; rateBasisPoints?: number; updatedAt?: string };
+export async function getPlatformRevenueConfig() {
+  return getAdminApi<{ config: PlatformRevenueConfig | null }>("/api/revenue/config");
+}
+export async function updatePlatformRevenueConfig(config: Required<Pick<PlatformRevenueConfig, "gcashAccountName" | "gcashNumber">> & Pick<PlatformRevenueConfig, "gcashQrImageUrl" | "instructions" | "rateBasisPoints">) {
+  return postAdminApi<{ ok: boolean; rateBasisPoints: number }>("/api/revenue/config", config);
+}
 export async function getRevenueAnalytics(preset: RevenueAnalyticsRangePreset) {
   const callable = httpsCallable<{ preset: RevenueAnalyticsRangePreset }, RevenueAnalyticsReport>(requireServices().functions, "getAdminAnalytics");
   return (await callable({ preset })).data;

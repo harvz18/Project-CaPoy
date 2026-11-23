@@ -31,11 +31,11 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return hasEnabledAccount()
-        && (
-          (request.auth.token.keys().hasAny(['admin']) && request.auth.token.admin == true)
-          || (request.auth.token.keys().hasAny(['superadmin']) && request.auth.token.superadmin == true)
-        );
+      // Historical rules used this helper for sensitive operational records.
+      // The web Admin role is now analytics-only and receives its sanitized
+      // aggregates through trusted Functions, so direct privileged reads stay
+      // Superadmin-only.
+      return isSuperadmin();
     }
 
     function isSuperadmin() {
