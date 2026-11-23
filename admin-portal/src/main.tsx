@@ -62,6 +62,7 @@ import {
   reviewPlatformFee,
   reviewVerification,
   reviewVerificationDocument,
+  resetDemoUser,
   updatePlatformRevenueConfig,
 } from "./services";
 import {
@@ -954,7 +955,7 @@ function UsersPage({
                   >
                     Restrict
                   </button>}
-                  {deletionEnabled ? <button className="text-button danger-text" onClick={() => setDeletionUser(user)}>Delete account</button> : null}
+                  {deletionEnabled ? <button className="text-button danger-text" onClick={() => setDeletionUser(user)}>Explicit Actions</button> : null}
                 </div>
               </td> : null}
             </tr>
@@ -977,7 +978,7 @@ function UsersPage({
         />
       ) : null}
       {details ? <ReadOnlyDetailsModal title="Account profile" close={() => setDetails(null)} rows={[["Name", details.fullName || "Unnamed account"], ["Role", roleLabel(details.role)], ["Account status", details.accountStatus === "suspended" ? "Restricted" : details.accountStatus || "Active"], ["Verification", details.verificationStatus || details.identityStatus || "Not submitted"], ["Eligibility progress", typeof details.verificationProgress === "number" ? `${details.verificationProgress}%` : "Unavailable"], ["Registered", date(details.createdAt)], ["Activity", details.activitySummary || "No task activity"]]} /> : null}
-      {deletionUser ? <DeleteUserModal user={deletionUser} close={() => setDeletionUser(null)} reauthenticate={reauthenticate} notify={notify} refreshed={() => { void page.refresh(); }} /> : null}
+      {deletionUser ? <ExplicitUserActionsModal user={deletionUser} close={() => setDeletionUser(null)} reauthenticate={reauthenticate} notify={notify} refreshed={() => { void page.refresh(); }} /> : null}
     </div>
   );
 }
@@ -1604,7 +1605,7 @@ function AuditPage() {
   );
 }
 
-function DeleteUserModal({
+function ExplicitUserActionsModal({
   user,
   close,
   reauthenticate,
@@ -1617,17 +1618,28 @@ function DeleteUserModal({
   notify: (notice: Notice) => void;
   refreshed: () => void;
 }) {
+  const [action, setAction] = useState<"menu" | "delete" | "reset">("menu");
   const [password, setPassword] = useState("");
+  const [resetConfirmation, setResetConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (action === "reset" && resetConfirmation !== "RESET") {
+      setError("Type RESET exactly to confirm the demo-account reset.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
       await reauthenticate(password);
-      await deleteDemoUser(user.id);
-      notify({ tone: "success", message: "User account deleted. Its mobile number can now be registered again." });
+      if (action === "reset") {
+        await resetDemoUser(user.id, resetConfirmation);
+        notify({ tone: "success", message: "Safe demo records were reset and the user account was deleted. Its mobile number can now be registered again." });
+      } else {
+        await deleteDemoUser(user.id);
+        notify({ tone: "success", message: "User account deleted. Its mobile number can now be registered again." });
+      }
       refreshed();
       close();
     } catch (failure) {
@@ -1636,7 +1648,9 @@ function DeleteUserModal({
       setBusy(false);
     }
   }
-  return <Modal title="Delete user account" close={() => !busy && close()}><form onSubmit={submit}><p><strong>{user.fullName || user.id}</strong></p><p>This permanently removes this demo account, its profile, identity uploads, and Firebase sign-in. Accounts with task, application, message, payment, rating, or report history are protected and cannot be deleted.</p><label>Confirm your Superadmin password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required autoFocus /></label>{error ? <p className="inline-error">{error}</p> : null}<ModalActions busy={busy} close={close} confirm="Delete user permanently" danger /></form></Modal>;
+  if (action === "menu") return <Modal title="Explicit account actions" close={close}><p><strong>{user.fullName || user.id}</strong></p><p>These actions permanently remove the user and free their mobile number for a new registration. Choose the action that matches the account's record state.</p><div className="modal-actions"><button className="button secondary" onClick={close}>Cancel</button><button className="button secondary" onClick={() => { setError(""); setAction("delete"); }}>Delete fresh account</button><button className="button danger" onClick={() => { setError(""); setAction("reset"); }}>Reset demo account</button></div></Modal>;
+  const resetting = action === "reset";
+  return <Modal title={resetting ? "Reset demo account" : "Delete fresh account"} close={() => !busy && close()}><form onSubmit={submit}><p><strong>{user.fullName || user.id}</strong></p><p>{resetting ? "This removes safe unfinished demo tasks and applications owned by this account, then deletes its profile, identity uploads, and Firebase sign-in. It stops when it finds assigned work, messages, payments, fees, ratings, or reports." : "This removes only an account with no connected marketplace records, including its profile, identity uploads, and Firebase sign-in."}</p>{resetting ? <label>Type RESET to confirm<input value={resetConfirmation} onChange={(event) => setResetConfirmation(event.target.value)} required autoFocus /></label> : null}<label>Confirm your Superadmin password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required autoFocus={!resetting} /></label>{error ? <p className="inline-error">{error}</p> : null}<ModalActions busy={busy} close={close} confirm={resetting ? "Reset and delete account" : "Delete user permanently"} danger /></form></Modal>;
 }
 
 function UserActionModal({

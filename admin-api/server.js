@@ -1641,7 +1641,7 @@ async function changeAccountStatus({ request, db, claims }) {
 }
 
 async function deleteDocuments(db, documents) {
-  const refs = documents.map((document) => document.ref || document).filter(Boolean);
+  const refs = [...new Map(documents.map((document) => document.ref || document).filter(Boolean).map((ref) => [ref.path, ref])).values()];
   for (let index = 0; index < refs.length; index += 400) {
     const batch = db.batch();
     refs.slice(index, index + 400).forEach((ref) => batch.delete(ref));
@@ -1658,6 +1658,31 @@ async function deleteVerificationFiles(db, userId) {
     await deleteDocuments(db, [upload]);
   }
   await deleteDocuments(db, [root]);
+}
+
+async function deleteAccountArtifacts(db, userId, { taskIds = [], documents = [] } = {}) {
+  const uniqueTaskIds = [...new Set(taskIds.filter(Boolean))];
+  const [notifications, pushTokens, phoneSessions, ...taskNotifications] = await Promise.all([
+    db.collection("notifications").where("userId", "==", userId).get(),
+    db.collection("pushTokens").where("userId", "==", userId).get(),
+    db.collection("phoneOtpSessions").where("userId", "==", userId).get(),
+    ...uniqueTaskIds.map((taskId) => db.collection("notifications").where("taskId", "==", taskId).get())
+  ]);
+  await Promise.all([
+    deleteDocuments(db, [...notifications.docs, ...taskNotifications.flatMap((snapshot) => snapshot.docs)]),
+    deleteDocuments(db, pushTokens.docs),
+    deleteDocuments(db, phoneSessions.docs),
+    deleteVerificationFiles(db, userId)
+  ]);
+  await deleteDocuments(db, [
+    ...documents,
+    db.collection("users").doc(userId),
+    db.collection("publicProfiles").doc(userId),
+    db.collection("workerProfiles").doc(userId),
+    db.collection("clientProfiles").doc(userId),
+    db.collection("verificationRequests").doc(userId),
+    db.collection("notificationPreferences").doc(userId)
+  ]);
 }
 
 async function deleteDemoUser({ request, db, claims }) {
@@ -1701,25 +1726,7 @@ async function deleteDemoUser({ request, db, claims }) {
     throw new ApiError(409, "This account has marketplace or moderation history and cannot be deleted. Restrict or archive it instead.");
   }
 
-  const [notifications, pushTokens, phoneSessions] = await Promise.all([
-    db.collection("notifications").where("userId", "==", userId).get(),
-    db.collection("pushTokens").where("userId", "==", userId).get(),
-    db.collection("phoneOtpSessions").where("userId", "==", userId).get()
-  ]);
-  await Promise.all([
-    deleteDocuments(db, notifications.docs),
-    deleteDocuments(db, pushTokens.docs),
-    deleteDocuments(db, phoneSessions.docs),
-    deleteVerificationFiles(db, userId)
-  ]);
-  await deleteDocuments(db, [
-    userRef,
-    db.collection("publicProfiles").doc(userId),
-    db.collection("workerProfiles").doc(userId),
-    db.collection("clientProfiles").doc(userId),
-    db.collection("verificationRequests").doc(userId),
-    db.collection("notificationPreferences").doc(userId)
-  ]);
+  await deleteAccountArtifacts(db, userId);
   await services().auth.deleteUser(userId);
   const deletedAt = nowIso();
   await db.collection("auditLogs").doc().set({
@@ -1732,6 +1739,84 @@ async function deleteDemoUser({ request, db, claims }) {
     createdAt: deletedAt
   });
   return { ok: true };
+}
+
+const SAFE_RESET_TASK_STATUSES = new Set(["Finding Workers", "Applied", "Cancelled", "Expired"]);
+const SAFE_RESET_MATCH_STATUSES = new Set(["Applied", "Rejected", "Withdrawn", "Cancelled"]);
+
+async function resetDemoUser({ request, db, claims }) {
+  requireRecentPasswordConfirmation(claims);
+  const userId = requiredBodyString(request, "userId");
+  if (requiredBodyString(request, "confirmation") !== "RESET") {
+    throw new ApiError(400, "Type RESET to confirm the demo-account reset.");
+  }
+  if (userId === claims.uid) throw new ApiError(403, "You cannot reset your own Superadmin account.");
+
+  const userRef = db.collection("users").doc(userId);
+  const [userSnapshot, authUser, ownedTasks, assignedTasks, workerMatches, clientMatches, sentMessages, receivedMessages, givenRatings, receivedRatings, submittedReports, receivedReports, employerFees] = await Promise.all([
+    userRef.get(),
+    services().auth.getUser(userId).catch((error) => {
+      if (error?.code === "auth/user-not-found") throw new ApiError(404, "User account was not found.");
+      throw error;
+    }),
+    db.collection("tasks").where("clientId", "==", userId).get(),
+    db.collection("tasks").where("workerId", "==", userId).limit(1).get(),
+    db.collection("taskMatches").where("workerId", "==", userId).get(),
+    db.collection("taskMatches").where("clientId", "==", userId).get(),
+    db.collection("messages").where("senderId", "==", userId).limit(1).get(),
+    db.collection("messages").where("receiverId", "==", userId).limit(1).get(),
+    db.collection("ratings").where("reviewerId", "==", userId).limit(1).get(),
+    db.collection("ratings").where("targetUserId", "==", userId).limit(1).get(),
+    db.collection("violationReports").where("reporterId", "==", userId).limit(1).get(),
+    db.collection("violationReports").where("targetUserId", "==", userId).limit(1).get(),
+    db.collection("platformFees").where("employerId", "==", userId).limit(1).get()
+  ]);
+  if (!userSnapshot.exists) throw new ApiError(404, "User account was not found.");
+  const user = userSnapshot.data();
+  if (!["client", "worker"].includes(user.role)) throw new ApiError(403, "Only standard employer and tasker accounts can be reset.");
+  if (authUser.customClaims?.admin === true || authUser.customClaims?.superadmin === true) {
+    throw new ApiError(403, "Administrator accounts cannot be reset from this tool.");
+  }
+  if (!assignedTasks.empty || !sentMessages.empty || !receivedMessages.empty || !givenRatings.empty || !receivedRatings.empty || !submittedReports.empty || !receivedReports.empty || !employerFees.empty) {
+    throw new ApiError(409, "This account has assigned work, shared communications, financial, rating, or moderation history and cannot be reset.");
+  }
+  const taskDocuments = ownedTasks.docs;
+  const unsafeTask = taskDocuments.find((document) => {
+    const task = document.data();
+    return !SAFE_RESET_TASK_STATUSES.has(task.status) || Boolean(task.workerId) || (task.paymentStatus && task.paymentStatus !== "Pending");
+  });
+  if (unsafeTask) throw new ApiError(409, "One of this employer's tasks has progressed beyond safely resettable demo activity.");
+
+  const taskIds = taskDocuments.map((document) => document.id);
+  const [matchesForOwnedTasks, payments, taskFees] = await Promise.all([
+    Promise.all(taskIds.map((taskId) => db.collection("taskMatches").where("taskId", "==", taskId).get())),
+    Promise.all(taskIds.map((taskId) => db.collection("payments").doc(taskId).get())),
+    Promise.all(taskIds.map((taskId) => db.collection("platformFees").doc(taskId).get()))
+  ]);
+  if (taskFees.some((snapshot) => snapshot.exists) || payments.some((snapshot) => snapshot.exists && snapshot.data().paymentStatus !== "Pending")) {
+    throw new ApiError(409, "One of this employer's tasks has payment or TASKLINK fee history and cannot be reset.");
+  }
+  const allMatches = [...workerMatches.docs, ...clientMatches.docs, ...matchesForOwnedTasks.flatMap((snapshot) => snapshot.docs)];
+  if (allMatches.some((document) => !SAFE_RESET_MATCH_STATUSES.has(document.data().acceptanceStatus))) {
+    throw new ApiError(409, "One of this account's applications has progressed beyond safely resettable demo activity.");
+  }
+
+  await deleteAccountArtifacts(db, userId, {
+    taskIds,
+    documents: [...taskDocuments, ...allMatches, ...payments.filter((snapshot) => snapshot.exists)]
+  });
+  await services().auth.deleteUser(userId);
+  const resetAt = nowIso();
+  await db.collection("auditLogs").doc().set({
+    actorId: claims.uid,
+    action: "reset_demo_user",
+    targetType: "user",
+    targetId: userId,
+    reason: "Superadmin reset safe demo activity and removed the account after password confirmation.",
+    metadata: { role: user.role, resetAt, removedTasks: taskDocuments.length, removedApplications: new Set(allMatches.map((document) => document.ref.path)).size },
+    createdAt: resetAt
+  });
+  return { ok: true, removedTasks: taskDocuments.length, removedApplications: new Set(allMatches.map((document) => document.ref.path)).size };
 }
 
 async function profileLookup({ request, db }) {
@@ -1928,6 +2013,7 @@ function createServer() {
   }));
   app.post("/api/admin/moderation/account-status", route("superadmin", changeAccountStatus));
   app.post("/api/admin/users/delete", route("superadmin", deleteDemoUser));
+  app.post("/api/admin/users/reset-demo", route("superadmin", resetDemoUser));
   app.get("/api/admin/applications", route("superadmin", ({ request, db }) => portalCollectionPage({ request, db, collection: "taskMatches", fields: ["taskId", "workerId", "clientId", "acceptanceStatus", "proposedAmount"] })));
   app.get("/api/admin/feedback", route("superadmin", ({ request, db }) => portalCollectionPage({ request, db, collection: "ratings", fields: ["feedback", "taskId", "targetUserId", "reviewerId", "score"] })));
   app.get("/api/admin/reports", route("superadmin", ({ request, db }) => portalCollectionPage({ request, db, collection: "violationReports", fields: ["category", "reason", "targetUserId", "reporterId", "status"] })));

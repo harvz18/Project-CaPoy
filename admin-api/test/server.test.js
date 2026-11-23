@@ -16,6 +16,8 @@ test("health is public and protected API data requires a bearer token", async ()
     assert.equal(protectedUsers.status, 401);
     const protectedUserDeletion = await fetch(`http://127.0.0.1:${port}/api/admin/users/delete`, { method: "POST" });
     assert.equal(protectedUserDeletion.status, 401);
+    const protectedUserReset = await fetch(`http://127.0.0.1:${port}/api/admin/users/reset-demo`, { method: "POST" });
+    assert.equal(protectedUserReset.status, 401);
     const protectedTasks = await fetch(`http://127.0.0.1:${port}/api/admin/tasks`);
     assert.equal(protectedTasks.status, 401);
     const protectedAudit = await fetch(`http://127.0.0.1:${port}/api/admin/audit`);

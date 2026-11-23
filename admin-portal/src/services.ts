@@ -149,6 +149,9 @@ export async function changeAccountStatus(userId: string, accountStatus: "active
 export async function deleteDemoUser(userId: string) {
   await postAdminApi("/api/admin/users/delete", { userId });
 }
+export async function resetDemoUser(userId: string, confirmation: string) {
+  await postAdminApi("/api/admin/users/reset-demo", { userId, confirmation });
+}
 export async function correctName(userId: string, fullName: string, reason: string) {
   await httpsCallable(requireServices().functions, "correctLockedFullName")({ userId, fullName, reason });
 }
