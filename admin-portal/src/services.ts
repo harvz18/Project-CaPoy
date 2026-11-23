@@ -66,8 +66,7 @@ export async function updatePlatformRevenueConfig(config: Required<Pick<Platform
   return postAdminApi<{ ok: boolean; rateBasisPoints: number }>("/api/revenue/config", config);
 }
 export async function getRevenueAnalytics(preset: RevenueAnalyticsRangePreset) {
-  const callable = httpsCallable<{ preset: RevenueAnalyticsRangePreset }, RevenueAnalyticsReport>(requireServices().functions, "getAdminAnalytics");
-  return (await callable({ preset })).data;
+  return getAdminApi<RevenueAnalyticsReport>(`/api/admin/analytics?preset=${encodeURIComponent(preset)}`);
 }
 export async function getPlatformFeeReceiptUrl(taskId: string, path: string): Promise<VerificationDocumentPreview> {
   const [prefix, pathTaskId, party, ...extra] = path.split("/");

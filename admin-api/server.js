@@ -15,6 +15,7 @@ const {
 const { DOCUMENT_KINDS, calculateVerificationProgress, documentReviewsForSubmission, requestFieldByKind } = require("../functions/verificationProgress");
 const { buildVerifiedPhoneUpdate, hasMatchingVerifiedPhone, normalizePhilippineMobileNumber, normalizeStoredPhilippineMobileNumber } = require("./phoneAuth");
 const { findConflictingAssignment, validSchedule } = require("../functions/marketplace");
+const { buildAnalyticsReport } = require("../functions/analytics");
 const {
   CASH_PIN_MAX_ATTEMPTS,
   CASH_PIN_MAX_GENERATIONS,
@@ -51,6 +52,27 @@ function services() {
 
 function withIds(snapshot) {
   return snapshot.docs.map((document) => ({ id: document.id, ...document.data() }));
+}
+
+async function buildPortalAnalytics(db, rangeInput) {
+  const [usersSnapshot, verificationSnapshot, tasksSnapshot, paymentsSnapshot, platformFeesSnapshot, matchesSnapshot, notificationsSnapshot] = await Promise.all([
+    db.collection("users").where("role", "in", ["client", "worker"]).get(),
+    db.collection("verificationRequests").get(),
+    db.collection("tasks").get(),
+    db.collection("payments").get(),
+    db.collection("platformFees").get(),
+    db.collection("taskMatches").get(),
+    db.collection("notifications").where("notificationType", "in", ["Matching task", "Smart Match"]).get()
+  ]);
+  return buildAnalyticsReport({
+    users: withIds(usersSnapshot),
+    verificationRequests: withIds(verificationSnapshot),
+    tasks: withIds(tasksSnapshot),
+    payments: withIds(paymentsSnapshot),
+    platformFees: withIds(platformFeesSnapshot),
+    taskMatches: withIds(matchesSnapshot),
+    notifications: withIds(notificationsSnapshot)
+  }, rangeInput, nowIso());
 }
 
 function allowedOrigins() {
@@ -1574,6 +1596,21 @@ function createServer() {
   app.post("/api/vonage-otp/profile/check", route("user", completeVonageProfilePhoneVerification));
   app.post("/api/phone-verification/native-session", route("user", createPhoneVerificationNativeSession));
   app.post("/api/phone-verification/sync", route("user", syncPhoneVerification));
+  // Analytics remains on the Render Admin API. This keeps the portal usable on
+  // Firebase Spark: Firestore is read through the existing trusted Admin SDK,
+  // not a separately deployed Cloud Function.
+  app.get("/api/admin/analytics", route("admin", async ({ request, db }) => {
+    const preset = typeof request.query.preset === "string" ? request.query.preset : "7d";
+    try {
+      return await buildPortalAnalytics(db, { preset });
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      const message = error instanceof Error ? error.message : "Unable to generate analytics.";
+      if (/^(Custom analytics dates|Analytics end date|Analytics ranges|Unsupported analytics range)/.test(message)) throw new ApiError(400, message);
+      console.error("TaskLink Render analytics failed", { message, preset });
+      throw new ApiError(500, "Unable to generate live analytics right now.");
+    }
+  }));
   app.post("/api/admin/profiles/lookup", route("superadmin", profileLookup));
   app.get("/api/admin/verifications/pending", route("superadmin", async ({ db }) => {
     const snapshot = await db.collection("verificationRequests").where("status", "==", "Pending Verification").limit(100).get();
