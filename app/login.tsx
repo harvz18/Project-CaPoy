@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
-import { BacolodBarangayPicker } from "../src/components/BacolodBarangayPicker";
+import { PhilippineAddressPicker } from "../src/components/PhilippineAddressPicker";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
 import { normalizePhilippineMobileNumber, phoneVerificationErrorMessage, removePhilippineMobileLeadingZero } from "../src/domain/phoneVerification";
@@ -24,6 +24,7 @@ import { checkSmsRegistrationVerification, startSmsRegistrationVerification } fr
 import { updateUserProfile } from "../src/services/userService";
 import { PublicRole, Role } from "../src/types";
 import { canResendOtp, getOtpResendRemainingSeconds, isValidOtpCode, sanitizeOtpInput } from "../src/utils/otp";
+import { AddressDetails, formatAddressDetails } from "../src/utils/address";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -89,7 +90,7 @@ export default function LoginScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [registerRole, setRegisterRole] = useState<PublicRole>("client");
   const [registerCapabilities, setRegisterCapabilities] = useState(["Cleaning"]);
-  const [selectedBarangay, setSelectedBarangay] = useState("");
+  const [registrationAddress, setRegistrationAddress] = useState<AddressDetails>({});
   const [registerPhoto, setRegisterPhoto] = useState<SelectedFile>();
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
   const [capabilityPickerOpen, setCapabilityPickerOpen] = useState(false);
@@ -180,6 +181,10 @@ export default function LoginScreen() {
       setRegisterError("Passwords do not match.");
       return;
     }
+    if (!registrationAddress.regionCode || !registrationAddress.cityMunicipalityCode || !registrationAddress.barangayCode) {
+      setRegisterError("Select your region, city or municipality, and barangay before creating an account.");
+      return;
+    }
     if (!registrationVerificationId || !registrationNumberVerified) {
       setRegisterError("Verify your mobile number before creating an account.");
       return;
@@ -192,7 +197,8 @@ export default function LoginScreen() {
         mobileNumber: registrationPhoneNumber(registerMobileNumber),
         mobileVerificationId: registrationVerificationId,
         password: registerPassword,
-        address: selectedBarangay,
+        address: formatAddressDetails(registrationAddress),
+        addressDetails: registrationAddress,
         skills: registerRole === "worker" ? registerCapabilities : [],
         capabilities: registerRole === "worker" ? registerCapabilities : [],
         businessName: registerRole === "client" ? fullName : undefined
@@ -508,7 +514,41 @@ export default function LoginScreen() {
                 </View>
               ) : <Text style={screenStyles.otpHint}>Verification is required before creating an account.</Text>}
 
-              <BacolodBarangayPicker label="Barangay" value={selectedBarangay} onChange={setSelectedBarangay} />
+              <View style={screenStyles.addressRow}>
+                <View style={screenStyles.addressField}>
+                  <Text style={screenStyles.label}>House / Building</Text>
+                  <TextInput
+                    onChangeText={(value) => setRegistrationAddress((current) => ({ ...current, houseNumber: value }))}
+                    placeholder="Optional"
+                    placeholderTextColor={palette.outline}
+                    style={screenStyles.textInput}
+                    value={registrationAddress.houseNumber ?? ""}
+                  />
+                </View>
+                <View style={screenStyles.addressField}>
+                  <Text style={screenStyles.label}>Street</Text>
+                  <TextInput
+                    onChangeText={(value) => setRegistrationAddress((current) => ({ ...current, street: value }))}
+                    placeholder="Optional"
+                    placeholderTextColor={palette.outline}
+                    style={screenStyles.textInput}
+                    value={registrationAddress.street ?? ""}
+                  />
+                </View>
+              </View>
+              <PhilippineAddressPicker value={registrationAddress} onChange={setRegistrationAddress} />
+              <View style={screenStyles.addressField}>
+                <Text style={screenStyles.label}>Postal Code</Text>
+                <TextInput
+                  keyboardType="number-pad"
+                  maxLength={10}
+                  onChangeText={(value) => setRegistrationAddress((current) => ({ ...current, postalCode: value.replace(/\D/g, "") }))}
+                  placeholder="Optional"
+                  placeholderTextColor={palette.outline}
+                  style={screenStyles.textInput}
+                  value={registrationAddress.postalCode ?? ""}
+                />
+              </View>
 
               <PasswordField label="Create Password" onChangeText={setRegisterPassword} placeholder="Create password" value={registerPassword} />
               <PasswordField label="Confirm Password" onChangeText={setConfirmPassword} placeholder="Re-enter password" value={confirmPassword} />
@@ -747,6 +787,8 @@ const screenStyles = StyleSheet.create({
     gap: 14,
     paddingTop: 4
   },
+  addressRow: { flexDirection: "row", gap: 10 },
+  addressField: { flex: 1, gap: 6 },
   tabRow: {
     minHeight: 48,
     padding: 4,
