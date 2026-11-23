@@ -1068,8 +1068,6 @@ function ApplicationsPage() {
 
 function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
   const [requests, setRequests] = useState<VerificationRequest[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [platformFees, setPlatformFees] = useState<PlatformFee[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<
@@ -1084,38 +1082,22 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
         documentKind: VerificationDocumentKind;
         decision: "Verified" | "Rejected" | "Needs Resubmission";
       }
-    | { kind: "payment"; item: Payment; decision: "Verified" | "Rejected" }
-    | { kind: "platform-fee"; item: PlatformFee; decision: "verified" | "rejected" }
     | null
   >(null);
   const [document, setDocument] = useState<{
     path: string;
     label: string;
-    taskId?: string;
-    platformFee?: boolean;
   } | null>(null);
   const [requestOrder, setRequestOrder] = useState<SortDirection>("desc");
-  const [paymentOrder, setPaymentOrder] = useState<SortDirection>("desc");
-  const [feeOrder, setFeeOrder] = useState<SortDirection>("desc");
   const profiles = useRecordLookup<Profile>(
-    [...requests.map((item) => item.userId), ...platformFees.map((item) => item.employerId || "")],
+    requests.map((item) => item.userId),
     loadProfilesById,
-  );
-  const paymentTasks = useRecordLookup<Task>(
-    payments.map((item) => item.taskId || item.id),
-    loadTasksById,
   );
   const refreshReviewData = useCallback(async () => {
     setLoading(true);
     try {
-      const [nextRequests, nextPayments, nextPlatformFees] = await Promise.all([
-        loadPendingVerifications(),
-        loadSubmittedPayments(),
-        loadSubmittedPlatformFees()
-      ]);
+      const nextRequests = await loadPendingVerifications();
       setRequests(nextRequests);
-      setPayments(nextPayments);
-      setPlatformFees(nextPlatformFees);
       setError("");
     } catch (failure) {
       setError(errorText(failure));
@@ -1129,17 +1111,15 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
     return () => window.clearInterval(interval);
   }, [refreshReviewData]);
   const sortedRequests = sortByDate(requests, (item) => item.submittedAt, requestOrder);
-  const sortedPayments = sortByDate(payments, (item) => item.updatedAt || item.createdAt, paymentOrder);
-  const sortedPlatformFees = sortByDate(platformFees, (item) => item.submittedAt || item.createdAt, feeOrder);
   return (
     <div className="page-stack">
       <div className="page-heading">
         <div>
-          <h2>Verification requests</h2>
+          <h2>Identity Review</h2>
           <p>
             Open the valid ID, selfie with ID, medical certificate, and police clearance before
             deciding. Decisions update the user profile through a trusted
-            Function.
+            Render Admin API.
           </p>
         </div>
         <button
@@ -1251,63 +1231,6 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
           {!loading && !requests.length ? (
             <EmptyState title="No pending verification requests" />
           ) : null}
-        </Panel>
-        <Panel
-          title={`Payment review (${payments.length})`}
-          description="Submitted GCash evidence only"
-          action={<SortButton direction={paymentOrder} onToggle={() => setPaymentOrder((current) => current === "desc" ? "asc" : "desc")} />}
-        >
-          <Table headers={["Task", "Amount", "Submitted", "Decision"]}>
-            {sortedPayments.map((item) => (
-              <tr key={item.id}>
-                <td>{taskTitle(paymentTasks[item.taskId || item.id])}</td>
-                <td>{item.agreedAmount || "—"}</td>
-                <td>{date(item.updatedAt || item.createdAt)}</td>
-                <td>
-                  <div className="row-actions">
-                    <button
-                      className="text-button success-text"
-                      onClick={() =>
-                        setModal({
-                          kind: "payment",
-                          item,
-                          decision: "Verified",
-                        })
-                      }
-                    >
-                      Verify
-                    </button>
-                    <button
-                      className="text-button danger-text"
-                      onClick={() =>
-                        setModal({
-                          kind: "payment",
-                          item,
-                          decision: "Rejected",
-                        })
-                      }
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </Table>
-          {loading ? <TableLoading /> : null}
-          {!loading && !payments.length ? (
-            <EmptyState title="No submitted payment evidence" />
-          ) : null}
-        </Panel>
-        <Panel title={`TASKLINK service-fee review (${platformFees.length})`} description="Approve only after confirming the separate GCash fee arrived in TASKLINK's account." action={<SortButton direction={feeOrder} onToggle={() => setFeeOrder((current) => current === "desc" ? "asc" : "desc")} />}>
-          <Table headers={["Employer / task", "Worker wage", "Expected fee", "Reference", "Submitted", "Decision"]}>
-            {sortedPlatformFees.map((fee) => <tr key={fee.id}>
-              <td><strong>{profiles[fee.employerId || ""]?.fullName || "Employer unavailable"}</strong><small>{fee.taskTitle || fee.taskId}</small></td>
-              <td>₱{fee.workerWage || "—"}</td><td>₱{fee.feeAmount || "—"}</td><td>{fee.transactionReference || "—"}{fee.receiptPath ? <button className="text-button" onClick={() => setDocument({ path: fee.receiptPath || "", label: "TASKLINK service-fee receipt", taskId: fee.taskId || fee.id, platformFee: true })}>Open receipt</button> : null}</td><td>{date(fee.submittedAt)}</td>
-              <td><div className="row-actions"><button className="text-button success-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "verified" })}>Verify fee</button><button className="text-button danger-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "rejected" })}>Reject</button></div></td>
-            </tr>)}
-          </Table>
-          {loading ? <TableLoading /> : null}{!loading && !platformFees.length ? <EmptyState title="No service-fee payments awaiting review" /> : null}
         </Panel>
       </section>
       {modal ? (
