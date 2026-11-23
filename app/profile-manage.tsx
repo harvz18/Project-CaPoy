@@ -144,8 +144,8 @@ export function ProfileManagementContent({
   const [uploadSourceTarget, setUploadSourceTarget] = useState<"profile-photo" | "valid-id" | "selfie-with-id" | "medical-certificate" | "police-clearance">();
   const [selfieWithIdUrl, setSelfieWithIdUrl] = useState(currentUser?.selfieWithIdUrl ?? "");
   const [verificationRequest, setVerificationRequest] = useState<VerificationRequest>();
-  const hasVerificationDocuments = Boolean(validIdUrl && selfieWithIdUrl && medicalCertificateUrl && policeClearanceUrl);
-  const displayedVerificationStatus = currentUser?.verificationStatus === "Pending Verification" && !hasVerificationDocuments
+  const hasPriorityIdentityDocuments = Boolean(validIdUrl && selfieWithIdUrl);
+  const displayedVerificationStatus = currentUser?.verificationStatus === "Pending Verification" && !hasPriorityIdentityDocuments
     ? "Not Submitted"
     : currentUser?.verificationStatus ?? "Not Submitted";
   const fullNameLocked = isIdentityLocked(currentUser);
@@ -246,7 +246,7 @@ export function ProfileManagementContent({
         businessName: currentUser?.role === "client" ? bio : undefined
       });
       setAddressChanged(false);
-      if (currentUser && documentsChanged && hasVerificationDocuments) {
+      if (currentUser && documentsChanged && hasPriorityIdentityDocuments) {
         const verificationInput: Parameters<typeof submitVerificationRequest>[0] = {
           userId: currentUser.id,
           role: currentUser.role === "client" ? "client" : "worker",
@@ -257,15 +257,24 @@ export function ProfileManagementContent({
           policeClearancePath: policeClearanceUrl
         };
         if (fullNameLocked) {
-          await submitMissingVerificationDocuments(verificationInput);
+          if (!medicalCertificateUrl || !policeClearanceUrl) {
+            throw new Error("Approved accounts can submit only their remaining medical certificate and police clearance together.");
+          }
+          await submitMissingVerificationDocuments({
+            validIdType,
+            validIdPath: validIdUrl,
+            selfieWithIdPath: selfieWithIdUrl,
+            medicalCertificatePath: medicalCertificateUrl,
+            policeClearancePath: policeClearanceUrl
+          });
         } else {
           await submitVerificationRequest(verificationInput);
         }
         setDocumentsChanged(false);
-        setUploadMessage("Verification documents submitted for administrator review.");
+        setUploadMessage("Your ID and matching selfie were submitted for administrator review.");
       } else if (documentsChanged) {
         setDocumentsChanged(false);
-        setUploadMessage("Identity documents saved. Upload the medical certificate and police clearance later, then save again to submit the complete set for administrator review.");
+        setUploadMessage("Upload both your valid ID and matching selfie before submitting them for administrator review.");
       } else {
         setUploadMessage("Profile changes saved.");
       }
@@ -590,7 +599,7 @@ export function ProfileManagementContent({
               />
               <Text style={styles.helperText}>{fullNameLocked
                 ? "Approved documents are locked. Any missing document remains available for upload and will be sent for another administrator review."
-                : "Start with a valid ID and a clear selfie holding that same ID. You may save those now and add the medical certificate and police clearance later (images or PDFs up to 5 MB; selfie must be an image). When all four are ready, save again to submit the complete set for administrator review."}</Text>
+                : "Start with a valid ID and a clear selfie holding that same ID. Once both are ready, save changes to submit them for administrator review. Medical certificate and police clearance can be added later (images or PDFs up to 5 MB; selfie must be an image)."}</Text>
               {uploadMessage ? <Text style={styles.locationMessage}>{uploadMessage}</Text> : null}
             </View> : null}
 

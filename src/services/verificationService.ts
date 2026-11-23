@@ -25,20 +25,20 @@ export async function submitVerificationRequest(input: {
   validIdType: string;
   validIdPath: string;
   selfieWithIdPath: string;
-  medicalCertificatePath: string;
-  policeClearancePath: string;
+  medicalCertificatePath?: string;
+  policeClearancePath?: string;
 }) {
   if (!input.validIdType.trim()) throw new Error("Choose or enter the valid ID type.");
-  if (!input.validIdPath || !input.selfieWithIdPath || !input.medicalCertificatePath || !input.policeClearancePath) {
-    throw new Error("Upload a valid ID, a selfie holding that ID, a medical certificate, and police clearance before submitting.");
+  if (!input.validIdPath || !input.selfieWithIdPath) {
+    throw new Error("Upload a valid ID and a selfie holding that same ID before submitting.");
   }
 
   await postTrustedApi("/api/verification/submit", {
     validIdType: input.validIdType.trim(),
     validIdPath: input.validIdPath,
     selfieWithIdPath: input.selfieWithIdPath,
-    medicalCertificatePath: input.medicalCertificatePath,
-    policeClearancePath: input.policeClearancePath
+    ...(input.medicalCertificatePath ? { medicalCertificatePath: input.medicalCertificatePath } : {}),
+    ...(input.policeClearancePath ? { policeClearancePath: input.policeClearancePath } : {})
   });
 }
 

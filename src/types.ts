@@ -114,6 +114,8 @@ export type UserProfile = {
   selfieWithIdUrl?: string;
   medicalCertificateUrl?: string;
   policeClearanceUrl?: string;
+  /** New accounts must submit an ID and matching selfie before entering the marketplace. */
+  identitySubmissionCompleted?: boolean;
   verificationStatus?: VerificationStatus;
   /** Trusted, derived percentage published without document details. */
   verificationProgress?: number;

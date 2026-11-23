@@ -123,6 +123,7 @@ export async function saveUserProfile(input: SaveUserInput) {
     businessName: input.role === "client" ? input.businessName : undefined,
     verificationStatus: input.role === "worker" ? "Pending Verification" : undefined,
     identityStatus: initialIdentityStatus(input.role),
+    identitySubmissionCompleted: false,
     phoneVerified: false,
     thirdPartyProvider: "none",
     preferredRadiusKm: input.role === "worker" ? 5 : undefined,

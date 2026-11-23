@@ -71,6 +71,9 @@ function ProtectedNavigator() {
   const clientOnlyRoutes = ["client-dashboard", "post-task"];
   const workerOnlyRoutes = ["worker-dashboard", "jobs"];
   const staffRoutes = ["admin", "superadmin"];
+  const initialIdentitySubmissionRequired = (currentUser?.role === "client" || currentUser?.role === "worker")
+    && currentUser.identitySubmissionCompleted === false
+    && !(currentUser.validIdUrl?.trim() && currentUser.selfieWithIdUrl?.trim());
   const offline = networkState.isConnected === false || networkState.isInternetReachable === false;
   const reduceMotion = usePrefersReducedMotion();
 
@@ -116,6 +119,11 @@ function ProtectedNavigator() {
       return;
     }
 
+    if (currentUser && initialIdentitySubmissionRequired && route !== "identity-verification") {
+      router.replace("/identity-verification" as Href);
+      return;
+    }
+
     if (currentUser && authRoutes.includes(route)) {
       const homeRoute = (
         authority === "superadmin"
@@ -153,7 +161,7 @@ function ProtectedNavigator() {
     if (currentUser?.role === "client" && workerOnlyRoutes.includes(route)) {
       router.replace("/client-dashboard");
     }
-  }, [appLoading, authority, currentUser, route, router]);
+  }, [appLoading, authority, currentUser, initialIdentitySubmissionRequired, route, router]);
 
   if (appLoading) {
     return (
@@ -202,6 +210,7 @@ function ProtectedNavigator() {
         <Stack.Screen name="recover-account" options={{ title: "Recover account" }} />
         <Stack.Screen name="help" options={{ title: "TaskLink Beta Information" }} />
         <Stack.Screen name="role-selection" options={{ title: "Role Selection" }} />
+        <Stack.Screen name="identity-verification" options={{ animation: "none", title: "Identity verification" }} />
         <Stack.Screen name="worker-dashboard" options={{ animation: "none", title: "Worker Dashboard" }} />
         <Stack.Screen name="client-dashboard" options={{ animation: "none", title: "Client Dashboard" }} />
         <Stack.Screen name="post-task" options={{ animation: "none", title: "Post Task" }} />

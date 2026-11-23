@@ -117,10 +117,16 @@ export async function pickAndUploadProfilePhoto(userId: string, source: UploadSo
   return file ? uploadProfilePhoto(userId, file) : null;
 }
 
-async function pickPrivateFile(source: UploadSource, allowPdf: boolean, fallbackName: string) {
+async function pickPrivateFile(
+  source: UploadSource,
+  allowPdf: boolean,
+  fallbackName: string,
+  cameraType: ImagePicker.CameraType = ImagePicker.CameraType.back
+) {
   if (source === "camera") {
     const file = await pickImage("camera", fallbackName, {
       mediaTypes: ["images"],
+      cameraType,
       quality: 0.7
     });
     if (!file) return null;
@@ -151,7 +157,12 @@ export async function pickAndUploadPrivateDocument(
 ) {
   // A selfie comparison is meaningful only when it is an image; the other
   // review documents retain the project's image-or-PDF support.
-  const file = await pickPrivateFile(source, kind !== "selfie-with-id", `${kind}.jpg`);
+  const file = await pickPrivateFile(
+    source,
+    kind !== "selfie-with-id",
+    `${kind}.jpg`,
+    kind === "selfie-with-id" ? ImagePicker.CameraType.front : ImagePicker.CameraType.back
+  );
   if (!file) return null;
   const { firestore, user } = requireFirestoreVerificationServices(ownerId);
   const base64 = await readFileAsBase64(file.uri, "verification document");

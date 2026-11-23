@@ -1070,8 +1070,8 @@ function submissionPaths(request) {
   return {
     "valid-id": requiredBodyString(request, "validIdPath"),
     "selfie-with-id": requiredBodyString(request, "selfieWithIdPath"),
-    "medical-certificate": requiredBodyString(request, "medicalCertificatePath"),
-    "police-clearance": requiredBodyString(request, "policeClearancePath")
+    "medical-certificate": optionalBodyString(request, "medicalCertificatePath"),
+    "police-clearance": optionalBodyString(request, "policeClearancePath")
   };
 }
 
@@ -1096,14 +1096,22 @@ async function submitVerificationRequest({ request, db, claims }) {
     const user = userSnapshot.data();
     if (!new Set(["worker", "client"]).has(user.role)) throw new ApiError(409, "Only employer and tasker accounts can submit verification documents.");
     if (isIdentityLocked(user)) throw new ApiError(409, "Approved accounts can only submit documents that were previously missing.");
-    const valid = (await Promise.all(DOCUMENT_KINDS.map((kind) => hasStoredVerificationDocument(transaction, db, claims.uid, submitted[kind], kind)))).every(Boolean);
-    if (!valid) throw new ApiError(409, "Upload complete private copies of all required documents before saving.");
     const previous = previousSnapshot.exists ? previousSnapshot.data() : undefined;
+    const submittedPaths = Object.fromEntries(DOCUMENT_KINDS.map((kind) => [
+      kind,
+      submitted[kind] || previous?.[requestFieldByKind[kind]] || ""
+    ]));
+    const valid = (await Promise.all(
+      DOCUMENT_KINDS
+        .filter((kind) => Boolean(submittedPaths[kind]))
+        .map((kind) => hasStoredVerificationDocument(transaction, db, claims.uid, submittedPaths[kind], kind))
+    )).every(Boolean);
+    if (!valid) throw new ApiError(409, "Each submitted verification document must have a complete private upload before saving.");
     const verification = {
       userId: claims.uid,
       validIdType,
-      ...requestDocumentFields(submitted),
-      documentReviews: documentReviewsForSubmission(previous, submitted, now),
+      ...requestDocumentFields(submittedPaths),
+      documentReviews: documentReviewsForSubmission(previous, submittedPaths, now),
       status: "Pending Verification",
       submittedAt: now,
       updatedAt: now
@@ -1111,20 +1119,22 @@ async function submitVerificationRequest({ request, db, claims }) {
     const nextUser = {
       ...user,
       validIdType,
-      validIdUrl: submitted["valid-id"],
-      selfieWithIdUrl: submitted["selfie-with-id"],
-      medicalCertificateUrl: submitted["medical-certificate"],
-      policeClearanceUrl: submitted["police-clearance"],
+      validIdUrl: submittedPaths["valid-id"],
+      selfieWithIdUrl: submittedPaths["selfie-with-id"],
+      medicalCertificateUrl: submittedPaths["medical-certificate"],
+      policeClearanceUrl: submittedPaths["police-clearance"],
+      identitySubmissionCompleted: true,
       verificationStatus: "Pending Verification",
       identityStatus: "Pending Approval"
     };
     const progress = calculateVerificationProgress(nextUser, verification);
     const profileUpdate = {
       validIdType,
-      validIdUrl: submitted["valid-id"],
-      selfieWithIdUrl: submitted["selfie-with-id"],
-      medicalCertificateUrl: submitted["medical-certificate"],
-      policeClearanceUrl: submitted["police-clearance"],
+      validIdUrl: submittedPaths["valid-id"],
+      selfieWithIdUrl: submittedPaths["selfie-with-id"],
+      medicalCertificateUrl: submittedPaths["medical-certificate"],
+      policeClearanceUrl: submittedPaths["police-clearance"],
+      identitySubmissionCompleted: true,
       verificationStatus: "Pending Verification",
       identityStatus: "Pending Approval",
       ...verificationProfileFields(progress),
@@ -1134,7 +1144,7 @@ async function submitVerificationRequest({ request, db, claims }) {
     transaction.set(db.collection(user.role === "client" ? "clientProfiles" : "workerProfiles").doc(claims.uid), { userId: claims.uid, ...profileUpdate }, { merge: true });
     transaction.set(db.collection("publicProfiles").doc(claims.uid), { verificationStatus: "Pending Verification", ...verificationProfileFields(progress), updatedAt: now }, { merge: true });
     transaction.set(verificationRef, verification);
-    writeAudit(transaction, db, { actorId: claims.uid, action: "submit_verification_documents", targetType: "verification", targetId: claims.uid, metadata: { verificationProgress: progress.percentage } });
+    writeAudit(transaction, db, { actorId: claims.uid, action: "submit_verification_documents", targetType: "verification", targetId: claims.uid, metadata: { submittedKinds: DOCUMENT_KINDS.filter((kind) => Boolean(submittedPaths[kind])), verificationProgress: progress.percentage } });
   });
   return { ok: true, status: "Pending Verification" };
 }

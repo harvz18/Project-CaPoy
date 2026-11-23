@@ -35,8 +35,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow TaskLink to choose a profile photo.",
-          "cameraPermission": "Allow TaskLink to take a profile photo."
+          "photosPermission": "Allow TaskLink to choose photos and documents for your account.",
+          "cameraPermission": "Allow TaskLink to use your camera for identity verification and profile photos."
         }
       ],
       "expo-asset"
