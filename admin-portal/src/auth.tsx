@@ -1,9 +1,15 @@
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, User } from "firebase/auth";
+import { EmailAuthProvider, onAuthStateChanged, reauthenticateWithCredential, signInWithEmailAndPassword, signOut, User } from "firebase/auth";
 import { auth } from "./firebase";
 import { Authority } from "./types";
 
-type Session = { user: User | null; authority: Authority; signIn: (mobile: string, password: string) => Promise<void>; signOut: () => Promise<void> };
+type Session = {
+  user: User | null;
+  authority: Authority;
+  signIn: (mobile: string, password: string) => Promise<void>;
+  reauthenticate: (password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+};
 const AuthContext = createContext<Session | null>(null);
 
 function mobileToEmail(value: string) {
@@ -31,6 +37,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={{
     user, authority,
     signIn: async (mobile, password) => { if (!auth) throw new Error("Firebase is not configured."); await signInWithEmailAndPassword(auth, mobileToEmail(mobile), password); },
+    reauthenticate: async (password) => {
+      const currentUser = auth?.currentUser;
+      if (!currentUser?.email) throw new Error("Your administrator session cannot confirm a password. Sign out and sign in again.");
+      await reauthenticateWithCredential(currentUser, EmailAuthProvider.credential(currentUser.email, password));
+      await currentUser.getIdToken(true);
+    },
     signOut: async () => { if (auth) await signOut(auth); }
   }}>{children}</AuthContext.Provider>;
 }

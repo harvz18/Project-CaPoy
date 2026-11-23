@@ -238,6 +238,16 @@ async function authenticate(request, requiredAuthority = "admin") {
 
 function nowIso() { return new Date().toISOString(); }
 
+const RECENT_PASSWORD_CONFIRMATION_SECONDS = 5 * 60;
+
+function requireRecentPasswordConfirmation(claims) {
+  const authenticatedAt = Number(claims.auth_time);
+  const now = Math.floor(Date.now() / 1000);
+  if (!Number.isFinite(authenticatedAt) || authenticatedAt > now + 60 || now - authenticatedAt > RECENT_PASSWORD_CONFIRMATION_SECONDS) {
+    throw new ApiError(403, "Confirm your Superadmin password again before deleting an account.");
+  }
+}
+
 function writeAudit(transaction, db, { actorId, action, targetType, targetId, reason = "", metadata = {} }) {
   transaction.set(db.collection("auditLogs").doc(), {
     actorId, action, targetType, targetId, reason, metadata, createdAt: nowIso()
@@ -1630,6 +1640,100 @@ async function changeAccountStatus({ request, db, claims }) {
   return { ok: true, accountStatus };
 }
 
+async function deleteDocuments(db, documents) {
+  const refs = documents.map((document) => document.ref || document).filter(Boolean);
+  for (let index = 0; index < refs.length; index += 400) {
+    const batch = db.batch();
+    refs.slice(index, index + 400).forEach((ref) => batch.delete(ref));
+    await batch.commit();
+  }
+}
+
+async function deleteVerificationFiles(db, userId) {
+  const root = db.collection("verificationFiles").doc(userId);
+  const uploads = await root.collection("uploads").get();
+  for (const upload of uploads.docs) {
+    const chunks = await upload.ref.collection("chunks").get();
+    await deleteDocuments(db, chunks.docs);
+    await deleteDocuments(db, [upload]);
+  }
+  await deleteDocuments(db, [root]);
+}
+
+async function deleteDemoUser({ request, db, claims }) {
+  requireRecentPasswordConfirmation(claims);
+  const userId = requiredBodyString(request, "userId");
+  if (userId === claims.uid) throw new ApiError(403, "You cannot delete your own Superadmin account.");
+
+  const userRef = db.collection("users").doc(userId);
+  const [userSnapshot, authUser] = await Promise.all([
+    userRef.get(),
+    services().auth.getUser(userId).catch((error) => {
+      if (error?.code === "auth/user-not-found") throw new ApiError(404, "User account was not found.");
+      throw error;
+    })
+  ]);
+  if (!userSnapshot.exists) throw new ApiError(404, "User account was not found.");
+  const user = userSnapshot.data();
+  if (!["client", "worker"].includes(user.role)) throw new ApiError(403, "Only standard employer and tasker accounts can be deleted.");
+  if (authUser.customClaims?.admin === true || authUser.customClaims?.superadmin === true) {
+    throw new ApiError(403, "Administrator accounts cannot be deleted from this tool.");
+  }
+
+  // A deletion must not leave marketplace, communication, financial, rating,
+  // or moderation records pointing at a missing participant. This intentionally
+  // makes the feature suitable for newly created demo accounts only.
+  const [clientTasks, workerTasks, workerMatches, clientMatches, sentMessages, receivedMessages, givenRatings, receivedRatings, submittedReports, receivedReports, platformFees] = await Promise.all([
+    db.collection("tasks").where("clientId", "==", userId).limit(1).get(),
+    db.collection("tasks").where("workerId", "==", userId).limit(1).get(),
+    db.collection("taskMatches").where("workerId", "==", userId).limit(1).get(),
+    db.collection("taskMatches").where("clientId", "==", userId).limit(1).get(),
+    db.collection("messages").where("senderId", "==", userId).limit(1).get(),
+    db.collection("messages").where("receiverId", "==", userId).limit(1).get(),
+    db.collection("ratings").where("reviewerId", "==", userId).limit(1).get(),
+    db.collection("ratings").where("targetUserId", "==", userId).limit(1).get(),
+    db.collection("violationReports").where("reporterId", "==", userId).limit(1).get(),
+    db.collection("violationReports").where("targetUserId", "==", userId).limit(1).get(),
+    db.collection("platformFees").where("employerId", "==", userId).limit(1).get()
+  ]);
+  const hasHistory = [clientTasks, workerTasks, workerMatches, clientMatches, sentMessages, receivedMessages, givenRatings, receivedRatings, submittedReports, receivedReports, platformFees].some((snapshot) => !snapshot.empty);
+  if (hasHistory) {
+    throw new ApiError(409, "This account has marketplace or moderation history and cannot be deleted. Restrict or archive it instead.");
+  }
+
+  const [notifications, pushTokens, phoneSessions] = await Promise.all([
+    db.collection("notifications").where("userId", "==", userId).get(),
+    db.collection("pushTokens").where("userId", "==", userId).get(),
+    db.collection("phoneOtpSessions").where("userId", "==", userId).get()
+  ]);
+  await Promise.all([
+    deleteDocuments(db, notifications.docs),
+    deleteDocuments(db, pushTokens.docs),
+    deleteDocuments(db, phoneSessions.docs),
+    deleteVerificationFiles(db, userId)
+  ]);
+  await deleteDocuments(db, [
+    userRef,
+    db.collection("publicProfiles").doc(userId),
+    db.collection("workerProfiles").doc(userId),
+    db.collection("clientProfiles").doc(userId),
+    db.collection("verificationRequests").doc(userId),
+    db.collection("notificationPreferences").doc(userId)
+  ]);
+  await services().auth.deleteUser(userId);
+  const deletedAt = nowIso();
+  await db.collection("auditLogs").doc().set({
+    actorId: claims.uid,
+    action: "delete_demo_user",
+    targetType: "user",
+    targetId: userId,
+    reason: "Superadmin removed a fresh demo account after password confirmation.",
+    metadata: { role: user.role, deletedAt },
+    createdAt: deletedAt
+  });
+  return { ok: true };
+}
+
 async function profileLookup({ request, db }) {
   const profiles = {};
   await Promise.all(requestedIds(request).map(async (id) => {
@@ -1823,6 +1927,7 @@ function createServer() {
     return { users: users.docs.map((document) => toModerationUser(document.id, document.data())) };
   }));
   app.post("/api/admin/moderation/account-status", route("superadmin", changeAccountStatus));
+  app.post("/api/admin/users/delete", route("superadmin", deleteDemoUser));
   app.get("/api/admin/applications", route("superadmin", ({ request, db }) => portalCollectionPage({ request, db, collection: "taskMatches", fields: ["taskId", "workerId", "clientId", "acceptanceStatus", "proposedAmount"] })));
   app.get("/api/admin/feedback", route("superadmin", ({ request, db }) => portalCollectionPage({ request, db, collection: "ratings", fields: ["feedback", "taskId", "targetUserId", "reviewerId", "score"] })));
   app.get("/api/admin/reports", route("superadmin", ({ request, db }) => portalCollectionPage({ request, db, collection: "violationReports", fields: ["category", "reason", "targetUserId", "reporterId", "status"] })));

@@ -146,6 +146,9 @@ export async function reviewPayment(taskId: string, decision: "Verified" | "Reje
 export async function changeAccountStatus(userId: string, accountStatus: "active" | "suspended", reason: string, violationReportId = "") {
   await postAdminApi("/api/admin/moderation/account-status", { userId, accountStatus, reason, violationReportId });
 }
+export async function deleteDemoUser(userId: string) {
+  await postAdminApi("/api/admin/users/delete", { userId });
+}
 export async function correctName(userId: string, fullName: string, reason: string) {
   await httpsCallable(requireServices().functions, "correctLockedFullName")({ userId, fullName, reason });
 }

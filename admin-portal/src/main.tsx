@@ -41,6 +41,7 @@ import { AuthProvider, useAuth } from "./auth";
 import { firebaseConfigured } from "./firebase";
 import {
   changeAccountStatus,
+  deleteDemoUser,
   getAdminModerationUsers,
   getBasicDashboardCounts,
   getFeedbackCount,
@@ -78,6 +79,24 @@ import {
   VerificationDocumentKind,
   ViolationReport,
 } from "./types";
+
+const USER_DELETION_MODE_KEY = "tasklink-superadmin-user-deletion-until";
+const USER_DELETION_MODE_MS = 10 * 60 * 1000;
+
+function userDeletionModeUntil() {
+  try {
+    const expiresAt = Number(window.sessionStorage.getItem(USER_DELETION_MODE_KEY));
+    return Number.isFinite(expiresAt) && expiresAt > Date.now() ? expiresAt : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function enableUserDeletionMode() {
+  const expiresAt = Date.now() + USER_DELETION_MODE_MS;
+  window.sessionStorage.setItem(USER_DELETION_MODE_KEY, String(expiresAt));
+  return expiresAt;
+}
 import "./styles.css";
 import "./v5.css";
 
@@ -694,11 +713,34 @@ function FinancialReviewPage({ notify }: { notify: (notice: Notice) => void }) {
 }
 
 function ConfigurationPage() {
+  const { reauthenticate } = useAuth();
+  const [deletionPassword, setDeletionPassword] = useState("");
+  const [deletionModalOpen, setDeletionModalOpen] = useState(false);
+  const [deletionBusy, setDeletionBusy] = useState(false);
+  const [deletionError, setDeletionError] = useState("");
+  const [deletionUntil, setDeletionUntil] = useState(userDeletionModeUntil);
   const [name, setName] = useState(""); const [number, setNumber] = useState(""); const [rate, setRate] = useState("5"); const [instructions, setInstructions] = useState(""); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState(""); const [notice, setNotice] = useState("");
   const load = useCallback(async () => { setLoading(true); setError(""); try { const { config } = await getPlatformRevenueConfig(); setName(config?.gcashAccountName || ""); setNumber(config?.gcashNumber || ""); setRate(String((config?.rateBasisPoints ?? 500) / 100)); setInstructions(config?.instructions || ""); } catch (failure) { setError(errorText(failure)); } finally { setLoading(false); } }, []);
   useEffect(() => { void load(); }, [load]);
   async function save(event: FormEvent) { event.preventDefault(); const percent = Number(rate); if (!Number.isFinite(percent) || percent < 0 || percent > 100) { setError("Service fee must be between 0% and 100%."); return; } setSaving(true); setError(""); setNotice(""); try { await updatePlatformRevenueConfig({ gcashAccountName: name.trim(), gcashNumber: number.trim(), instructions: instructions.trim(), rateBasisPoints: Math.round(percent * 100) }); setNotice("Configuration saved and audit logged."); } catch (failure) { setError(errorText(failure)); } finally { setSaving(false); } }
-  return <div className="page-stack"><div className="page-heading"><div><h2>System configurations</h2><p>Authorized Superadmin settings only. Authentication secrets are never shown here.</p></div><button className="button secondary" onClick={() => void load()} disabled={loading || saving}>Refresh</button></div>{error ? <ErrorState message={error} retry={() => void load()} /> : null}{notice ? <div className="notice success"><p>{notice}</p><button onClick={() => setNotice("")} aria-label="Dismiss">×</button></div> : null}<Panel title="TASKLINK service-fee destination" description="Changes are validated by the trusted backend and written to the immutable audit history.">{loading ? <TableLoading /> : <form onSubmit={save}><label>Official GCash account name<input required value={name} onChange={(event) => setName(event.target.value)} /></label><label>Official GCash number<input required inputMode="tel" value={number} onChange={(event) => setNumber(event.target.value)} /></label><label>Service fee percentage<input required inputMode="decimal" value={rate} onChange={(event) => setRate(event.target.value)} /></label><label>Employer instructions<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} maxLength={1000} /></label><div className="modal-actions"><button className="button primary" disabled={saving}>{saving ? "Saving…" : "Save configuration"}</button></div></form>}</Panel></div>;
+  async function allowUserDeletion(event: FormEvent) {
+    event.preventDefault();
+    setDeletionBusy(true);
+    setDeletionError("");
+    try {
+      await reauthenticate(deletionPassword);
+      setDeletionUntil(enableUserDeletionMode());
+      setDeletionPassword("");
+      setDeletionModalOpen(false);
+      setNotice("User deletion is enabled for this browser session for 10 minutes. Each deletion still requires your password.");
+    } catch (failure) {
+      setDeletionError(errorText(failure));
+    } finally {
+      setDeletionBusy(false);
+    }
+  }
+  const deletionEnabled = deletionUntil > Date.now();
+  return <div className="page-stack"><div className="page-heading"><div><h2>System configurations</h2><p>Authorized Superadmin settings only. Authentication secrets are never shown here.</p></div><button className="button secondary" onClick={() => void load()} disabled={loading || saving}>Refresh</button></div>{error ? <ErrorState message={error} retry={() => void load()} /> : null}{notice ? <div className="notice success"><p>{notice}</p><button onClick={() => setNotice("")} aria-label="Dismiss">×</button></div> : null}<Panel title="TASKLINK service-fee destination" description="Changes are validated by the trusted backend and written to the immutable audit history.">{loading ? <TableLoading /> : <form onSubmit={save}><label>Official GCash account name<input required value={name} onChange={(event) => setName(event.target.value)} /></label><label>Official GCash number<input required inputMode="tel" value={number} onChange={(event) => setNumber(event.target.value)} /></label><label>Service fee percentage<input required inputMode="decimal" value={rate} onChange={(event) => setRate(event.target.value)} /></label><label>Employer instructions<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} maxLength={1000} /></label><div className="modal-actions"><button className="button primary" disabled={saving}>{saving ? "Saving…" : "Save configuration"}</button></div></form>}</Panel><Panel title="Demo account deletion" description={deletionEnabled ? `Deletion mode is active until ${new Date(deletionUntil).toLocaleTimeString()}. Every deletion still requires your password and accounts with history are protected.` : "For repeat registration testing only. It opens a 10-minute deletion window in this browser; every account deletion requires a second password confirmation."}><button className={`button ${deletionEnabled ? "secondary" : "danger"}`} onClick={() => { setDeletionError(""); setDeletionPassword(""); setDeletionModalOpen(true); }}>{deletionEnabled ? "User deletion enabled" : "Allow User Deletion"}</button></Panel>{deletionModalOpen ? <Modal title="Allow User Deletion" close={() => !deletionBusy && setDeletionModalOpen(false)}><form onSubmit={allowUserDeletion}><p>Confirm your Superadmin password to enable the temporary delete controls. This does not delete an account yet.</p><label>Superadmin password<input type="password" autoComplete="current-password" value={deletionPassword} onChange={(event) => setDeletionPassword(event.target.value)} required autoFocus /></label>{deletionError ? <p className="inline-error">{deletionError}</p> : null}<ModalActions busy={deletionBusy} close={() => setDeletionModalOpen(false)} confirm="Enable for 10 minutes" danger /></form></Modal> : null}</div>;
 }
 
 function usePaged<T>(
@@ -806,6 +848,7 @@ function UsersPage({
   scope: Scope;
   notify: (notice: Notice) => void;
 }) {
+  const { reauthenticate } = useAuth();
   const [nameOrder, setNameOrder] = useState<SortDirection>("asc");
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
@@ -817,11 +860,20 @@ function UsersPage({
     action: "suspend" | "active";
   } | null>(null);
   const [details, setDetails] = useState<Profile | null>(null);
+  const [deletionUser, setDeletionUser] = useState<Profile | null>(null);
+  const [deletionUntil, setDeletionUntil] = useState(userDeletionModeUntil);
   const users = page.items;
   useEffect(() => {
     const requestedRole = searchParams.get("role");
     setRole(requestedRole === "client" || requestedRole === "worker" ? requestedRole : "all");
   }, [searchParams]);
+  useEffect(() => {
+    if (!deletionUntil) return;
+    const delay = Math.max(0, deletionUntil - Date.now()) + 1;
+    const timeout = window.setTimeout(() => setDeletionUntil(userDeletionModeUntil()), delay);
+    return () => window.clearTimeout(timeout);
+  }, [deletionUntil]);
+  const deletionEnabled = scope === "superadmin" && deletionUntil > Date.now();
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -902,6 +954,7 @@ function UsersPage({
                   >
                     Restrict
                   </button>}
+                  {deletionEnabled ? <button className="text-button danger-text" onClick={() => setDeletionUser(user)}>Delete account</button> : null}
                 </div>
               </td> : null}
             </tr>
@@ -924,6 +977,7 @@ function UsersPage({
         />
       ) : null}
       {details ? <ReadOnlyDetailsModal title="Account profile" close={() => setDetails(null)} rows={[["Name", details.fullName || "Unnamed account"], ["Role", roleLabel(details.role)], ["Account status", details.accountStatus === "suspended" ? "Restricted" : details.accountStatus || "Active"], ["Verification", details.verificationStatus || details.identityStatus || "Not submitted"], ["Eligibility progress", typeof details.verificationProgress === "number" ? `${details.verificationProgress}%` : "Unavailable"], ["Registered", date(details.createdAt)], ["Activity", details.activitySummary || "No task activity"]]} /> : null}
+      {deletionUser ? <DeleteUserModal user={deletionUser} close={() => setDeletionUser(null)} reauthenticate={reauthenticate} notify={notify} refreshed={() => { void page.refresh(); }} /> : null}
     </div>
   );
 }
@@ -1447,7 +1501,7 @@ function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
           ))}
         </Table>
         {page.loading ? <TableLoading /> : null}
-        {!loading && !data.length ? (
+        {!page.loading && !data.length ? (
           <EmptyState title="No violation reports" />
         ) : null}
         {page.error ? (
@@ -1548,6 +1602,41 @@ function AuditPage() {
       </Panel>
     </div>
   );
+}
+
+function DeleteUserModal({
+  user,
+  close,
+  reauthenticate,
+  notify,
+  refreshed,
+}: {
+  user: Profile;
+  close: () => void;
+  reauthenticate: (password: string) => Promise<void>;
+  notify: (notice: Notice) => void;
+  refreshed: () => void;
+}) {
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await reauthenticate(password);
+      await deleteDemoUser(user.id);
+      notify({ tone: "success", message: "User account deleted. Its mobile number can now be registered again." });
+      refreshed();
+      close();
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <Modal title="Delete user account" close={() => !busy && close()}><form onSubmit={submit}><p><strong>{user.fullName || user.id}</strong></p><p>This permanently removes this demo account, its profile, identity uploads, and Firebase sign-in. Accounts with task, application, message, payment, rating, or report history are protected and cannot be deleted.</p><label>Confirm your Superadmin password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required autoFocus /></label>{error ? <p className="inline-error">{error}</p> : null}<ModalActions busy={busy} close={close} confirm="Delete user permanently" danger /></form></Modal>;
 }
 
 function UserActionModal({
