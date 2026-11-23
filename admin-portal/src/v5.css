@@ -10,3 +10,8 @@
 .table-filter-row > input { width: min(100%, 155px); }
 .details-list { display: grid; gap: 0; margin: 20px 0; } .details-list div { display: grid; grid-template-columns: 130px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid #e7efed; } .details-list dt { color: #667085; font-size: 12px; font-weight: 800; } .details-list dd { margin: 0; color: #18312d; font-size: 13px; line-height: 1.45; }
 @media (max-width: 800px) { .panel-head { flex-wrap: wrap; } .table-controls { width: 100%; justify-content: flex-end; } .table-filter-row > input { flex: 1 1 130px; width: auto; } }
+.review-table-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.review-table { overflow: visible; }
+.review-table table { min-width: 0; table-layout: fixed; }
+.review-table th, .review-table td { overflow-wrap: anywhere; }
+.review-table td small { max-width: none; overflow: visible; white-space: normal; }

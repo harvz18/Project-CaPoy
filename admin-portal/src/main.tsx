@@ -687,8 +687,10 @@ function FinancialReviewPage({ notify }: { notify: (notice: Notice) => void }) {
   const refresh = useCallback(async () => { setLoading(true); setError(""); try { const [nextFees, nextPayments] = await Promise.all([loadSubmittedPlatformFees(), loadSubmittedPayments()]); setFees(nextFees); setPayments(nextPayments); } catch (failure) { setError(errorText(failure)); } finally { setLoading(false); } }, []); useEffect(() => { void refresh(); }, [refresh]);
   const sortedFees = sortByDate(fees, (fee) => fee.submittedAt, dateOrder);
   const sortedPayments = sortByDate(payments, (payment) => payment.updatedAt || payment.createdAt, dateOrder);
+  const feePage = useLocalTablePage(sortedFees);
+  const paymentPage = useLocalTablePage(sortedPayments);
   const sort = <SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />;
-  return <div className="page-stack"><div className="page-heading"><div><h2>Financial review</h2><p>Evidence is reviewed only by Superadmin. Verification remains a human financial-control decision.</p></div><button className="button secondary" onClick={() => void refresh()} disabled={loading}>Refresh</button></div>{error ? <ErrorState message={error} retry={() => void refresh()} /> : null}<Panel title="TASKLINK service fees" description="Submitted service-fee receipts awaiting review." action={sort}><Table headers={["Task", "Amount", "Submitted", "Actions"]}>{sortedFees.map((fee) => <tr key={fee.id}><td>{fee.taskTitle || fee.taskId || fee.id}</td><td>{php(fee.feeCentavos || 0)}</td><td>{date(fee.submittedAt)}</td><td><div className="row-actions"><button className="text-button success-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "verified" })}>Verify</button><button className="text-button danger-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "rejected" })}>Reject</button></div></td></tr>)}</Table>{loading ? <TableLoading /> : null}{!loading && !fees.length ? <EmptyState title="No submitted service-fee receipts" /> : null}</Panel><Panel title="Existing payment reviews" description="Submitted GCash task payment evidence." action={sort}><Table headers={["Task", "Method", "Submitted", "Actions"]}>{sortedPayments.map((payment) => <tr key={payment.id}><td>{payment.taskId || payment.id}</td><td>{payment.paymentMethod || "—"}</td><td>{date(payment.updatedAt || payment.createdAt)}</td><td><div className="row-actions"><button className="text-button success-text" onClick={() => setModal({ kind: "payment", item: payment, decision: "Verified" })}>Verify</button><button className="text-button danger-text" onClick={() => setModal({ kind: "payment", item: payment, decision: "Rejected" })}>Reject</button></div></td></tr>)}</Table>{!loading && !payments.length ? <EmptyState title="No submitted payment evidence" /> : null}</Panel>{modal ? <ReviewModal modal={modal} close={() => setModal(null)} refreshPayments={refresh} notify={notify} /> : null}</div>;
+  return <div className="page-stack"><div className="page-heading"><div><h2>Financial review</h2><p>Evidence is reviewed only by Superadmin. Verification remains a human financial-control decision.</p></div><button className="button secondary" onClick={() => void refresh()} disabled={loading}>Refresh</button></div>{error ? <ErrorState message={error} retry={() => void refresh()} /> : null}<Panel title="TASKLINK service fees" description="Submitted service-fee receipts awaiting review." action={sort}><Table className="review-table" headers={["Task", "Amount", "Submitted", "Actions"]}>{feePage.items.map((fee) => <tr key={fee.id}><td>{fee.taskTitle || fee.taskId || fee.id}</td><td>{php(fee.feeCentavos || 0)}</td><td>{date(fee.submittedAt)}</td><td><div className="row-actions"><button className="text-button success-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "verified" })}>Verify</button><button className="text-button danger-text" onClick={() => setModal({ kind: "platform-fee", item: fee, decision: "rejected" })}>Reject</button></div></td></tr>)}</Table>{loading ? <TableLoading /> : null}{!loading && !fees.length ? <EmptyState title="No submitted service-fee receipts" /> : null}{fees.length > PAGE_SIZE ? <Pager loading={loading} hasMore={feePage.hasMore} next={feePage.next} previous={feePage.previous} canGoBack={feePage.canGoBack} pageNumber={feePage.pageNumber} /> : null}</Panel><Panel title="Existing payment reviews" description="Submitted GCash task payment evidence." action={sort}><Table className="review-table" headers={["Task", "Method", "Submitted", "Actions"]}>{paymentPage.items.map((payment) => <tr key={payment.id}><td>{payment.taskId || payment.id}</td><td>{payment.paymentMethod || "—"}</td><td>{date(payment.updatedAt || payment.createdAt)}</td><td><div className="row-actions"><button className="text-button success-text" onClick={() => setModal({ kind: "payment", item: payment, decision: "Verified" })}>Verify</button><button className="text-button danger-text" onClick={() => setModal({ kind: "payment", item: payment, decision: "Rejected" })}>Reject</button></div></td></tr>)}</Table>{loading ? <TableLoading /> : null}{!loading && !payments.length ? <EmptyState title="No submitted payment evidence" /> : null}{payments.length > PAGE_SIZE ? <Pager loading={loading} hasMore={paymentPage.hasMore} next={paymentPage.next} previous={paymentPage.previous} canGoBack={paymentPage.canGoBack} pageNumber={paymentPage.pageNumber} /> : null}</Panel>{modal ? <ReviewModal modal={modal} close={() => setModal(null)} refreshPayments={refresh} notify={notify} /> : null}</div>;
 }
 
 function ConfigurationPage() {
@@ -747,6 +749,25 @@ function usePaged<T>(
     canGoBack: pageNumber > 1,
     refresh: () => load(pageNumber),
     pageNumber,
+  };
+}
+
+function useLocalTablePage<T extends { id: string }>(items: T[], pageSize = PAGE_SIZE) {
+  const itemKey = items.map((item) => item.id).join("|");
+  const [pageNumber, setPageNumber] = useState(1);
+  useEffect(() => {
+    setPageNumber(1);
+  }, [itemKey, pageSize]);
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const currentPage = Math.min(pageNumber, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  return {
+    items: items.slice(start, start + pageSize),
+    pageNumber: currentPage,
+    hasMore: currentPage < totalPages,
+    canGoBack: currentPage > 1,
+    next: () => setPageNumber((current) => Math.min(totalPages, current + 1)),
+    previous: () => setPageNumber((current) => Math.max(1, current - 1)),
   };
 }
 
@@ -1111,6 +1132,7 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
     return () => window.clearInterval(interval);
   }, [refreshReviewData]);
   const sortedRequests = sortByDate(requests, (item) => item.submittedAt, requestOrder);
+  const requestPage = useLocalTablePage(sortedRequests);
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -1132,13 +1154,14 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
       {error ? (
         <ErrorState message={error} retry={() => void refreshReviewData()} />
       ) : null}
-      <section className="dashboard-grid">
+      <section className="review-table-stack">
         <Panel
           title={`Identity review (${requests.length})`}
           description="Pending Tasker and Employer requests"
           action={<SortButton direction={requestOrder} onToggle={() => setRequestOrder((current) => current === "desc" ? "asc" : "desc")} />}
         >
           <Table
+            className="review-table"
             headers={[
               "Account",
               "Progress",
@@ -1147,7 +1170,7 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
               "Decision",
             ]}
           >
-          {sortedRequests.map((item) => {
+          {requestPage.items.map((item) => {
             return <tr key={item.id}>
                 <td>{profiles[item.userId]?.fullName || "Account unavailable"}</td>
                 <td><strong>{profiles[item.userId]?.verificationProgress ?? 0}%</strong><small>{profiles[item.userId]?.verificationProgressLevel || "Incomplete"}</small></td>
@@ -1230,6 +1253,16 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
           {loading ? <TableLoading /> : null}
           {!loading && !requests.length ? (
             <EmptyState title="No pending verification requests" />
+          ) : null}
+          {requests.length > PAGE_SIZE ? (
+            <Pager
+              loading={loading}
+              hasMore={requestPage.hasMore}
+              next={requestPage.next}
+              previous={requestPage.previous}
+              canGoBack={requestPage.canGoBack}
+              pageNumber={requestPage.pageNumber}
+            />
           ) : null}
         </Panel>
       </section>
@@ -1914,12 +1947,14 @@ function Metric({
 function Table({
   headers,
   children,
+  className = "",
 }: {
   headers: string[];
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="table-wrap">
+    <div className={`table-wrap ${className}`.trim()}>
       <table>
         <thead>
           <tr>
