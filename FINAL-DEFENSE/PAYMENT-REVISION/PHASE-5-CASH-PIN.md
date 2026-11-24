@@ -2,7 +2,7 @@
 
 ## Delivered
 
-The previous direct COD receipt-confirmation path has been replaced with a server-owned, in-app four-digit mutual-confirmation PIN flow. The existing worker GCash flow was retained unchanged.
+The previous direct Cash receipt-confirmation path has been replaced with a server-owned, in-app four-digit mutual-confirmation PIN flow. The existing worker GCash flow was retained unchanged.
 
 1. After work is in `Pending Approval`, the employer taps **I Have Paid**.
 2. The worker sees the Cash acknowledgement prompt and confirms only after receiving and counting the full amount.

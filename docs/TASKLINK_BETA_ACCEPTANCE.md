@@ -120,7 +120,7 @@ For every row record commit/build, tester role, device/browser and version, Andr
 | A06 | Accepted task chat and read state | Two devices | Only participants can read/send; pagination and receipts work | Pending |
 | A07 | Inside-radius start and finish | Physical Android | Fresh accurate device location permits each transition | Pending |
 | A08 | GCash evidence review and completion | Client + Admin | Evidence remains private; trusted review required | Blocked: Functions/Storage |
-| A09 | COD confirmation and completion | Client + Tasker | Both trusted states are required | Blocked: Functions |
+| A09 | Cash confirmation and completion | Client + Tasker | Both trusted states are required | Blocked: Functions |
 | A10 | Rating and archive | Two accounts | One immutable rating per reviewer/task; data-backed aggregates | Pending |
 | A11 | Admin verification/payment review | Admin | Custom claim required; ordinary accounts denied | Blocked: Functions/provisioning |
 | A12 | Superadmin restriction/reactivation/name correction | Superadmin | Reason/evidence/audit required; restricted account denied | Blocked: Functions/provisioning |

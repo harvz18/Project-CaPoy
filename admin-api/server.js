@@ -238,6 +238,10 @@ async function authenticate(request, requiredAuthority = "admin") {
 
 function nowIso() { return new Date().toISOString(); }
 
+function isCashPaymentMethod(value) {
+  return value === "Cash" || value === "COD";
+}
+
 const RECENT_PASSWORD_CONFIRMATION_SECONDS = 5 * 60;
 
 function requireRecentPasswordConfirmation(claims) {
@@ -324,7 +328,7 @@ function clearCashPinFields() {
 }
 
 function assertCashPaymentParticipants(task, payment, claims, actor) {
-  if (task.status !== "Pending Approval" || task.paymentMethod !== "COD" || payment.paymentMethod !== "COD") {
+  if (task.status !== "Pending Approval" || !isCashPaymentMethod(task.paymentMethod) || !isCashPaymentMethod(payment.paymentMethod)) {
     throw new ApiError(409, "Cash confirmation is available after completed work is awaiting employer approval.");
   }
   if (actor === "client" && (task.clientId !== claims.uid || payment.clientId !== claims.uid)) {
@@ -379,7 +383,7 @@ async function markCashPaymentPaid({ request, db, claims }) {
       action: "cash_payment_marked_paid",
       targetType: "payment",
       targetId: taskId,
-      metadata: { paymentMethod: "COD", agreedAmount: payment.agreedAmount }
+      metadata: { paymentMethod: "Cash", agreedAmount: payment.agreedAmount }
     });
   });
   return { ok: true, status: "Awaiting Worker Confirmation", alreadyMarked };
@@ -449,7 +453,7 @@ async function acknowledgeCashPaymentReceived({ request, db, claims }) {
       action: "cash_payment_pin_issued",
       targetType: "payment",
       targetId: taskId,
-      metadata: { paymentMethod: "COD", generation: previousGenerations + 1, agreedAmount }
+      metadata: { paymentMethod: "Cash", generation: previousGenerations + 1, agreedAmount }
     });
     response = { ok: true, pin: generated.pin, expiresAt: generated.record.cashPinExpiresAt, reused: false };
   });
@@ -504,7 +508,7 @@ async function verifyCashPaymentPin({ request, db, claims }) {
         action: "cash_payment_pin_failed",
         targetType: "payment",
         targetId: taskId,
-        metadata: { paymentMethod: "COD", attempts, locked }
+        metadata: { paymentMethod: "Cash", attempts, locked }
       });
       failureMessage = locked
         ? "This cash confirmation PIN has been locked after three incorrect attempts."
@@ -535,7 +539,7 @@ async function verifyCashPaymentPin({ request, db, claims }) {
       action: "cash_payment_pin_verified",
       targetType: "payment",
       targetId: taskId,
-      metadata: { paymentMethod: "COD", agreedAmount }
+      metadata: { paymentMethod: "Cash", agreedAmount }
     });
   });
   if (failureMessage) throw new ApiError(400, failureMessage);

@@ -92,7 +92,7 @@ export default function PostTaskScreen() {
   const [scheduleStart, setScheduleStart] = useState("");
   const [scheduleDate, setScheduleDate] = useState("");
   const [perksText, setPerksText] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("Cash");
   const [mapOpen, setMapOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [durationOpen, setDurationOpen] = useState(false);

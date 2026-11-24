@@ -24,7 +24,7 @@ function task(id: string, start: string, end: string, overrides: Partial<Task> =
     scheduleStart: start,
     scheduleEnd: end,
     status: "Accepted",
-    paymentMethod: "COD",
+    paymentMethod: "Cash",
     createdAt: "2026-10-01T00:00:00.000Z",
     workerId: "worker-1",
     ...overrides
@@ -51,7 +51,7 @@ test("multiple required capabilities and anytime schedules retain legacy compati
 
 test("payment methods use the requested customer-facing labels", () => {
   assert.equal(formatPaymentMethod("GCash link"), "GCash");
-  assert.equal(formatPaymentMethod("COD"), "Cash");
+  assert.equal(formatPaymentMethod("Cash"), "Cash");
 });
 
 test("schedule overlap rejects intersecting assignments and permits adjacent or later tasks", () => {

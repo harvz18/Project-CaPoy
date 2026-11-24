@@ -26,7 +26,7 @@ function task(status: TaskStatus, overrides: Partial<Task> = {}): Task {
     wage: "500",
     estimatedDuration: "1 hour",
     status,
-    paymentMethod: "COD",
+    paymentMethod: "Cash",
     paymentStatus: "Pending",
     createdAt: "2026-01-01T00:00:00.000Z",
     ...overrides,

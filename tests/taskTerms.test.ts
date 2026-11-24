@@ -8,7 +8,7 @@ const task: Task = {
   location: "Barangay Hall", locationAddress: "Main Street", latitude: 14.6, longitude: 121, geofenceRadius: 500,
   locationSource: "map", requiredCapability: "Moving assistance", requiredCapabilities: ["Moving assistance"], wage: "500",
   estimatedDuration: "1 day", durationValue: 1, durationUnit: "day", scheduleMode: "fixed", scheduleStart: "2026-12-01T08:00:00.000Z",
-  scheduleEnd: "2026-12-01T16:00:00.000Z", pricingMode: "fixed", perks: ["Lunch"], status: "Finding Workers", paymentMethod: "COD", createdAt: "2026-11-05T00:00:00.000Z"
+  scheduleEnd: "2026-12-01T16:00:00.000Z", pricingMode: "fixed", perks: ["Lunch"], status: "Finding Workers", paymentMethod: "Cash", createdAt: "2026-11-05T00:00:00.000Z"
 };
 
 test("task terms identify material edits and create a reviewable request", () => {

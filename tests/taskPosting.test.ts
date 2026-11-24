@@ -8,7 +8,7 @@ const validTask = {
   latitude: 10.6765, longitude: 122.9509, geofenceRadius: 500, locationSource: "map" as const,
   requiredCapabilities: ["Moving assistance"], wage: "500", durationValue: 1,
   scheduleMode: "fixed" as const, scheduleStart: "2027-01-01T08:00:00.000Z", scheduleEnd: "2027-01-01T09:00:00.000Z",
-  pricingMode: "fixed" as const, paymentMethod: "COD"
+  pricingMode: "fixed" as const, paymentMethod: "Cash"
 };
 
 test("a complete Bacolod fixed-price task passes posting validation", () => {

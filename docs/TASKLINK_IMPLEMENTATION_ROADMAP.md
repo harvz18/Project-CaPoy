@@ -98,7 +98,7 @@ The table below preserves the state found during the original audit. See **Phase
 | Worker availability/stats | Worker is returned to Available on completion but is not reliably made Busy on acceptance/start. Completed task totals are not incremented in the canonical user profile. | Transactional availability and completed-job counters. | P1 |
 | Chat | Firestore messages work conceptually, but the app listens to every message. One chat document per task can overwrite participant metadata while multiple applicants exist. | Participant-scoped threads, one conversation per task/worker pair where needed, unread counts, read receipts, pagination, attachments policy, and rules. | P1 |
 | File uploads/verification | Storage is initialized, but no upload service exists. Profile document controls store placeholder strings rather than uploaded files. | Image/document picker, validation/compression, Storage upload, metadata, secure access, review status, rejection reasons, and cleanup. | P2 |
-| Payment verification | A client can submit arbitrary proof text. No image upload, worker acknowledgement, administrator verification, or provider integration exists. A separate payment service is unused. | Agreed verification workflow, proof file/reference data, verifier role, audit log, COD acknowledgement, rejection/dispute state, and rules. | P2 |
+| Payment verification | A client can submit arbitrary proof text. No image upload, worker acknowledgement, administrator verification, or provider integration exists. A separate payment service is unused. | Agreed verification workflow, proof file/reference data, verifier role, audit log, Cash acknowledgement, rejection/dispute state, and rules. | P2 |
 | Ratings | Duplicate ratings are possible; completion/participant checks are absent in the service. The UI sometimes exposes rating before completion. Aggregate and rating creation are separate operations. | Unique rating per task/reviewer, participant/completion enforcement, atomic aggregate update, moderation/reporting, and mirrored aggregates if required. | P2 |
 | Administrator | No admin type, route, dashboard, claims, moderation, verification queue, transaction review, or audit log. | Minimal admin specification and implementation protected by custom claims. | P2 |
 | UI truthfulness | Several screens show hard-coded names, ratings, job counts, distances, areas, market health, verification, “Payment Secured,” “Accident Insurance,” and “24/7 Support.” Some filters do nothing. | Replace demo data with real values or clearly label/remove it. Do not display unsupported safety/service claims. | P1 |
@@ -255,7 +255,7 @@ Tasks:
 4. Protect administrator access using Firebase custom claims and trusted backend mutations.
 5. Implement the approved payment workflow:
    - e-wallet reference/proof upload and review; or
-   - COD confirmation by both participants;
+   - Cash confirmation by both participants;
    - rejected/disputed outcomes.
 6. Remove any unsupported “secured,” insurance, or support claims from the UI.
 
@@ -339,7 +339,7 @@ TASKLINK can be considered functionally complete when all of the following are d
 4. A worker can apply; a client can review and accept exactly one worker; other applications close correctly.
 5. Only the assigned participants can chat and change allowed statuses.
 6. Real location/geofence checks support the agreed start/completion policy.
-7. Payment evidence/confirmation follows the documented COD/e-wallet verification workflow.
+7. Payment evidence/confirmation follows the documented Cash/e-wallet verification workflow.
 8. Both parties can rate once after completion.
 9. An authorized administrator can review required verification/payment/report items with an audit trail.
 10. Security-rule, integration, and end-to-end tests pass, and a clean EAS preview build is reproducible.
@@ -471,9 +471,9 @@ Phase 4 verification performed locally:
 - Added atomic worker verification submissions in `verificationRequests/{uid}`. Document paths and `Pending Verification` state must agree across the request and mirrored profiles, and workers cannot self-approve.
 - Added an admin-only route with queues for worker verification and GCash payment evidence, disputed-task visibility, account suspension/reactivation, and recent audit records.
 - Added a dedicated provisioning script for a non-public administrator account. Both the route and database access require the `admin: true` Firebase custom claim; changing a normal profile role cannot grant administrator access.
-- Added trusted callable Functions for verification decisions, GCash evidence decisions, account state changes, and assigned-worker COD receipt confirmation.
+- Added trusted callable Functions for verification decisions, GCash evidence decisions, account state changes, and assigned-worker Cash receipt confirmation.
 - Added append-only Admin SDK audit records containing actor, action, target, time, reason, and decision metadata. Client security rules deny all audit-log writes.
-- Implemented GCash receipt upload plus administrator approval/rejection and COD dual confirmation. Task completion now requires `Verified` payment rather than merely client-submitted evidence.
+- Implemented GCash receipt upload plus administrator approval/rejection and Cash dual confirmation. Task completion now requires `Verified` payment rather than merely client-submitted evidence.
 - Removed payment-security language that implied escrow, insurance, or guaranteed support; the UI now describes private evidence and participant/admin review accurately.
 - Aligned message queries with sender/receiver authorization and added the required sender/timestamp and receiver/timestamp compound indexes discovered by the final rules regression.
 
@@ -481,7 +481,7 @@ Remaining Phase 5 release checks:
 
 - Deploy Firestore rules/indexes and Storage rules to a non-production Firebase project, then deploy only the four Phase 5 callable Functions if push deployment remains deferred.
 - Create a dedicated Firebase Auth account for administration and run `npm --prefix functions run set-admin -- <mobile-number>` from a trusted machine with Firebase Admin credentials. The admin must sign out/in afterward to refresh claims.
-- Run a three-account physical-device/manual path: worker upload/resubmit, admin approve/reject, client GCash upload/admin decision, and client COD confirmation/worker receipt confirmation.
+- Run a three-account physical-device/manual path: worker upload/resubmit, admin approve/reject, client GCash upload/admin decision, and client Cash confirmation/worker receipt confirmation.
 - Define retention/deletion policy for rejected or superseded identity/payment files before production. Automatic orphan cleanup is intentionally not performed by the client.
 - Dispute resolution is visible to administrators but a formal resolve/refund outcome is not yet implemented; that policy decision remains before production claims can be expanded.
 - No live Firebase resources or production data were changed during this phase.

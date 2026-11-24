@@ -15,7 +15,7 @@ const task = (overrides: Partial<Task> = {}): Task => ({
   id: "task-1", clientId: "client-1", title: "Clean a room", description: "Clean",
   category: "Cleaning", requiredCapability: "Cleaning", location: "Bacolod",
   latitude: 10.6765, longitude: 122.9509, geofenceRadius: 500, wage: "500",
-  estimatedDuration: "2 Hours", status: "Finding Workers", paymentMethod: "COD", createdAt: now,
+  estimatedDuration: "2 Hours", status: "Finding Workers", paymentMethod: "Cash", createdAt: now,
   ...overrides
 });
 const worker = (overrides: Partial<UserProfile> = {}): UserProfile => ({

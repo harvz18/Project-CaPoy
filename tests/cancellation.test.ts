@@ -8,7 +8,7 @@ const worker = { id: "worker-1", role: "worker" } as UserProfile;
 const task: Task = {
   id: "task-1", clientId: client.id, workerId: worker.id, applicantIds: [worker.id], title: "Move boxes", description: "Help move boxes",
   category: "Moving assistance", location: "Barangay Hall", wage: "500", estimatedDuration: "1 day", status: "Accepted",
-  paymentMethod: "COD", paymentStatus: "Pending", createdAt: "2026-11-05T00:00:00.000Z"
+  paymentMethod: "Cash", paymentStatus: "Pending", createdAt: "2026-11-05T00:00:00.000Z"
 };
 
 test("both assigned parties may cancel an accepted task even with a stale start timestamp", () => {

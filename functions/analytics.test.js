@@ -44,7 +44,7 @@ function fixtures() {
     ],
     payments: [
       { id: "payment-1", paymentMethod: "GCash link", paymentStatus: "Submitted", createdAt: "2026-09-30T00:00:00.000Z" },
-      { id: "payment-2", paymentMethod: "COD", paymentStatus: "Verified", createdAt: "2026-09-25T00:00:00.000Z" }
+      { id: "payment-2", paymentMethod: "Cash", paymentStatus: "Verified", createdAt: "2026-09-25T00:00:00.000Z" }
     ],
     platformFees: [
       { id: "fee-1", status: "verified", feeCentavos: 2500, taskCategory: "Cleaning", obligationCreatedAt: "2026-09-30T02:00:00.000Z", verifiedAt: "2026-09-30T06:00:00.000Z" },

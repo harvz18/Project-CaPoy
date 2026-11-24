@@ -101,7 +101,7 @@ function taskData(overrides = {}) {
     pricingMode: "fixed",
     perks: [],
     status: "Finding Workers",
-    paymentMethod: "COD",
+    paymentMethod: "Cash",
     applicantIds: [],
     createdAt: "2026-01-01T00:00:00.000Z",
     expiresAt: "2027-01-01T00:00:00.000Z",
@@ -203,7 +203,7 @@ async function seedWorkflowTask(overrides = {}) {
         id: TASK_ID,
         taskId: TASK_ID,
         clientId: CLIENT_ID,
-        paymentMethod: "COD",
+        paymentMethod: "Cash",
         paymentStatus: overrides.paymentStatus ?? "Submitted",
         createdAt: now,
         updatedAt: now
@@ -884,7 +884,7 @@ test("only a client can create an open task owned by that client", async () => {
     id: TASK_ID,
     taskId: TASK_ID,
     clientId: CLIENT_ID,
-    paymentMethod: "COD",
+    paymentMethod: "Cash",
     paymentStatus: "Pending",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z"
@@ -906,7 +906,7 @@ test("only a client can create an open task owned by that client", async () => {
     id: outsideBacolodId,
     taskId: outsideBacolodId,
     clientId: CLIENT_ID,
-    paymentMethod: "COD",
+    paymentMethod: "Cash",
     paymentStatus: "Pending",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z"
@@ -931,7 +931,7 @@ test("an unsettled TASKLINK fee lock blocks direct new-task creation", async () 
     id: taskId,
     taskId,
     clientId: CLIENT_ID,
-    paymentMethod: "COD",
+    paymentMethod: "Cash",
     paymentStatus: "Pending",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z"
@@ -1328,7 +1328,7 @@ test("assigned participants can store private receipt chunks in Firestore withou
         taskId: TASK_ID,
         clientId: CLIENT_ID,
         workerId: WORKER_ID,
-        paymentMethod: "COD",
+        paymentMethod: "Cash",
         paymentStatus: "Pending",
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z"
@@ -1439,7 +1439,7 @@ test("client and worker accounts can complete the full canonical task lifecycle"
     id: TASK_ID,
     taskId: TASK_ID,
     clientId: CLIENT_ID,
-    paymentMethod: "COD",
+    paymentMethod: "Cash",
     paymentStatus: "Pending",
     createdAt: now,
     updatedAt: now
@@ -1572,13 +1572,13 @@ test("client and worker accounts can complete the full canonical task lifecycle"
   const textOnlyConfirmation = writeBatch(clientDb);
   textOnlyConfirmation.update(taskRef, {
     paymentStatus: "Submitted",
-    proofOfPaymentText: "COD confirmed by client",
+    proofOfPaymentText: "Cash confirmed by client",
     clientConfirmedAt: now,
     updatedAt: now
   });
   textOnlyConfirmation.update(paymentRef, {
     paymentStatus: "Submitted",
-    proofOfPaymentText: "COD confirmed by client",
+    proofOfPaymentText: "Cash confirmed by client",
     clientConfirmedAt: now,
     updatedAt: now
   });
@@ -1599,14 +1599,14 @@ test("client and worker accounts can complete the full canonical task lifecycle"
   batch = writeBatch(clientDb);
   batch.update(taskRef, {
     paymentStatus: "Submitted",
-    proofOfPaymentText: "COD confirmed by client",
+    proofOfPaymentText: "Cash confirmed by client",
     proofOfPaymentUrl: `paymentProofs/${TASK_ID}/cash-receipt.png`,
     clientConfirmedAt: now,
     updatedAt: now
   });
   batch.update(paymentRef, {
     paymentStatus: "Submitted",
-    proofOfPaymentText: "COD confirmed by client",
+    proofOfPaymentText: "Cash confirmed by client",
     proofOfPaymentUrl: `paymentProofs/${TASK_ID}/cash-receipt.png`,
     clientConfirmedAt: now,
     updatedAt: now
@@ -2144,7 +2144,7 @@ test("a worker dispute atomically releases the tasker so another assignment can 
       })),
       setDoc(doc(db, "payments", nextTaskId), {
         id: nextTaskId, taskId: nextTaskId, clientId: CLIENT_ID,
-        paymentMethod: "COD", paymentStatus: "Pending", createdAt: now, updatedAt: now
+        paymentMethod: "Cash", paymentStatus: "Pending", createdAt: now, updatedAt: now
       }),
       setDoc(doc(db, "taskMatches", nextMatchId), {
         id: nextMatchId, taskId: nextTaskId, clientId: CLIENT_ID, workerId: WORKER_ID,

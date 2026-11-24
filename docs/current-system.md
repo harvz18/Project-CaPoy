@@ -131,7 +131,7 @@ Task statuses:
 
 Payment methods:
 
-- `COD`
+- `Cash`
 - `GCash link`
 
 ## Firestore Collections Used

@@ -2,7 +2,7 @@ import { DurationUnit, PaymentMethod, Task } from "../types";
 
 export const PAYMENT_METHOD_OPTIONS: ReadonlyArray<{ label: string; value: PaymentMethod }> = [
   { label: "GCash", value: "GCash link" },
-  { label: "Cash", value: "COD" }
+  { label: "Cash", value: "Cash" }
 ];
 
 export function formatPaymentMethod(paymentMethod: PaymentMethod) {

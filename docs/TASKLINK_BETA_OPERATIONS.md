@@ -25,7 +25,7 @@ This document is the operating agreement for the current controlled beta. It dis
 
 ## Payment and identity statements
 
-- GCash and COD records are evidence/review states only. TaskLink does not transfer, hold, settle, or escrow funds.
+- GCash and Cash records are evidence/review states only. TaskLink does not transfer, hold, settle, or escrow funds.
 - Verification status means an authorized administrator reviewed the submitted TaskLink documents. It is not an insurance, licensing, safety, or background-check guarantee.
 - Approved names are locked. Corrections require the audited superadministrator flow.
 
@@ -82,7 +82,7 @@ Test at minimum:
 
 - registration, login, logout, session restore, and restricted-account rejection;
 - task create/apply/withdraw/reject/accept/start/finish/approve/archive/dispute;
-- GCash and COD evidence paths;
+- GCash and Cash evidence paths;
 - two-party and multi-applicant chat authorization/read state;
 - notification permission denied/allowed and in-app fallback;
 - stale/inaccurate/outside-radius/inside-radius location paths;

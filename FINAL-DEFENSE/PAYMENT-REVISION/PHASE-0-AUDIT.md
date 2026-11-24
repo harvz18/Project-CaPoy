@@ -51,7 +51,7 @@ Other supported task outcomes are `Cancelled`, `Disputed`, and `Expired`. The cu
 
 ## 3. Current worker-payment workflows
 
-### Cash / COD
+### Cash
 
 1. Worker marks work complete; task reaches `Pending Approval`.
 2. Employer submits a cash-payment confirmation. Optional evidence may be attached.

@@ -885,7 +885,7 @@ export async function updateTaskPaymentVerification(
       paymentStatus,
       proofOfPaymentText: normalizedNote || undefined,
       proofOfPaymentUrl,
-      clientConfirmedAt: task.paymentMethod === "COD" ? now : undefined,
+      clientConfirmedAt: isCashPaymentMethod(task.paymentMethod) ? now : undefined,
       updatedAt: now
     });
     transaction.update(taskRef, updates);
@@ -920,7 +920,7 @@ export async function confirmCashPaymentReceipt(taskId: string, worker: UserProf
     const payment = paymentSnapshot.data();
     if (task.workerId !== worker.id) throw new Error("Only the assigned tasker can confirm cash receipt.");
     if (task.status !== "Pending Approval") throw new Error("Submit the completed work before confirming cash receipt.");
-    if (task.paymentMethod !== "COD" || payment.paymentMethod !== "COD") {
+    if (!isCashPaymentMethod(task.paymentMethod) || !isCashPaymentMethod(payment.paymentMethod)) {
       throw new Error("This confirmation is available only for cash payments.");
     }
     if (task.paymentStatus !== "Submitted" || payment.paymentStatus !== "Submitted") {
@@ -939,6 +939,11 @@ export async function confirmCashPaymentReceipt(taskId: string, worker: UserProf
       createdAt: now
     });
   });
+}
+
+function isCashPaymentMethod(value: unknown) {
+  // Keep already-saved pre-rename records functional while all new tasks use Cash.
+  return value === "Cash" || value === "COD";
 }
 
 export async function updateWorkerPaymentEvidence(

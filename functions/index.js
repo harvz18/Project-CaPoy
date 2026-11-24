@@ -49,6 +49,10 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function isCashPaymentMethod(value) {
+  return value === "Cash" || value === "COD";
+}
+
 function requiredString(value, fieldName) {
   if (typeof value !== "string" || !value.trim()) {
     throw new HttpsError("invalid-argument", `${fieldName} is required.`);
@@ -683,7 +687,7 @@ function cashPinAmount(task, payment) {
 }
 
 function assertCashCallableParticipants(task, payment, uid, role) {
-  if (task.status !== "Pending Approval" || task.paymentMethod !== "COD" || payment.paymentMethod !== "COD") {
+  if (task.status !== "Pending Approval" || !isCashPaymentMethod(task.paymentMethod) || !isCashPaymentMethod(payment.paymentMethod)) {
     throw new HttpsError("failed-precondition", "Cash confirmation is unavailable for this task.");
   }
   if (role === "client" && (task.clientId !== uid || payment.clientId !== uid)) {
@@ -724,7 +728,7 @@ exports.markCashPaymentPaid = onCall({ region: REGION }, async (request) => {
       message: `The employer marked the cash payment for ${task.title || "this task"} as paid. Confirm only after you have received and counted the full amount.`,
       readStatus: false, createdAt: markedAt
     }, { merge: true });
-    writeAudit(transaction, db, { actorId: clientId, action: "cash_payment_marked_paid", targetType: "payment", targetId: taskId, metadata: { paymentMethod: "COD" } });
+    writeAudit(transaction, db, { actorId: clientId, action: "cash_payment_marked_paid", targetType: "payment", targetId: taskId, metadata: { paymentMethod: "Cash" } });
   });
   return { ok: true, status: "Awaiting Worker Confirmation" };
 });
@@ -768,7 +772,7 @@ exports.confirmCashPaymentReceived = onCall({ region: REGION }, async (request) 
       message: `The tasker is ready to confirm the cash payment for ${task.title || "this task"}. Ask them for the 4-digit confirmation PIN.`,
       readStatus: false, createdAt: now.toISOString()
     }, { merge: true });
-    writeAudit(transaction, db, { actorId: workerId, action: "cash_payment_pin_issued", targetType: "payment", targetId: taskId, metadata: { paymentMethod: "COD", generation: generations + 1 } });
+    writeAudit(transaction, db, { actorId: workerId, action: "cash_payment_pin_issued", targetType: "payment", targetId: taskId, metadata: { paymentMethod: "Cash", generation: generations + 1 } });
     result = { ok: true, pin: generated.pin, expiresAt: generated.record.cashPinExpiresAt, reused: false };
   });
   return result;
@@ -815,7 +819,7 @@ exports.verifyCashPaymentPin = onCall({ region: REGION }, async (request) => {
       message: `Cash payment for ${task.title || "this task"} was mutually confirmed.`,
       readStatus: false, createdAt: confirmedAt
     }, { merge: true });
-    writeAudit(transaction, db, { actorId: clientId, action: "cash_payment_pin_verified", targetType: "payment", targetId: taskId, metadata: { paymentMethod: "COD", agreedAmount } });
+    writeAudit(transaction, db, { actorId: clientId, action: "cash_payment_pin_verified", targetType: "payment", targetId: taskId, metadata: { paymentMethod: "Cash", agreedAmount } });
   });
   if (failure) throw new HttpsError("failed-precondition", failure);
   return { ok: true, status: "Verified" };
@@ -1003,7 +1007,7 @@ exports.createPlatformFeeOnCompletedTask = onDocumentUpdated({ document: 'tasks/
 exports.invalidateCashPinOnTaskStateChange = onDocumentUpdated({ document: 'tasks/{taskId}', region: REGION }, async (event) => {
   const before = event.data?.before.data();
   const after = event.data?.after.data();
-  if (!before || !after || after.status === "Pending Approval" || before.paymentMethod !== "COD") return;
+  if (!before || !after || after.status === "Pending Approval" || !isCashPaymentMethod(before.paymentMethod)) return;
   const taskId = event.params.taskId;
   const db = getFirestore();
   const paymentRef = db.collection("payments").doc(taskId);
@@ -1011,7 +1015,7 @@ exports.invalidateCashPinOnTaskStateChange = onDocumentUpdated({ document: 'task
     const paymentSnapshot = await transaction.get(paymentRef);
     if (!paymentSnapshot.exists) return;
     const payment = paymentSnapshot.data();
-    if (payment.paymentMethod !== "COD" || !payment.cashPinHash || payment.cashPinUsedAt || payment.cashPinInvalidatedAt) return;
+    if (!isCashPaymentMethod(payment.paymentMethod) || !payment.cashPinHash || payment.cashPinUsedAt || payment.cashPinInvalidatedAt) return;
     transaction.update(paymentRef, {
       ...clearCallableCashPin(),
       cashPinInvalidatedAt: nowIso(),

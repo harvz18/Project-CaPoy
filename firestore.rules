@@ -1267,7 +1267,7 @@ service cloud.firestore {
         && request.resource.data.clientId == request.auth.uid
         && request.resource.data.status == 'Finding Workers'
         && validTaskTerms(request.resource.data)
-        && request.resource.data.paymentMethod in ['COD', 'GCash link']
+        && request.resource.data.paymentMethod in ['Cash', 'COD', 'GCash link']
         && request.resource.data.paymentStatus == 'Pending'
         && (!('pricingMode' in request.resource.data)
           || request.resource.data.pricingMode in ['fixed', 'bidding'])
@@ -1566,7 +1566,7 @@ service cloud.firestore {
         && request.resource.data.taskId == taskId
         && request.resource.data.clientId == request.auth.uid
         && request.resource.data.paymentMethod == taskAfter(taskId).paymentMethod
-        && request.resource.data.paymentMethod in ['COD', 'GCash link']
+        && request.resource.data.paymentMethod in ['Cash', 'COD', 'GCash link']
         && request.resource.data.paymentStatus == 'Pending'
         && !('workerId' in request.resource.data);
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasAny([

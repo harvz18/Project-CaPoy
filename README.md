@@ -117,7 +117,7 @@ The canonical task lifecycle is:
 Finding Workers -> Applied -> Accepted -> In Progress -> Pending Approval -> Finished -> Archived
 ```
 
-Applications can also be withdrawn or rejected. Open tasks can be cancelled, and assigned participants can open a dispute. Task creation/payment linking and the core workflow mutations use Firestore batches or transactions. Completion requires verified payment evidence or dual COD confirmation. `Expired` is reserved for future trusted scheduled backend automation and cannot be set by the mobile client.
+Applications can also be withdrawn or rejected. Open tasks can be cancelled, and assigned participants can open a dispute. Task creation/payment linking and the core workflow mutations use Firestore batches or transactions. Completion requires verified payment evidence or dual Cash confirmation. `Expired` is reserved for future trusted scheduled backend automation and cannot be set by the mobile client.
 
 The UI reads `taskMatches` as the application source. `tasks.applicantIds` remains as a denormalized query/rules index and is updated in the same application transaction.
 
@@ -135,7 +135,7 @@ Nearby-worker notification fan-out is implemented in `functions/` as an optional
 
 Task conversations use deterministic `taskId_workerId` IDs, so a client can communicate with separate applicants without overwriting another applicant's chat. Message listeners are participant-scoped, load the newest 100 records, and can page backward. Opening a conversation writes receiver-only read receipts.
 
-The no-cost web demo supports unread state, deep links, and in-app notifications for applications, hiring, task status, COD confirmation, completion, ratings, cancellation, and chat. Remote Android push remains optional source code and is visibly paused in this release because its trusted sender requires Cloud Functions.
+The no-cost web demo supports unread state, deep links, and in-app notifications for applications, hiring, task status, Cash confirmation, completion, ratings, cancellation, and chat. Remote Android push remains optional source code and is visibly paused in this release because its trusted sender requires Cloud Functions.
 
 Remote push does not work in Expo Go on current Android SDK releases. Use an EAS development/preview build and configure the Android FCM credentials for the EAS project. The app never asks for notification permission until the user enables push in the Notifications screen.
 
@@ -164,7 +164,7 @@ Approved identity names are locked at both the private `users` document and mirr
 Payment behavior is verification only; TASKLINK does not process, hold, or escrow money:
 
 - GCash requires an uploaded image/PDF receipt and administrator review.
-- Cash requires the client to record payment and the assigned worker to confirm receipt. Existing records continue to use the legacy `COD` storage value for compatibility.
+- Cash requires the client to record payment and the assigned worker to confirm receipt. Existing legacy records remain compatible.
 - A client cannot finish a task until its payment status is `Verified`.
 
 The administrator route is not publicly registrable. Create a dedicated Firebase Authentication user whose email matches the app's mobile mapping (for example `639171234567@tasklink.local`), then run the provisioning script from a trusted machine with Firebase Admin application-default credentials:

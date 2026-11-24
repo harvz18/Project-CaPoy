@@ -14,7 +14,7 @@ export type TaskStatus =
   | "Disputed"
   | "Expired";
 
-export type PaymentMethod = "COD" | "GCash link";
+export type PaymentMethod = "Cash" | "GCash link";
 export type DurationUnit = "hour" | "day" | "week" | "month";
 export type PricingMode = "fixed" | "bidding";
 export type ScheduleMode = "fixed" | "anytime";

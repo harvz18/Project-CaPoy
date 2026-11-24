@@ -108,7 +108,7 @@ Clients can:
 
 ### Payment
 Supported methods:
-- Cash on Delivery (COD)
+- Cash
 - E-wallet links (example: GCash)
 
 ### Rating & Feedback
@@ -393,7 +393,7 @@ EAS Build
 
 ### Payment Integration
 External only using:
-- COD
+- Cash
 - GCash links
 
 ### GPS / Maps
@@ -434,7 +434,7 @@ Not included
 Not included
 
 ### Payment Integration
-External only. The app will show payment method options such as COD and GCash link, but it will not process payments directly.
+External only. The app will show payment method options such as Cash and GCash link, but it will not process payments directly.
 
 ### Platforms
 Android only for capstone deployment
@@ -473,7 +473,7 @@ Simple, clean, beginner-friendly interface suitable for informal workers and sma
 ### Payment Rules
 - Payment is handled between users
 - Supported methods:
-  - COD
+  - Cash
   - E-wallet links
 
 ### Trust Rules

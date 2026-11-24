@@ -8,7 +8,7 @@ const jobs: RankedJob[] = [
     task: {
       id: "repair", clientId: "client", title: "Repair sink", description: "Kitchen plumbing",
       category: "Repair", location: "Mandalagan", wage: "700", estimatedDuration: "2 hours",
-      status: "Finding Workers", paymentMethod: "COD", paymentStatus: "Pending", createdAt: "2026-09-30T00:00:00.000Z"
+      status: "Finding Workers", paymentMethod: "Cash", paymentStatus: "Pending", createdAt: "2026-09-30T00:00:00.000Z"
     },
     match: { eligible: true, score: 80, distanceKm: 3, reasons: [], skillMatched: true }
   },
@@ -16,7 +16,7 @@ const jobs: RankedJob[] = [
     task: {
       id: "clean", clientId: "client", title: "Clean office", description: "Office cleaning",
       category: "Cleaning", location: "Alijis", wage: "900", estimatedDuration: "4 hours",
-      status: "Finding Workers", paymentMethod: "COD", paymentStatus: "Pending", createdAt: "2026-10-01T00:00:00.000Z"
+      status: "Finding Workers", paymentMethod: "Cash", paymentStatus: "Pending", createdAt: "2026-10-01T00:00:00.000Z"
     },
     match: { eligible: true, score: 70, distanceKm: 1, reasons: [], skillMatched: true }
   }
