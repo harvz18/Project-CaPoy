@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   BrowserRouter,
@@ -755,6 +755,7 @@ function usePaged<T>(
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const cursors = useRef(new Map<number, string | null>([[1, null]]));
   const filterKey = JSON.stringify(filters);
   const load = useCallback(
     async (requestedPage = pageNumber) => {
@@ -763,12 +764,19 @@ function usePaged<T>(
       try {
         const page = await loadPortalPage<T>(
           name,
-          { page: requestedPage, pageSize: PAGE_SIZE, direction: sortDirection, ...filters },
+          {
+            page: requestedPage,
+            pageSize: PAGE_SIZE,
+            direction: sortDirection,
+            ...(name === "tasks" ? { cursor: cursors.current.get(requestedPage) || undefined } : {}),
+            ...filters,
+          },
         );
         setItems(page.items);
         setPageNumber(page.page);
-        setTotal(page.total);
+        setTotal(page.total ?? page.items.length);
         setHasMore(page.hasMore);
+        if (name === "tasks") cursors.current.set(page.page + 1, page.nextCursor || null);
       } catch (failure) {
         setError(errorText(failure));
       } finally {
@@ -778,6 +786,7 @@ function usePaged<T>(
     [filterKey, name, pageNumber, sortDirection],
   );
   useEffect(() => {
+    cursors.current = new Map([[1, null]]);
     setPageNumber(1);
   }, [filterKey, name, sortDirection]);
   useEffect(() => { void load(pageNumber); }, [load, pageNumber]);
@@ -988,8 +997,11 @@ function TasksPage({ scope }: { scope: Scope }) {
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState(() => searchParams.get("status") ?? "all");
-  const page = usePaged<Task>("tasks", { search, status }, dateOrder);
-  const tasks = page.items;
+  const page = usePaged<Task>("tasks", { status }, dateOrder);
+  const normalizedSearch = search.trim().toLowerCase();
+  const tasks = normalizedSearch
+    ? page.items.filter((task) => [task.title, task.category, task.location, task.employerName, task.workerName, task.status].some((value) => String(value || "").toLowerCase().includes(normalizedSearch)))
+    : page.items;
   const [details, setDetails] = useState<Task | null>(null);
   useEffect(() => {
     setStatus(searchParams.get("status") ?? "all");
@@ -1026,7 +1038,7 @@ function TasksPage({ scope }: { scope: Scope }) {
         </div>
       </div>
       {scope === "admin" ? <TaskCategoryInsights /> : null}
-      <Panel title="Task postings" description={`${page.total} matching task${page.total === 1 ? "" : "s"}.`} action={<SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />}>
+      <Panel title="Task postings" description={`${tasks.length} task${tasks.length === 1 ? "" : "s"} on this page.`} action={<SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />}>
         <Table
           headers={[
             "Task title",

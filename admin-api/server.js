@@ -65,6 +65,12 @@ function portalPageOptions(request) {
   return { page, pageSize, direction, search };
 }
 
+function portalCursor(request) {
+  return typeof request.query.cursor === "string" && request.query.cursor.trim()
+    ? request.query.cursor.trim()
+    : null;
+}
+
 function portalPage(items, request, fields = []) {
   const { page, pageSize, search } = portalPageOptions(request);
   const filtered = search
@@ -140,20 +146,45 @@ async function portalUsersPage({ request, db }) {
 }
 
 async function portalTasksPage({ request, db }) {
-  const [tasksSnapshot, usersSnapshot] = await Promise.all([
-    db.collection("tasks").get(),
-    db.collection("users").get()
-  ]);
-  const names = Object.fromEntries(usersSnapshot.docs.map((document) => [document.id, document.data().fullName || "Account unavailable"]));
-  const { direction } = portalPageOptions(request);
+  const { direction, page, pageSize } = portalPageOptions(request);
   const status = typeof request.query.status === "string" ? request.query.status : "all";
-  let tasks = withIds(tasksSnapshot).map((task) => ({
-    ...task,
-    employerName: names[task.clientId] || "Employer unavailable",
-    workerName: task.workerId ? names[task.workerId] || "Worker unavailable" : "Unassigned"
-  }));
-  if (status !== "all") tasks = tasks.filter((task) => task.status === status);
-  return portalPage(sortPortalRecords(tasks, "createdAt", direction), request, ["title", "category", "location", "employerName", "workerName", "status"]);
+  const cursorId = portalCursor(request);
+  let taskQuery = db.collection("tasks");
+  if (status !== "all") taskQuery = taskQuery.where("status", "==", status);
+  taskQuery = taskQuery.orderBy("createdAt", direction).limit(pageSize + 1);
+
+  if (cursorId) {
+    const cursor = await db.collection("tasks").doc(cursorId).get();
+    if (!cursor.exists) throw new ApiError(400, "This task list changed. Refresh to continue.");
+    taskQuery = taskQuery.startAfter(cursor);
+  }
+
+  const taskSnapshot = await taskQuery.get();
+  const documents = taskSnapshot.docs.slice(0, pageSize);
+  const profileIds = [...new Set(documents.flatMap((document) => {
+    const task = document.data();
+    return [task.clientId, task.workerId].filter(Boolean);
+  }))];
+  const profiles = profileIds.length
+    ? await db.getAll(...profileIds.map((id) => db.collection("users").doc(id)))
+    : [];
+  const names = Object.fromEntries(profiles.map((document) => [document.id, document.data().fullName || "Account unavailable"]));
+  const tasks = documents.map((document) => {
+    const task = document.data();
+    return {
+      id: document.id,
+      ...task,
+      employerName: names[task.clientId] || "Employer unavailable",
+      workerName: task.workerId ? names[task.workerId] || "Worker unavailable" : "Unassigned"
+    };
+  });
+  return {
+    items: tasks,
+    page,
+    pageSize,
+    hasMore: taskSnapshot.docs.length > pageSize,
+    nextCursor: documents.at(-1)?.id || null
+  };
 }
 
 async function portalCollectionPage({ request, db, collection, fields, sortField = "createdAt" }) {
@@ -2046,4 +2077,4 @@ if (require.main === module) {
   createServer().listen(port, "0.0.0.0", () => console.log(`TaskLink admin API listening on ${port}`));
 }
 
-module.exports = { ApiError, allowedOrigins, createServer, firebaseOptions };
+module.exports = { ApiError, allowedOrigins, createServer, firebaseOptions, portalTasksPage };

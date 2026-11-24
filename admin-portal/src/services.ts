@@ -19,11 +19,12 @@ export async function loadPage<T>(name: string, orderField: string, size = 10, c
 }
 
 export type PortalList = "users" | "tasks" | "applications" | "feedback" | "reports";
-export async function loadPortalPage<T>(name: PortalList, options: { page: number; pageSize: number; direction: "asc" | "desc"; search?: string; role?: string; status?: string }): Promise<PortalPage<T>> {
+export async function loadPortalPage<T>(name: PortalList, options: { page: number; pageSize: number; direction: "asc" | "desc"; cursor?: string | null; search?: string; role?: string; status?: string }): Promise<PortalPage<T>> {
   const params = new URLSearchParams({ page: String(options.page), pageSize: String(options.pageSize), direction: options.direction });
   if (options.search?.trim()) params.set("search", options.search.trim());
   if (options.role && options.role !== "all") params.set("role", options.role);
   if (options.status && options.status !== "all") params.set("status", options.status);
+  if (options.cursor) params.set("cursor", options.cursor);
   return getAdminApi<PortalPage<T>>(`/api/admin/${name}?${params.toString()}`);
 }
 export async function getFeedbackCount(score?: number) {

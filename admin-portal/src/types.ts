@@ -54,4 +54,4 @@ export type ModerationUser = Profile & { accountStatus?: AccountStatus; restrict
 
 export type SuperadminOverview = { users: ModerationUser[]; reports: ViolationReport[]; auditLogs: AuditLog[] };
 export type BasicDashboardCounts = { users: number; employers: number; taskers: number; tasks: number; activeTasks: number; completedTasks: number; paymentRecords: number; submittedPayments: number; pendingVerifications: number };
-export type PortalPage<T> = { items: T[]; page: number; pageSize: number; total: number; hasMore: boolean };
+export type PortalPage<T> = { items: T[]; page: number; pageSize: number; total?: number; hasMore: boolean; nextCursor?: string | null };
