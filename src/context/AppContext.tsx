@@ -31,6 +31,7 @@ import { workerCapabilities } from "../constants/capabilities";
 import { isValidMoneyAmount } from "../utils/numericInput";
 import { isValidScheduleDate } from "../domain/taskMarketplace";
 import { getTaskPostingErrors } from "../domain/taskPosting";
+import { isTaskPastApplicationDeadline } from "../domain/taskExpiry";
 import {
   markConversationMessagesRead,
   loadOlderMessages,
@@ -217,7 +218,14 @@ export function AppProvider({ children }: PropsWithChildren) {
         const canonicalApplicantIds = matches
           .filter((match) => match.acceptanceStatus === "Applied" || match.acceptanceStatus === "Accepted")
           .map((match) => match.workerId);
-        return matches.length ? { ...task, applicantIds: canonicalApplicantIds } : task;
+        // Normalize expiry once at the shared state boundary. Every worker
+        // discovery surface (Home, Job Board, map, and recommendations) then
+        // receives a closed task and cannot accidentally render it as open.
+        const normalizedTask = ["Finding Workers", "Applied"].includes(task.status)
+          && isTaskPastApplicationDeadline(task)
+          ? { ...task, status: "Expired" as const }
+          : task;
+        return matches.length ? { ...normalizedTask, applicantIds: canonicalApplicantIds } : normalizedTask;
       }),
     [taskMatches, taskSnapshots]
   );
