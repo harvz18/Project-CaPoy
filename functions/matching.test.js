@@ -121,6 +121,16 @@ test("saved service areas stay eligible while live device readings are reserved 
   assert.equal(scoreWorkerForTask(task({ expiresAt: now }), worker(), Date.parse(now)).eligible, false);
 });
 
+test("a past scheduled date excludes a task even when its stored cutoff is later", () => {
+  const result = scoreWorkerForTask(
+    task({ scheduleDate: "2026-09-28", applicationDeadlineAt: "2026-10-10T00:00:00.000Z" }),
+    worker(),
+    Date.parse(now)
+  );
+  assert.equal(result.eligible, false);
+  assert.match(result.reasons.join(" "), /Task has expired/);
+});
+
 test("legacy saved pins keep working until a worker saves a dedicated service area", () => {
   assert.equal(scoreWorkerForTask(task(), worker({ serviceAreaLatitude: undefined, serviceAreaLongitude: undefined, locationSource: "manual", locationAccuracyMeters: undefined }), Date.parse(now)).eligible, true);
 });

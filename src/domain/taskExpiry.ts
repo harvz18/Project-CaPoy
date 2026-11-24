@@ -13,15 +13,25 @@ function time(value: unknown) {
 /** The last instant a task can receive a new application. */
 export function getApplicationDeadline(task: Pick<Task, "applicationDeadlineAt" | "expiresAt" | "scheduleMode" | "scheduleStart" | "scheduleDate">) {
   const explicit = time(task.applicationDeadlineAt);
-  if (explicit !== undefined) return explicit;
   const listingExpiry = time(task.expiresAt);
   const scheduledStart = task.scheduleMode !== "anytime" ? time(task.scheduleStart) : undefined;
-  // An anytime task has no time of day. It remains open through its selected
-  // Manila date, then closes immediately after that date ends.
-  const anytimeDateEnd = task.scheduleMode === "anytime" && /^\d{4}-\d{2}-\d{2}$/.test(task.scheduleDate ?? "")
+  // A date-only task remains open through its selected Manila date. Check the
+  // date even on legacy records that were saved before scheduleMode existed.
+  const scheduledDateEnd = /^\d{4}-\d{2}-\d{2}$/.test(task.scheduleDate ?? "")
     ? time(`${task.scheduleDate}T23:59:59.999${MANILA_OFFSET}`)
     : undefined;
-  return [listingExpiry, scheduledStart, anytimeDateEnd].filter((value): value is number => value !== undefined).reduce<number | undefined>((earliest, value) => earliest === undefined ? value : Math.min(earliest, value), undefined);
+  const scheduledDeadline = [scheduledStart, scheduledDateEnd]
+    .filter((value): value is number => value !== undefined)
+    .reduce<number | undefined>((earliest, value) => earliest === undefined ? value : Math.min(earliest, value), undefined);
+
+  // A task's live schedule is authoritative. Older records can carry a stale
+  // applicationDeadlineAt from before the schedule was edited, so it must not
+  // keep a past-due scheduled task visible on the job board.
+  const candidates = scheduledDeadline === undefined
+    ? [explicit, listingExpiry]
+    : [scheduledDeadline, listingExpiry];
+  return candidates.filter((value): value is number => value !== undefined)
+    .reduce<number | undefined>((earliest, value) => earliest === undefined ? value : Math.min(earliest, value), undefined);
 }
 
 export function isTaskPastApplicationDeadline(task: Pick<Task, "applicationDeadlineAt" | "expiresAt" | "scheduleMode" | "scheduleStart" | "scheduleDate">, now = Date.now()) {

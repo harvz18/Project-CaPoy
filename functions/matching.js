@@ -20,13 +20,19 @@ function taskApplicationDeadline(task) {
     return Number.isFinite(parsed) ? parsed : undefined;
   };
   const explicit = parse(task.applicationDeadlineAt);
-  if (explicit !== undefined) return explicit;
   const listingExpiry = parse(task.expiresAt);
   const scheduledStart = task.scheduleMode !== "anytime" ? parse(task.scheduleStart) : undefined;
-  const anytimeEnd = task.scheduleMode === "anytime" && /^\d{4}-\d{2}-\d{2}$/.test(task.scheduleDate || "")
+  const scheduledDateEnd = /^\d{4}-\d{2}-\d{2}$/.test(task.scheduleDate || "")
     ? parse(`${task.scheduleDate}T23:59:59.999+08:00`)
     : undefined;
-  return [listingExpiry, scheduledStart, anytimeEnd].filter((value) => value !== undefined).reduce((earliest, value) => earliest === undefined ? value : Math.min(earliest, value), undefined);
+  const scheduledDeadline = [scheduledStart, scheduledDateEnd]
+    .filter((value) => value !== undefined)
+    .reduce((earliest, value) => earliest === undefined ? value : Math.min(earliest, value), undefined);
+  const candidates = scheduledDeadline === undefined
+    ? [explicit, listingExpiry]
+    : [scheduledDeadline, listingExpiry];
+  return candidates.filter((value) => value !== undefined)
+    .reduce((earliest, value) => earliest === undefined ? value : Math.min(earliest, value), undefined);
 }
 
 function distanceKm(fromLatitude, fromLongitude, toLatitude, toLongitude) {
